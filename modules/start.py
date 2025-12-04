@@ -26,7 +26,7 @@ HELP = {
 def setup(app: Client):
     """Setup function called by loader"""
     
-    @app.on_message(filters.command("start", Config.CMD_PREFIX) & filters.private)
+    @app.on_message(filters.command("start", config.CMD_PREFIX) & filters.private)
     async def start_private(client: Client, message: Message):
         """Handle /start command in private chat"""
         user = message.from_user
