@@ -260,7 +260,7 @@ async def bot_stats_cmd(client: Client, message: Message):
 
     # Count total waifus in collections
     pipeline = [
-        {"$project": {"collection_size": {"$size": {"$ifNull": ["$collection", []]}}}}},
+        {"$project": {"collection_size": {"$size": {"$ifNull": ["$collection", []]}}}}
         {"$group": {"_id": None, "total": {"$sum": "$collection_size"}}}
     ]
     try:
@@ -271,7 +271,7 @@ async def bot_stats_cmd(client: Client, message: Message):
 
     # Count total coins
     pipeline2 = [
-        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$coins", 0]}}}}}
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$coins", 0]}}}}
     ]
     try:
         result2 = list(db.users.aggregate(pipeline2))
