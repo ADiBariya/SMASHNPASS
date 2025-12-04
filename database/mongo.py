@@ -8,7 +8,7 @@ import config
 
 class Database:
     def __init__(self):
-        self.client = MongoClient(Config.MONGO_URI)
+        self.client = MongoClient(config.MONGO_URI)
         self.db = self.client[Config.DB_NAME]
         
         # Collections
