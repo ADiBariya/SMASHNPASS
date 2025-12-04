@@ -9,7 +9,7 @@ from pyrogram.types import (
 )
 from database import db
 from helpers import Utils
-from config import Config
+import config
 
 # Help data for this module
 HELP = {
