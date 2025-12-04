@@ -260,8 +260,8 @@ async def bot_stats_cmd(client: Client, message: Message):
 
     # Count total waifus in collections
     pipeline = [
-        {"$project": {"collection_size": {"$size": {"$ifNull": ["$collection", []]}}}}
-        {"$group": {"_id": None, "total": {"$sum": "$collection_size"}}}
+         {"$project": {"collection_size": {"$size": {"$ifNull": ["$collection", []]}}}},
+         {"$group": {"_id": None, "total": {"$sum": "$collection_size"}}}
     ]
     try:
         result = list(db.users.aggregate(pipeline))
