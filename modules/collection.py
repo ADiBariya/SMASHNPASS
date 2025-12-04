@@ -9,7 +9,7 @@ from pyrogram.types import (
 )
 from database import db
 from helpers import get_waifu_manager, Utils
-from config import Config
+import config
 
 # Help data for this module
 HELP = {
@@ -65,7 +65,7 @@ def setup(app: Client):
             text = """
 📦 **Your Collection**
 
-Your collection is empty! 😢
+Your collection is empty!
 
 Use /smash to start collecting waifus!
 """
