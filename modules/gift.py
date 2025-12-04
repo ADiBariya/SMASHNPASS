@@ -85,11 +85,12 @@ async def gift_cmd(client: Client, message: Message):
         ])
 
         return await message.reply_text(
-            f"🎁 **Confirm Coin Gift**\n\n"
-            f"**To:** {target.mention}\n"
-            f"**Amount:** {amount:,} coins\n\n"
-            f"Confirm?",
-            reply_markup=buttons
+             f"🎁 **Confirm Coin Gift**\n\n"
+             f"**To:** [{target.first_name}](tg://user?id={target.id})\n"
+             f"**Amount:** {amount:,} coins\n\n"
+             "Confirm?",
+             reply_markup=buttons,
+             parse_mode="markdown"
         )
 
     # =============================================================
@@ -119,14 +120,14 @@ async def gift_cmd(client: Client, message: Message):
 
     await message.reply_text(
         f"🎁 **Confirm Waifu Gift**\n\n"
-        f"**To:** {target.mention}\n\n"
+        f"**To:** [{target.first_name}](tg://user?id={target.id})\n\n"
         f"{emoji} **{waifu['name']}**\n"
         f"📺 {waifu.get('anime')}\n"
         f"⭐ {waifu.get('rarity')}\n\n"
         f"⚠️ This action cannot be undone!",
-        reply_markup=buttons
+        reply_markup=buttons,
+        parse_mode="markdown"
     )
-
 
 # =============================================================
 #  COIN GIFT CALLBACK (CONFIRM)
