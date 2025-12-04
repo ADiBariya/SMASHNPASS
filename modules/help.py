@@ -7,7 +7,7 @@ from pyrogram.types import (
     InlineKeyboardButton,
     CallbackQuery
 )
-from config import Config
+import config
 
 # Help data for this module
 HELP = {
