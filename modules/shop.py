@@ -6,6 +6,7 @@ from config import COMMAND_PREFIX
 from datetime import datetime
 import random
 import asyncio
+import inspect
 
 __MODULE__ = "Shop"
 __HELP__ = """
@@ -87,13 +88,29 @@ SPECIAL_ITEMS = {
 }
 
 
+# ---------- Helper to safely await sync or async DB calls ----------
+async def maybe_await(value):
+    """
+    If `value` is awaitable/coroutine, await and return it.
+    Otherwise, return value directly.
+    This lets the same code work whether db methods are sync or async.
+    """
+    if inspect.isawaitable(value):
+        return await value
+    return value
+# ------------------------------------------------------------------
+
+
 @Client.on_message(filters.command(["shop", "store", "market"], prefixes=COMMAND_PREFIX))
 async def shop_cmd(client: Client, message: Message):
     """Open the shop"""
     user_id = message.from_user.id
-    user_data = await db.get_user(user_id)
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        # Create or fallback if DB returned None
+        user_data = await maybe_await(db.get_or_create_user(user_id, message.from_user.username, message.from_user.first_name))
     coins = user_data.get("coins", 0)
-    
+
     text = f"""
 🏪 **WAIFU SHOP**
 
@@ -103,21 +120,21 @@ async def shop_cmd(client: Client, message: Message):
 📦 **LOOT BOXES**
 ━━━━━━━━━━━━━━━━━━━━
 """
-    
+
     for item_id, item in SHOP_ITEMS.items():
         can_afford = "✅" if coins >= item["price"] else "❌"
         text += f"\n{item['emoji']} **{item['name']}** - {item['price']:,} coins {can_afford}"
         text += f"\n   └ {item['description']}"
-    
+
     text += "\n\n━━━━━━━━━━━━━━━━━━━━"
     text += "\n🎯 **SPECIAL ITEMS**"
     text += "\n━━━━━━━━━━━━━━━━━━━━"
-    
+
     for item_id, item in SPECIAL_ITEMS.items():
         can_afford = "✅" if coins >= item["price"] else "❌"
         text += f"\n{item['emoji']} **{item['name']}** - {item['price']:,} coins {can_afford}"
         text += f"\n   └ {item['description']}"
-    
+
     # Create buttons
     buttons = [
         [
@@ -140,7 +157,7 @@ async def shop_cmd(client: Client, message: Message):
             InlineKeyboardButton("📦 Inventory", callback_data="shop_inventory")
         ]
     ]
-    
+
     await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 
@@ -149,7 +166,7 @@ async def shop_buy_callback(client: Client, callback: CallbackQuery):
     """Handle shop purchases"""
     user_id = callback.from_user.id
     item_id = callback.matches[0].group(1)
-    
+
     # Check if it's a box or special item
     if item_id in SHOP_ITEMS:
         item = SHOP_ITEMS[item_id]
@@ -159,17 +176,19 @@ async def shop_buy_callback(client: Client, callback: CallbackQuery):
         is_box = False
     else:
         return await callback.answer("❌ Item not found!", show_alert=True)
-    
+
     # Check balance
-    user_data = await db.get_user(user_id)
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        user_data = await maybe_await(db.get_or_create_user(user_id, callback.from_user.username, callback.from_user.first_name))
     coins = user_data.get("coins", 0)
-    
+
     if coins < item["price"]:
         return await callback.answer(
             f"❌ Not enough coins!\n\nYou need: {item['price']:,}\nYou have: {coins:,}",
             show_alert=True
         )
-    
+
     if is_box:
         # Open loot box
         await open_loot_box(callback, item_id, item)
@@ -181,43 +200,47 @@ async def shop_buy_callback(client: Client, callback: CallbackQuery):
 async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
     """Open a loot box and give waifu"""
     user_id = callback.from_user.id
-    
-    # Deduct coins
-    await db.update_coins(user_id, -item["price"])
-    
+
+    # Deduct coins (works for sync or async implementations)
+    await maybe_await(db.update_coins(user_id, -item["price"]))
+
     # Show opening animation
-    await callback.message.edit_text(
-        f"{item['emoji']} **Opening {item['name']}...**\n\n"
-        f"🎰 Rolling..."
-    )
-    
+    try:
+        await callback.message.edit_text(
+            f"{item['emoji']} **Opening {item['name']}...**\n\n"
+            f"🎰 Rolling..."
+        )
+    except Exception:
+        # fallback if edit fails (e.g., message gone)
+        pass
+
     await asyncio.sleep(1)
-    
+
     # Select rarity
     selected_rarity = random.choices(
         item["rarities"],
         weights=item["weights"]
     )[0]
-    
+
     # Get waifu of that rarity
     waifus = load_waifus()
     rarity_waifus = [w for w in waifus if w.get("rarity") == selected_rarity]
-    
+
     if not rarity_waifus:
         rarity_waifus = waifus
-    
+
     waifu = random.choice(rarity_waifus)
-    
+
     # Add to collection
     waifu_copy = waifu.copy()
     waifu_copy["obtained_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     waifu_copy["obtained_from"] = f"shop_{item_id}"
-    
-    await db.add_to_collection(user_id, waifu_copy)
-    
+
+    await maybe_await(db.add_to_collection(user_id, waifu_copy))
+
     emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
     value = get_rarity_value(waifu.get("rarity", "Common"))
-    
+
     text = f"""
 🎉 **{item['name']} OPENED!**
 
@@ -231,39 +254,57 @@ async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
 
 ✅ Added to your collection!
 """
-    
+
     buttons = [
         [
             InlineKeyboardButton("🎰 Open Another", callback_data=f"shop_buy_{item_id}"),
             InlineKeyboardButton("🔙 Back to Shop", callback_data="shop_refresh")
         ]
     ]
-    
+
     if waifu.get("image"):
-        await callback.message.delete()
-        await callback.message.answer_photo(
-            photo=waifu["image"],
-            caption=text,
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        # try to delete the old message if possible, then send photo
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+
+        try:
+            await callback.message.answer_photo(
+                photo=waifu["image"],
+                caption=text,
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+        except Exception:
+            # fallback to text if photo send fails
+            try:
+                await callback.message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+            except Exception:
+                pass
     else:
-        await callback.message.edit_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-    
+        try:
+            await callback.message.edit_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+        except Exception:
+            try:
+                await callback.message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+            except Exception:
+                pass
+
     await callback.answer(f"🎉 You got {waifu['name']}!")
 
 
 async def buy_special_item(callback: CallbackQuery, item_id: str, item: dict):
     """Buy a special item"""
     user_id = callback.from_user.id
-    
+
     # Deduct coins
-    await db.update_coins(user_id, -item["price"])
-    
-    # Add item to inventory
-    await db.users.update_one(
+    await maybe_await(db.update_coins(user_id, -item["price"]))
+
+    # Add item to inventory (works whether db.users is motor collection or pymongo)
+    await maybe_await(db.users.update_one(
         {"user_id": user_id},
         {
             "$push": {
@@ -275,9 +316,10 @@ async def buy_special_item(callback: CallbackQuery, item_id: str, item: dict):
                     "used": False
                 }
             }
-        }
-    )
-    
+        },
+        upsert=True
+    ))
+
     text = f"""
 ✅ **Purchase Successful!**
 
@@ -287,15 +329,22 @@ async def buy_special_item(callback: CallbackQuery, item_id: str, item: dict):
 📦 Item added to your inventory!
 Use `.inventory` to view and activate.
 """
-    
+
     buttons = [
         [
             InlineKeyboardButton("📦 Inventory", callback_data="shop_inventory"),
             InlineKeyboardButton("🔙 Back to Shop", callback_data="shop_refresh")
         ]
     ]
-    
-    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    try:
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    except Exception:
+        try:
+            await callback.message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        except Exception:
+            pass
+
     await callback.answer("✅ Purchased!")
 
 
@@ -303,9 +352,11 @@ Use `.inventory` to view and activate.
 async def shop_refresh_callback(client: Client, callback: CallbackQuery):
     """Refresh shop"""
     user_id = callback.from_user.id
-    user_data = await db.get_user(user_id)
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        user_data = await maybe_await(db.get_or_create_user(user_id, callback.from_user.username, callback.from_user.first_name))
     coins = user_data.get("coins", 0)
-    
+
     text = f"""
 🏪 **WAIFU SHOP**
 
@@ -315,11 +366,11 @@ async def shop_refresh_callback(client: Client, callback: CallbackQuery):
 📦 **LOOT BOXES**
 ━━━━━━━━━━━━━━━━━━━━
 """
-    
+
     for item_id, item in SHOP_ITEMS.items():
         can_afford = "✅" if coins >= item["price"] else "❌"
         text += f"\n{item['emoji']} **{item['name']}** - {item['price']:,} coins {can_afford}"
-    
+
     buttons = [
         [
             InlineKeyboardButton("📦 Common (100)", callback_data="shop_buy_common_box"),
@@ -333,8 +384,15 @@ async def shop_refresh_callback(client: Client, callback: CallbackQuery):
             InlineKeyboardButton("🌟 Premium (10k)", callback_data="shop_buy_premium_box")
         ]
     ]
-    
-    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    try:
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    except Exception:
+        try:
+            await callback.message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        except Exception:
+            pass
+
     await callback.answer("🔄 Refreshed!")
 
 
@@ -342,21 +400,30 @@ async def shop_refresh_callback(client: Client, callback: CallbackQuery):
 async def shop_inventory_callback(client: Client, callback: CallbackQuery):
     """View inventory"""
     user_id = callback.from_user.id
-    user_data = await db.get_user(user_id)
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        user_data = await maybe_await(db.get_or_create_user(user_id, callback.from_user.username, callback.from_user.first_name))
     inventory = user_data.get("inventory", [])
-    
+
     unused_items = [i for i in inventory if not i.get("used", False)]
-    
+
     if not unused_items:
         text = "📦 **Your Inventory**\n\n📭 Empty! Buy items from the shop."
     else:
         text = "📦 **Your Inventory**\n\n"
         for i, item in enumerate(unused_items):
             text += f"{item['emoji']} **{item['name']}**\n"
-    
+
     buttons = [[InlineKeyboardButton("🔙 Back to Shop", callback_data="shop_refresh")]]
-    
-    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    try:
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    except Exception:
+        try:
+            await callback.message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        except Exception:
+            pass
+
     await callback.answer()
 
 
@@ -364,12 +431,14 @@ async def shop_inventory_callback(client: Client, callback: CallbackQuery):
 async def balance_cmd(client: Client, message: Message):
     """Check coin balance"""
     user_id = message.from_user.id
-    user_data = await db.get_user(user_id)
-    
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        user_data = await maybe_await(db.get_or_create_user(user_id, message.from_user.username, message.from_user.first_name))
+
     coins = user_data.get("coins", 0)
     total_earned = user_data.get("total_earned", 0)
     total_spent = user_data.get("total_spent", 0)
-    
+
     text = f"""
 💰 **Your Wallet**
 
@@ -380,14 +449,14 @@ async def balance_cmd(client: Client, message: Message):
 📈 **Total Earned:** {total_earned:,}
 📉 **Total Spent:** {total_spent:,}
 """
-    
+
     buttons = [
         [
             InlineKeyboardButton("🏪 Shop", callback_data="shop_refresh"),
             InlineKeyboardButton("📅 Daily", callback_data="claim_daily")
         ]
     ]
-    
+
     await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 
@@ -404,9 +473,9 @@ async def buy_cmd(client: Client, message: Message):
             "• `legendary_box` - 5000 coins\n"
             "• `premium_box` - 10000 coins"
         )
-    
+
     item_id = message.command[1].lower().replace(" ", "_")
-    
+
     # Normalize item names
     item_aliases = {
         "common": "common_box",
@@ -416,19 +485,21 @@ async def buy_cmd(client: Client, message: Message):
         "legend": "legendary_box",
         "premium": "premium_box"
     }
-    
+
     item_id = item_aliases.get(item_id, item_id)
-    
+
     if item_id not in SHOP_ITEMS and item_id not in SPECIAL_ITEMS:
         return await message.reply_text("❌ Item not found! Use `.shop` to see available items.")
-    
+
     # Check balance
     user_id = message.from_user.id
-    user_data = await db.get_user(user_id)
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        user_data = await maybe_await(db.get_or_create_user(user_id, message.from_user.username, message.from_user.first_name))
     coins = user_data.get("coins", 0)
-    
+
     item = SHOP_ITEMS.get(item_id) or SPECIAL_ITEMS.get(item_id)
-    
+
     if coins < item["price"]:
         return await message.reply_text(
             f"❌ **Not enough coins!**\n\n"
@@ -437,7 +508,7 @@ async def buy_cmd(client: Client, message: Message):
             f"**Your balance:** {coins:,}\n"
             f"**Need:** {item['price'] - coins:,} more"
         )
-    
+
     # Confirm purchase
     buttons = [
         [
@@ -445,7 +516,7 @@ async def buy_cmd(client: Client, message: Message):
             InlineKeyboardButton("❌ Cancel", callback_data="shop_refresh")
         ]
     ]
-    
+
     await message.reply_text(
         f"🛒 **Confirm Purchase**\n\n"
         f"{item['emoji']} **{item['name']}**\n"
@@ -460,25 +531,27 @@ async def buy_cmd(client: Client, message: Message):
 async def inventory_cmd(client: Client, message: Message):
     """View inventory"""
     user_id = message.from_user.id
-    user_data = await db.get_user(user_id)
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        user_data = await maybe_await(db.get_or_create_user(user_id, message.from_user.username, message.from_user.first_name))
     inventory = user_data.get("inventory", [])
-    
+
     unused_items = [i for i in inventory if not i.get("used", False)]
-    
+
     if not unused_items:
         return await message.reply_text(
             "📦 **Your Inventory**\n\n"
             "📭 Empty!\n\n"
             "Use `.shop` to buy items."
         )
-    
+
     text = "📦 **Your Inventory**\n\n"
-    
+
     for i, item in enumerate(unused_items, 1):
         text += f"**{i}.** {item['emoji']} {item['name']}\n"
-    
+
     text += f"\n📊 **Total Items:** {len(unused_items)}"
-    
+
     await message.reply_text(text)
 
 
@@ -487,39 +560,41 @@ async def sell_cmd(client: Client, message: Message):
     """Sell a waifu"""
     if len(message.command) < 2:
         return await message.reply_text("❌ **Usage:** `.sell <waifu_id>`")
-    
+
     try:
         waifu_id = int(message.command[1])
     except ValueError:
         return await message.reply_text("❌ Invalid waifu ID!")
-    
+
     user_id = message.from_user.id
-    user_data = await db.get_user(user_id)
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        user_data = await maybe_await(db.get_or_create_user(user_id, message.from_user.username, message.from_user.first_name))
     collection = user_data.get("collection", [])
-    
+
     # Find waifu
     waifu = None
     for w in collection:
         if w.get("id") == waifu_id:
             waifu = w
             break
-    
+
     if not waifu:
         return await message.reply_text("❌ You don't own this waifu!")
-    
+
     # Calculate sell price (50% of value)
     value = get_rarity_value(waifu.get("rarity", "Common"))
     sell_price = value // 2
-    
+
     buttons = [
         [
             InlineKeyboardButton("✅ Sell", callback_data=f"confirm_sell_{waifu_id}_{sell_price}"),
             InlineKeyboardButton("❌ Cancel", callback_data="cancel_action")
         ]
     ]
-    
+
     emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
-    
+
     await message.reply_text(
         f"💰 **Sell Waifu?**\n\n"
         f"{emoji} **{waifu['name']}**\n"
@@ -538,41 +613,62 @@ async def confirm_sell_callback(client: Client, callback: CallbackQuery):
     user_id = callback.from_user.id
     waifu_id = int(callback.matches[0].group(1))
     sell_price = int(callback.matches[0].group(2))
-    
+
     # Check ownership
-    user_data = await db.get_user(user_id)
+    user_data = await maybe_await(db.get_user(user_id))
+    if not user_data:
+        return await callback.answer("❌ User not found!", show_alert=True)
     collection = user_data.get("collection", [])
-    
+
     waifu = None
     for w in collection:
         if w.get("id") == waifu_id:
             waifu = w
             break
-    
+
     if not waifu:
         return await callback.answer("❌ Waifu not found!", show_alert=True)
-    
+
     # Remove and add coins
-    await db.remove_from_collection(user_id, waifu_id)
-    await db.update_coins(user_id, sell_price)
-    
-    # Track spending
-    await db.users.update_one(
+    await maybe_await(db.remove_from_collection(user_id, waifu_id))
+    await maybe_await(db.update_coins(user_id, sell_price))
+
+    # Track spending (use maybe_await for sync/async)
+    await maybe_await(db.users.update_one(
         {"user_id": user_id},
-        {"$inc": {"total_earned": sell_price}}
-    )
-    
-    await callback.message.edit_text(
-        f"✅ **Waifu Sold!**\n\n"
-        f"**Sold:** {waifu['name']}\n"
-        f"**Received:** {sell_price:,} coins\n\n"
-        f"💰 Coins added to your balance!"
-    )
+        {"$inc": {"total_earned": sell_price}},
+        upsert=True
+    ))
+
+    try:
+        await callback.message.edit_text(
+            f"✅ **Waifu Sold!**\n\n"
+            f"**Sold:** {waifu['name']}\n"
+            f"**Received:** {sell_price:,} coins\n\n"
+            f"💰 Coins added to your balance!"
+        )
+    except Exception:
+        try:
+            await callback.message.reply_text(
+                f"✅ **Waifu Sold!**\n\n"
+                f"**Sold:** {waifu['name']}\n"
+                f"**Received:** {sell_price:,} coins\n\n"
+                f"💰 Coins added to your balance!"
+            )
+        except Exception:
+            pass
+
     await callback.answer("✅ Sold!")
 
 
 @Client.on_callback_query(filters.regex("^cancel_action$"))
 async def cancel_action_callback(client: Client, callback: CallbackQuery):
     """Cancel any action"""
-    await callback.message.edit_text("❌ Action cancelled.")
+    try:
+        await callback.message.edit_text("❌ Action cancelled.")
+    except Exception:
+        try:
+            await callback.message.reply_text("❌ Action cancelled.")
+        except Exception:
+            pass
     await callback.answer()
