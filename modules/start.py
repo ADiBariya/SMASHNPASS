@@ -8,7 +8,7 @@ from pyrogram.types import (
     CallbackQuery
 )
 from database import db
-from config import Config
+import config
 
 # Help data for this module
 HELP = {
