@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "name": "Akari",
+    "image": "https://i.imgur.com/placeholder1.jpg",
+    "desc": "Bright and cheerful schoolgirl.",
+    "rarity": "common"
+  },
+  {
+    "id": 2,
+    "name": "Hikari",
+    "image": "https://i.imgur.com/placeholder2.jpg",
+    "desc": "Stoic swordswoman.",
+    "rarity": "rare"
+  },
+  {
+    "id": 3,
+    "name": "Yui",
+    "image": "https://i.imgur.com/placeholder3.jpg",
+    "desc": "Shy bookworm.",
+    "rarity": "uncommon"
+  }
+]

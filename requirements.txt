@@ -1,0 +1,13 @@
+pyrofork
+TgCrypto
+motor
+dnspython
+pymongo
+aiohttp
+aiofiles
+python-dotenv
+python-dateutil
+pytz
+cachetools
+colorlog
+rich
