@@ -20,6 +20,18 @@ __HELP__ = """
 `.rename <name>` - Set display name
 """
 
+# ---------- SAFE MARKDOWN ESCAPE ----------
+def md_escape(text: str):
+    if not isinstance(text, str):
+        return text
+    return (
+        text.replace("_", "\\_")
+            .replace("*", "\\*")
+            .replace("[", "\\[")
+            .replace("]", "\\]")
+            .replace("`", "\\`")
+    )
+
 
 # ------------------ PROFILE COMMAND ------------------ #
 
@@ -31,13 +43,12 @@ async def profile_cmd(client: Client, message: Message):
         target = message.reply_to_message.from_user
     elif len(message.command) > 1:
         try:
-            target = client.get_users(message.command[1])
+            target = await client.get_users(message.command[1])   # FIXED (missing await)
         except:
             return await message.reply_text("❌ User not found!")
     else:
         target = message.from_user
 
-    # DB SYNC CALL
     user_data = db.get_user(target.id)
     collection = user_data.get("collection", [])
 
@@ -51,13 +62,12 @@ async def profile_cmd(client: Client, message: Message):
         rarity = waifu.get("rarity", "Common")
         rarity_count[rarity] = rarity_count.get(rarity, 0) + 1
 
-    # GLOBAL RANK (SYNC)
+    # GLOBAL RANK
     all_users = list(db.users.find({}))
     sorted_users = sorted(all_users, key=lambda x: len(x.get("collection", [])), reverse=True)
     rank = next((i + 1 for i, u in enumerate(sorted_users) if u["user_id"] == target.id), "N/A")
 
-    # Profile fields
-    display_name = user_data.get("display_name", target.first_name)
+    display_name = md_escape(user_data.get("display_name", target.first_name))
     coins = user_data.get("coins", 0)
     wins = user_data.get("wins", 0)
     losses = user_data.get("losses", 0)
@@ -108,7 +118,7 @@ async def profile_cmd(client: Client, message: Message):
         ]
     ]
 
-    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
 
 
 # ------------------ COLLECTION ------------------ #
@@ -120,7 +130,7 @@ async def collection_cmd(client: Client, message: Message):
         target = message.reply_to_message.from_user
     elif len(message.command) > 1:
         try:
-            target = client.get_users(message.command[1])
+            target = await client.get_users(message.command[1])   # FIXED
         except:
             return await message.reply_text("❌ User not found!")
     else:
@@ -152,13 +162,15 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
     text = f"📦 **Waifu Collection** (Page {page}/{total_pages})\n\n"
 
     for waifu in page_items:
+        safe_name = md_escape(waifu["name"])
+        safe_anime = md_escape(waifu.get("anime", "Unknown"))
         emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
-        text += f"{emoji} **{waifu['name']}** [ID: {waifu['id']}]\n"
-        text += f"   └ {waifu.get('anime', 'Unknown')}\n"
+
+        text += f"{emoji} **{safe_name}** [ID: {waifu['id']}]\n"
+        text += f"   └ {safe_anime}\n"
 
     text += f"\n📊 Total: {len(collection)} waifus"
 
-    # Buttons
     buttons = []
     row = []
 
@@ -170,7 +182,6 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
     if row:
         buttons.append(row)
 
-    # Rarity filter
     buttons.append([
         InlineKeyboardButton("🌟 Legendary", callback_data=f"colfilter_{user_id}_Legendary"),
         InlineKeyboardButton("💜 Epic", callback_data=f"colfilter_{user_id}_Epic")
@@ -183,9 +194,9 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
     markup = InlineKeyboardMarkup(buttons)
 
     if isinstance(msg_or_cb, Message):
-        await msg_or_cb.reply_text(text, reply_markup=markup)
+        await msg_or_cb.reply_text(text, reply_markup=markup, parse_mode="markdown")
     else:
-        await msg_or_cb.message.edit_text(text, reply_markup=markup)
+        await msg_or_cb.message.edit_text(text, reply_markup=markup, parse_mode="markdown")
         await msg_or_cb.answer()
 
 
@@ -195,7 +206,6 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
 async def cb_collection_page(client, cb):
     user_id = int(cb.matches[0].group(1))
     page = int(cb.matches[0].group(2))
-
     await show_collection_page(cb, user_id, page)
     await cb.answer()
 
@@ -217,14 +227,16 @@ async def cb_collection_filter(client, cb):
 
     text = f"📦 **{rarity} Waifus** ({len(filtered)})\n\n"
     for waifu in filtered[:15]:
-        text += f"{emoji} **{waifu['name']}** [ID: {waifu['id']}]\n"
+        safe_name = md_escape(waifu["name"])
+        text += f"{emoji} **{safe_name}** [ID: {waifu['id']}]\n"
 
     if len(filtered) > 15:
         text += f"\n... and {len(filtered) - 15} more"
 
     await cb.message.edit_text(
         text,
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"col_{user_id}_1")]])
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"col_{user_id}_1")]]),
+        parse_mode="markdown"
     )
     await cb.answer()
 
@@ -253,25 +265,30 @@ async def waifu_info_cmd(client, message):
     emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
     value = waifu.get("value", 100)
 
-    text = f"""
-{emoji} **{waifu['name']}**
+    safe_name = md_escape(waifu["name"])
+    safe_anime = md_escape(waifu.get("anime", "Unknown"))
 
-📺 **Anime:** {waifu.get('anime', 'Unknown')}
+    text = f"""
+{emoji} **{safe_name}**
+
+📺 **Anime:** {safe_anime}
 ⭐ **Rarity:** {waifu.get('rarity', 'Common')}
 💰 **Value:** {value:,} coins
 🆔 **ID:** {waifu['id']}
 📅 **Obtained:** {waifu.get('obtained_at', 'Unknown')}
 """
 
-    buttons = [[
-        InlineKeyboardButton("🎁 Gift", callback_data=f"giftsel_{waifu_id}"),
-        InlineKeyboardButton("💰 Sell", callback_data=f"sell_{waifu_id}")
-    ]]
+    buttons = [
+        [
+            InlineKeyboardButton("🎁 Gift", callback_data=f"giftsel_{waifu_id}"),
+            InlineKeyboardButton("💰 Sell", callback_data=f"sell_{waifu_id}")
+        ]
+    ]
 
     if waifu.get("image"):
-        await message.reply_photo(waifu["image"], caption=text, reply_markup=InlineKeyboardMarkup(buttons))
+        await message.reply_photo(waifu["image"], caption=text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
     else:
-        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
 
 
 # ------------------ STATS ------------------ #
@@ -313,7 +330,7 @@ async def stats_cmd(client, message):
 📉 Spent: {total_spent:,}
 """
 
-    await message.reply_text(text)
+    await message.reply_text(text, parse_mode="markdown")
 
 
 # ------------------ LEADERBOARD ------------------ #
@@ -330,16 +347,18 @@ async def leaderboard_cmd(client, message):
 
     for i, user in enumerate(sorted_users):
         medal = medals[i] if i < 3 else f"{i + 1}."
-        name = user.get("display_name", f"User_{user['user_id']}")
+        name = md_escape(user.get("display_name", f"User_{user['user_id']}"))
         count = len(user.get("collection", []))
         text += f"{medal} {name} — **{count}** waifus\n"
 
-    buttons = [[
-        InlineKeyboardButton("💰 Coins LB", callback_data="lb_coins"),
-        InlineKeyboardButton("🎮 Wins LB", callback_data="lb_wins")
-    ]]
+    buttons = [
+        [
+            InlineKeyboardButton("💰 Coins LB", callback_data="lb_coins"),
+            InlineKeyboardButton("🎮 Wins LB", callback_data="lb_wins")
+        ]
+    ]
 
-    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
 
 
 # ------------------ CALLBACK (LB TYPES) ------------------ #
@@ -366,13 +385,13 @@ async def leaderboard_type_callback(client, cb):
 
     for i, user in enumerate(sorted_users):
         medal = medals[i] if i < 3 else f"{i + 1}."
-        name = user.get("display_name", f"User_{user['user_id']}")
+        name = md_escape(user.get("display_name", f"User_{user['user_id']}"))
         value = user.get(field, 0)
         text += f"{medal} {name} — **{value:,}** {suffix}\n"
 
     buttons = [[InlineKeyboardButton("🔙 Back", callback_data="lb_collection")]]
 
-    await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
     await cb.answer()
 
 
@@ -385,7 +404,6 @@ async def rename_cmd(client, message):
         return await message.reply_text("❌ **Usage:** `.rename <new_name>`")
 
     new_name = " ".join(message.command[1:])
-
     if not (2 <= len(new_name) <= 30):
         return await message.reply_text("❌ Name must be 2–30 characters.")
 
@@ -394,4 +412,5 @@ async def rename_cmd(client, message):
         {"$set": {"display_name": new_name}}
     )
 
-    await message.reply_text(f"✅ Display name changed to: **{new_name}**")
+    safe = md_escape(new_name)
+    await message.reply_text(f"✅ Display name changed to: **{safe}**", parse_mode="markdown")
