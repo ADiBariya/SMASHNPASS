@@ -246,3 +246,172 @@ class Utils:
     def mention_user(user_id: int, name: str) -> str:
         """Create a user mention"""
         return f"[{name}](tg://user?id={user_id})"
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  🔥 STANDALONE WRAPPER FUNCTIONS (For Direct Import)
+# ═══════════════════════════════════════════════════════════════════
+
+# Global instance
+_waifu_manager = None
+
+def _get_manager() -> WaifuManager:
+    """Get or create WaifuManager instance"""
+    global _waifu_manager
+    if _waifu_manager is None:
+        _waifu_manager = WaifuManager()
+    return _waifu_manager
+
+
+def load_waifus() -> List[Dict]:
+    """Load and return all waifus from JSON"""
+    wm = _get_manager()
+    return wm.get_all_waifus()
+
+
+def save_waifus(waifus: List[Dict]):
+    """Save waifus to JSON file"""
+    wm = _get_manager()
+    wm.waifus = waifus
+    wm._save_waifus()
+
+
+def get_random_waifu() -> Optional[Dict]:
+    """Get a random waifu based on rarity weights"""
+    wm = _get_manager()
+    return wm.get_random_waifu()
+
+
+def get_waifu_by_id(waifu_id: int) -> Optional[Dict]:
+    """Get waifu by ID"""
+    wm = _get_manager()
+    return wm.get_waifu_by_id(waifu_id)
+
+
+def get_waifu_by_name(name: str) -> Optional[Dict]:
+    """Get waifu by name"""
+    wm = _get_manager()
+    return wm.get_waifu_by_name(name)
+
+
+def search_waifus(query: str) -> List[Dict]:
+    """Search waifus by name or anime"""
+    wm = _get_manager()
+    return wm.search_waifus(query)
+
+
+def get_waifus_by_rarity(rarity: str) -> List[Dict]:
+    """Get waifus by rarity"""
+    wm = _get_manager()
+    return wm.get_waifus_by_rarity(rarity)
+
+
+def get_waifus_by_anime(anime: str) -> List[Dict]:
+    """Get waifus by anime"""
+    wm = _get_manager()
+    return wm.get_waifus_by_anime(anime)
+
+
+def get_rarity_emoji(rarity: str) -> str:
+    """Get emoji for rarity"""
+    # Default emojis if manager not loaded
+    default_emojis = {
+        "common": "⚪",
+        "uncommon": "🟢",
+        "rare": "🔵",
+        "epic": "🟣",
+        "legendary": "🟡"
+    }
+    
+    wm = _get_manager()
+    emoji = wm.get_rarity_emoji(rarity)
+    
+    if emoji == "⚪" and rarity.lower() in default_emojis:
+        return default_emojis[rarity.lower()]
+    
+    return emoji
+
+
+def get_rarity_value(rarity: str) -> int:
+    """Get coin value for rarity"""
+    values = {
+        "common": 100,
+        "uncommon": 250,
+        "rare": 500,
+        "epic": 1000,
+        "legendary": 2500
+    }
+    return values.get(rarity.lower(), 100)
+
+
+def calculate_collection_value(collection: List[Dict]) -> int:
+    """Calculate total collection value"""
+    total = 0
+    for waifu in collection:
+        rarity = waifu.get("rarity") or waifu.get("waifu_rarity", "common")
+        total += get_rarity_value(rarity)
+    return total
+
+
+def reload_waifus():
+    """Reload waifus from JSON file"""
+    wm = _get_manager()
+    wm.reload_waifus()
+
+
+def add_waifu(waifu_data: Dict) -> bool:
+    """Add a new waifu"""
+    wm = _get_manager()
+    return wm.add_waifu(waifu_data)
+
+
+def get_total_waifus() -> int:
+    """Get total number of waifus"""
+    wm = _get_manager()
+    return wm.get_total_count()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  📦 UTILITY WRAPPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
+
+def format_number(num: int) -> str:
+    """Format number with commas"""
+    return Utils.format_number(num)
+
+
+def format_time(seconds: int) -> str:
+    """Format seconds to readable time"""
+    return Utils.format_time(seconds)
+
+
+def get_progress_bar(current: int, total: int, length: int = 10) -> str:
+    """Generate progress bar"""
+    return Utils.get_progress_bar(current, total, length)
+
+
+def calculate_win(win_chance: int = 50) -> bool:
+    """Calculate if user wins"""
+    return Utils.calculate_win(win_chance)
+
+
+def get_streak_bonus(streak: int) -> int:
+    """Get streak bonus coins"""
+    return Utils.get_streak_bonus(streak)
+
+
+def format_waifu_card(waifu: Dict) -> str:
+    """Format waifu card"""
+    wm = _get_manager()
+    return Utils.format_waifu_card(waifu, wm)
+
+
+def format_collection_card(waifu: Dict) -> str:
+    """Format collection card"""
+    wm = _get_manager()
+    return Utils.format_collection_card(waifu, wm)
+
+
+def mention_user(user_id: int, name: str) -> str:
+    """Create user mention"""
+    return Utils.mention_user(user_id, name)
