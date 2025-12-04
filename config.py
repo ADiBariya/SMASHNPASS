@@ -13,6 +13,9 @@ SUDO_USERS = list(map(int, os.environ.get("SUDO_USERS", "").split())) if os.envi
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://nefer:nefer6080@cluster0.wtfay3u.mongodb.net/?retryWrites=true&w=majority")
 DB_NAME = os.environ.get("DB_NAME", "smashpassbot")
 
+#Commands
+COMMAND_PREFIX = ["!", "/", "."]
+
 # Bot Settings
 BOT_NAME = "Horikita"
 BOT_USERNAME = "Horikita_Robot"
