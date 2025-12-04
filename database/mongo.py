@@ -9,7 +9,7 @@ import config
 class Database:
     def __init__(self):
         self.client = MongoClient(config.MONGO_URI)
-        self.db = self.client[Config.DB_NAME]
+        self.db = self.client[config.DB_NAME]
         
         # Collections
         self.users = self.db["users"]
