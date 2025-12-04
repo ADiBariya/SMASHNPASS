@@ -21,7 +21,7 @@
 
 import os
 
-class Config:
+class config:
     # Bot Configuration
     API_ID = int(os.environ.get("API_ID", "22733269"))
     API_HASH = os.environ.get("API_HASH", "d1d8331e5b288c572e8bb6baa7d8f833")
