@@ -143,6 +143,13 @@ async def gift_coins_callback(client: Client, callback: CallbackQuery):
     if user_data.get("coins", 0) < amount:
         return await callback.answer("❌ Not enough coins!", show_alert=True)
 
+    # 🔥 Ensure target exists in DB (MOST IMPORTANT FIX)
+    db.users.update_one(
+        {"user_id": target_id},
+        {"$setOnInsert": {"coins": 0, "collection": []}},
+        upsert=True
+    )
+
     # Transfer
     db.remove_coins(user_id, amount)
     db.add_coins(target_id, amount)
@@ -178,7 +185,6 @@ async def gift_coins_callback(client: Client, callback: CallbackQuery):
         pass
 
     await callback.answer("Gift sent!")
-
 
 # =============================================================
 #  WAIFU GIFT CALLBACK
