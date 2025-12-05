@@ -1,13 +1,20 @@
+# modules/help.py - Help Module with Image URL
+
 from pyrogram import Client, filters
 from pyrogram.types import (
     Message, InlineKeyboardMarkup, InlineKeyboardButton,
     CallbackQuery, InputMediaPhoto
 )
-import os
+from pyrogram.errors import MessageNotModified
 import config
 
-# Path to your image
-HELP_IMAGE_PATH = "assets/smash.jpg"
+# 🖼️ HELP IMAGE URL - Change this to your image URL
+HELP_IMAGE_URL = "https://files.catbox.moe/ydj43l.jpg"
+
+# Alternative image URLs you can use:
+# HELP_IMAGE_URL = "https://i.imgur.com/abc123.jpg"
+# HELP_IMAGE_URL = "https://telegra.ph/file/xxxxx.jpg"
+# HELP_IMAGE_URL = "https://i.ibb.co/xxxxx/image.jpg"
 
 _loader = None
 
@@ -23,6 +30,16 @@ def get_help_buttons():
     row = []
 
     if not _loader:
+        # Default buttons if loader not set
+        buttons.append([
+            InlineKeyboardButton("🎮 Smash", callback_data="help_smash"),
+            InlineKeyboardButton("📦 Collection", callback_data="help_collection")
+        ])
+        buttons.append([
+            InlineKeyboardButton("💰 Economy", callback_data="help_economy"),
+            InlineKeyboardButton("👤 Profile", callback_data="help_profile")
+        ])
+        buttons.append([InlineKeyboardButton("❌ Close", callback_data="help_close")])
         return buttons
 
     for module_name, data in _loader.get_help_data().items():
@@ -51,7 +68,57 @@ def get_help_buttons():
 
 def get_module_text(module_name):
     """Build text for module"""
-    data = _loader.get_module_help(module_name)
+    
+    # Default help texts if loader not available
+    default_helps = {
+        "smash": {
+            "emoji": "🎮",
+            "name": "Smash Game",
+            "description": "Play Smash or Pass with anime waifus!",
+            "commands": {
+                "smash": "Start a new game",
+                "waifu": "Same as smash",
+                "sp": "Short command for smash"
+            }
+        },
+        "collection": {
+            "emoji": "📦",
+            "name": "Collection",
+            "description": "Manage your waifu collection",
+            "commands": {
+                "collection": "View your waifus",
+                "col": "Short for collection",
+                "waifuinfo": "View waifu details"
+            }
+        },
+        "economy": {
+            "emoji": "💰",
+            "name": "Economy",
+            "description": "Coins and trading system",
+            "commands": {
+                "balance": "Check your coins",
+                "daily": "Claim daily reward",
+                "shop": "Visit the shop",
+                "gift": "Gift coins or waifus"
+            }
+        },
+        "profile": {
+            "emoji": "👤",
+            "name": "Profile",
+            "description": "Your profile and stats",
+            "commands": {
+                "profile": "View your profile",
+                "stats": "View statistics",
+                "leaderboard": "Global rankings"
+            }
+        }
+    }
+    
+    if _loader:
+        data = _loader.get_module_help(module_name)
+    else:
+        data = default_helps.get(module_name)
+    
     if not data:
         return "❌ Module not found!"
 
@@ -72,60 +139,104 @@ def get_module_text(module_name):
 
 
 def setup(app: Client):
+    """Setup help module"""
+    
+    print("📖 [HELP] Setting up help module...")
 
-    # ------------------------------------------------------
-    #  /help MUST SEND PHOTO
-    # ------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════
+    #  /help Command - Send Photo with URL
+    # ══════════════════════════════════════════════════════════════
+    
     @app.on_message(filters.command("help", config.COMMAND_PREFIX))
-    async def help_cmd(_, message: Message):
+    async def help_cmd(client: Client, message: Message):
+        """Main help command"""
+        
+        print(f"📖 [HELP] /help from {message.from_user.first_name}")
 
-        caption = (
-            "📖 **Smash & Pass Bot - Help**\n\n"
-            "Select a module below to view commands:"
-        )
+        caption = """
+📖 **Smash & Pass Bot - Help**
+
+Welcome to the Waifu Collection Bot! 🎮
+
+🎯 **Quick Start:**
+• Use /smash to play the game
+• Win waifus and add them to collection
+• Trade with friends!
+
+Select a module below to view commands:
+"""
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        # SEND PHOTO (required for later edit)
-        with open(HELP_IMAGE_PATH, "rb") as img:
+        # Send photo using URL
+        try:
             await message.reply_photo(
-                photo=img,
+                photo=HELP_IMAGE_URL,
                 caption=caption,
                 reply_markup=buttons
             )
+            print("✅ [HELP] Sent help with image")
+        except Exception as e:
+            print(f"⚠️ [HELP] Image failed: {e}, sending text...")
+            await message.reply_text(caption, reply_markup=buttons)
 
-    # ------------------------------------------------------
-    # Back to Main help
-    # ------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════
+    #  Back to Main Help
+    # ══════════════════════════════════════════════════════════════
+    
     @app.on_callback_query(filters.regex("^help_main$"))
-    async def help_main(_, callback: CallbackQuery):
+    async def help_main(client: Client, callback: CallbackQuery):
+        """Back to main help menu"""
 
-        caption = (
-            "📖 **Smash & Pass Bot - Help**\n\n"
-            "Select a module:"
-        )
+        caption = """
+📖 **Smash & Pass Bot - Help**
+
+Select a module below to view commands:
+"""
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        with open(HELP_IMAGE_PATH, "rb") as img:
+        try:
+            # Edit with new image
             await callback.message.edit_media(
-                InputMediaPhoto(img, caption=caption),
+                InputMediaPhoto(HELP_IMAGE_URL, caption=caption),
                 reply_markup=buttons
             )
+        except MessageNotModified:
+            pass
+        except Exception as e:
+            print(f"⚠️ [HELP] Edit error: {e}")
+            # Try editing caption only
+            try:
+                await callback.message.edit_caption(
+                    caption=caption,
+                    reply_markup=buttons
+                )
+            except:
+                pass
 
         await callback.answer()
 
-    # ------------------------------------------------------
-    # Module help
-    # ------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════
+    #  Module Help
+    # ══════════════════════════════════════════════════════════════
+    
     @app.on_callback_query(filters.regex(r"^help_(\w+)$"))
-    async def help_module(_, callback: CallbackQuery):
+    async def help_module(client: Client, callback: CallbackQuery):
+        """Show module specific help"""
 
         module_name = callback.data.split("_", 1)[1]
 
+        # Handle close
         if module_name == "close":
             await callback.message.delete()
             return await callback.answer()
+        
+        # Handle main
+        if module_name == "main":
+            return  # Handled by help_main
+
+        print(f"📖 [HELP] Module: {module_name}")
 
         caption = get_module_text(module_name)
 
@@ -134,18 +245,38 @@ def setup(app: Client):
             [InlineKeyboardButton("❌ Close", callback_data="help_close")]
         ])
 
-        with open(HELP_IMAGE_PATH, "rb") as img:
+        try:
+            # Edit with same/new image
             await callback.message.edit_media(
-                InputMediaPhoto(img, caption=caption),
+                InputMediaPhoto(HELP_IMAGE_URL, caption=caption),
                 reply_markup=buttons
             )
+        except MessageNotModified:
+            pass
+        except Exception as e:
+            print(f"⚠️ [HELP] Edit error: {e}")
+            # Try editing caption only
+            try:
+                await callback.message.edit_caption(
+                    caption=caption,
+                    reply_markup=buttons
+                )
+            except:
+                pass
 
         await callback.answer()
 
-    # ------------------------------------------------------
-    # Close
-    # ------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════
+    #  Close Help
+    # ══════════════════════════════════════════════════════════════
+    
     @app.on_callback_query(filters.regex("^help_close$"))
-    async def help_close(_, callback: CallbackQuery):
-        await callback.message.delete()
+    async def help_close(client: Client, callback: CallbackQuery):
+        """Close help menu"""
+        try:
+            await callback.message.delete()
+        except:
+            pass
         await callback.answer()
+
+    print("✅ [HELP] Help module loaded!")
