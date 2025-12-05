@@ -29,7 +29,7 @@ active_games = {}
 #  /smash Command
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command(["smash", "waifu", "sp"], config.CMD_PREFIX))
+@Client.on_message(filters.command(["smash", "waifu", "sp"], config.COMMAND_PREFIX))
 async def smash_command(client: Client, message: Message):
     """Start a new smash or pass game"""
     user = message.from_user
