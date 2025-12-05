@@ -118,13 +118,13 @@ async def profile_cmd(client: Client, message: Message):
         ]
     ]
 
-    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
+    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
 
 
 # ------------------ COLLECTION ------------------ #
 
 @Client.on_message(filters.command(["collection", "col", "waifus"], prefixes=COMMAND_PREFIX))
-async def collection_cmd(client: Client, message: Message):
+async def collection_cmd(client, message):
 
     if message.reply_to_message:
         target = message.reply_to_message.from_user
@@ -155,7 +155,7 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
     total_pages = max(1, math.ceil(len(collection) / per_page))
     page = max(1, min(page, total_pages))
 
-    start = (page - 1) * per_page
+    start = (page - 1) * per page
     end = start + per_page
     page_items = collection[start:end]
 
@@ -194,9 +194,9 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
     markup = InlineKeyboardMarkup(buttons)
 
     if isinstance(msg_or_cb, Message):
-        await msg_or_cb.reply_text(text, reply_markup=markup, parse_mode="markdown")
+        await msg_or_cb.reply_text(text, reply_markup=markup, parse_mode="md")
     else:
-        await msg_or_cb.message.edit_text(text, reply_markup=markup, parse_mode="markdown")
+        await msg_or_cb.message.edit_text(text, reply_markup=markup, parse_mode="md")
         await msg_or_cb.answer()
 
 
@@ -236,7 +236,7 @@ async def cb_collection_filter(client, cb):
     await cb.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"col_{user_id}_1")]]),
-        parse_mode="markdown"
+        parse_mode="md"
     )
     await cb.answer()
 
@@ -286,9 +286,9 @@ async def waifu_info_cmd(client, message):
     ]
 
     if waifu.get("image"):
-        await message.reply_photo(waifu["image"], caption=text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
+        await message.reply_photo(waifu["image"], caption=text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
     else:
-        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
+        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
 
 
 # ------------------ STATS ------------------ #
@@ -330,7 +330,7 @@ async def stats_cmd(client, message):
 📉 Spent: {total_spent:,}
 """
 
-    await message.reply_text(text, parse_mode="markdown")
+    await message.reply_text(text, parse_mode="md")
 
 
 # ------------------ LEADERBOARD ------------------ #
@@ -358,7 +358,7 @@ async def leaderboard_cmd(client, message):
         ]
     ]
 
-    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
+    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
 
 
 # ------------------ CALLBACK (LB TYPES) ------------------ #
@@ -391,7 +391,7 @@ async def leaderboard_type_callback(client, cb):
 
     buttons = [[InlineKeyboardButton("🔙 Back", callback_data="lb_collection")]]
 
-    await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="markdown")
+    await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
     await cb.answer()
 
 
@@ -413,4 +413,4 @@ async def rename_cmd(client, message):
     )
 
     safe = md_escape(new_name)
-    await message.reply_text(f"✅ Display name changed to: **{safe}**", parse_mode="markdown")
+    await message.reply_text(f"✅ Display name changed to: **{safe}**", parse_mode="md")
