@@ -1,14 +1,31 @@
 from pyrogram import Client, filters
 from pyrogram.types import (
-    Message, InlineKeyboardMarkup, InlineKeyboardButton,
-    CallbackQuery, InputMediaPhoto
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+    InputMediaPhoto
 )
 import os
 import config
 
-HELP_IMAGE_PATH = "assets/smash.jpg"   # <--- Your image path
+# Image URL
+HELP_IMAGE_PATH = "https://files.catbox.moe/n1743y.jpg"   # <-- WORKS NOW
+
+
+# Help data for this module
+HELP = {
+    "name": "Help",
+    "emoji": "📖",
+    "description": "Help and information commands",
+    "commands": {
+        "help": "Show help menu",
+        "commands": "List all commands"
+    }
+}
 
 _loader = None
+
 
 def set_loader(loader):
     global _loader
@@ -16,10 +33,14 @@ def set_loader(loader):
 
 
 def get_help_buttons():
+    if not _loader:
+        return []
+
     buttons = []
     row = []
+    help_data = _loader.get_help_data()
 
-    for module_name, data in _loader.get_help_data().items():
+    for module_name, data in help_data.items():
         emoji = data.get("emoji", "📦")
         name = data.get("name", module_name.title())
         row.append(
@@ -28,6 +49,7 @@ def get_help_buttons():
                 callback_data=f"help_{module_name}"
             )
         )
+
         if len(row) == 2:
             buttons.append(row)
             row = []
@@ -39,71 +61,82 @@ def get_help_buttons():
     return buttons
 
 
-def get_module_text(module_name):
+def get_module_help_text(module_name):
     data = _loader.get_module_help(module_name)
     if not data:
         return "❌ Module not found!"
 
-    text = f"{data.get('emoji','📦')} **{data.get('name')}**\n\n"
-    text += f"_{data.get('description','No description')}_\n\n"
+    emoji = data.get("emoji", "📦")
+    name = data.get("name", module_name.title())
+    description = data.get("description", "No description")
+    commands = data.get("commands", {})
+    usage = data.get("usage", "")
 
-    cmds = data.get("commands", {})
-    for cmd, desc in cmds.items():
-        text += f"• `/{cmd}` - {desc}\n"
+    text = f"{emoji} **{name}**\n\n_{description}_\n\n"
+    if commands:
+        text += "**📋 Commands:**\n"
+        for cmd, desc in commands.items():
+            text += f"• `/{cmd}` - {desc}\n"
+
+    if usage:
+        text += f"\n**💡 Usage:**\n{usage}"
 
     return text
 
 
 def setup(app: Client):
 
-    # ----------------------------------------------------
-    # FIRST HELP MESSAGE (MUST BE PHOTO)
-    # ----------------------------------------------------
+    # -----------------------------
+    # /help command
+    # -----------------------------
     @app.on_message(filters.command("help", config.COMMAND_PREFIX))
-    async def help_cmd(client, message):
+    async def help_command(client, message):
 
         caption = """
-📖 **Smash & Pass - Help**
+📖 **Smash & Pass Bot - Help**
 
-Select a category below:
+Choose a category below:
 """
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        with open(HELP_IMAGE_PATH, "rb") as img:
-            await message.reply_photo(
-                photo=img,
-                caption=caption,
-                reply_markup=buttons
-            )
+        # FIXED: Always send URL image
+        await message.reply_photo(
+            photo=HELP_IMAGE_PATH,
+            caption=caption,
+            reply_markup=buttons
+        )
 
-    # ----------------------------------------------------
-    # MAIN HELP SCREEN (photo → photo edit OK)
-    # ----------------------------------------------------
+    # -----------------------------
+    # help_main callback
+    # -----------------------------
     @app.on_callback_query(filters.regex("^help_main$"))
-    async def help_main(client, callback):
+    async def help_main_callback(client, callback):
 
         caption = """
-📖 **Smash & Pass - Help**
+📖 **Smash & Pass Bot - Help**
 
-Choose a module below:
+Choose a category:
 """
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        with open(HELP_IMAGE_PATH, "rb") as img:
-            await callback.message.edit_media(
-                InputMediaPhoto(media=img, caption=caption),
-                reply_markup=buttons
-            )
+        # FIXED: Directly use URL image
+        await callback.message.edit_media(
+            InputMediaPhoto(
+                media=HELP_IMAGE_PATH,
+                caption=caption
+            ),
+            reply_markup=buttons
+        )
 
         await callback.answer()
 
-    # ----------------------------------------------------
-    # MODULE HELP (photo → photo edit OK)
-    # ----------------------------------------------------
+    # -----------------------------
+    # help_{module} callback
+    # -----------------------------
     @app.on_callback_query(filters.regex(r"^help_(\w+)$"))
-    async def help_module(client, callback):
+    async def module_help_callback(client, callback):
 
         module_name = callback.data.split("_", 1)[1]
 
@@ -111,24 +144,27 @@ Choose a module below:
             await callback.message.delete()
             return
 
-        caption = get_module_text(module_name)
+        text = get_module_help_text(module_name)
 
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔙 Back", callback_data="help_main")],
             [InlineKeyboardButton("❌ Close", callback_data="help_close")]
         ])
 
-        with open(HELP_IMAGE_PATH, "rb") as img:
-            await callback.message.edit_media(
-                InputMediaPhoto(media=img, caption=caption),
-                reply_markup=buttons
-            )
+        # FIXED: Direct image URL
+        await callback.message.edit_media(
+            InputMediaPhoto(
+                media=HELP_IMAGE_PATH,
+                caption=text
+            ),
+            reply_markup=buttons
+        )
 
         await callback.answer()
 
-    # ----------------------------------------------------
-    # CLOSE
-    # ----------------------------------------------------
+    # -----------------------------
+    # help_close
+    # -----------------------------
     @app.on_callback_query(filters.regex("^help_close$"))
     async def help_close(client, callback):
         await callback.message.delete()
