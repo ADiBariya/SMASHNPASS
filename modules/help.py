@@ -201,9 +201,3 @@ Welcome to the help menu!
     async def help_close(client: Client, callback: CallbackQuery):
         await callback.message.delete()
         await callback.answer("Closed!")
-
-### How It Works:
-- When `/help` is run: Bot sends your Catbox image with the main help caption and buttons
-- Clicking a module button: Updates the caption (keeps image) to show module-specific help
-- Clicking "Back": Updates caption back to main menu (still keeps image)
-- Clicking "Close": Deletes the message cleanly
