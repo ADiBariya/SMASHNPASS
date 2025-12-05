@@ -1,4 +1,3 @@
-# modules/help.py - Help System Module
 
 from pyrogram import Client, filters
 from pyrogram.types import (
