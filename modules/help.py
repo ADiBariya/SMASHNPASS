@@ -9,7 +9,9 @@ from pyrogram.types import (
 import os
 import config
 
-HELP_IMAGE_PATH = os.path.join("assets", "smash.jpg")
+# Local image path
+HELP_IMAGE_PATH = "assets/smash.jpg"   # <-- KEEP YOUR FILE HERE
+
 
 # Help data for this module
 HELP = {
@@ -22,35 +24,31 @@ HELP = {
     }
 }
 
-# Loader reference (set by main.py)
 _loader = None
 
 
 def set_loader(loader):
-    """Set the module loader reference"""
     global _loader
     _loader = loader
 
 
 def get_help_buttons():
-    """Generate help category buttons"""
     if not _loader:
         return []
 
     buttons = []
     row = []
-
     help_data = _loader.get_help_data()
 
     for module_name, data in help_data.items():
         emoji = data.get("emoji", "📦")
         name = data.get("name", module_name.title())
-
-        btn = InlineKeyboardButton(
-            f"{emoji} {name}",
-            callback_data=f"help_{module_name}"
+        row.append(
+            InlineKeyboardButton(
+                f"{emoji} {name}",
+                callback_data=f"help_{module_name}"
+            )
         )
-        row.append(btn)
 
         if len(row) == 2:
             buttons.append(row)
@@ -60,17 +58,11 @@ def get_help_buttons():
         buttons.append(row)
 
     buttons.append([InlineKeyboardButton("❌ Close", callback_data="help_close")])
-
     return buttons
 
 
-def get_module_help_text(module_name: str) -> str:
-    """Get help text for a specific module"""
-    if not _loader:
-        return "❌ Loader not initialized!"
-
+def get_module_help_text(module_name):
     data = _loader.get_module_help(module_name)
-
     if not data:
         return "❌ Module not found!"
 
@@ -80,9 +72,7 @@ def get_module_help_text(module_name: str) -> str:
     commands = data.get("commands", {})
     usage = data.get("usage", "")
 
-    text = f"{emoji} **{name}**\n\n"
-    text += f"_{description}_\n\n"
-
+    text = f"{emoji} **{name}**\n\n_{description}_\n\n"
     if commands:
         text += "**📋 Commands:**\n"
         for cmd, desc in commands.items():
@@ -95,107 +85,69 @@ def get_module_help_text(module_name: str) -> str:
 
 
 def setup(app: Client):
-    """Setup function called by loader"""
 
-    # ---------------------------------------------------------
-    #  /help command
-    # ---------------------------------------------------------
+    # -----------------------------
+    # /help command
+    # -----------------------------
     @app.on_message(filters.command("help", config.COMMAND_PREFIX))
-    async def help_command(client: Client, message: Message):
+    async def help_command(client, message):
+
         caption = """
 📖 **Smash & Pass Bot - Help**
 
-Welcome to the help menu! Select a category below to learn more.
-
-🎮 **Quick Start:**
-1. Use `/smash` to get a random waifu  
-2. Tap **Smash** to try winning  
-3. If successful → added to your collection!
-
-**Choose a category:**
+Choose a category below:
 """
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        # Send photo + caption if available
         if os.path.exists(HELP_IMAGE_PATH):
             await message.reply_photo(
-                HELP_IMAGE_PATH,
+                photo=HELP_IMAGE_PATH,
                 caption=caption,
                 reply_markup=buttons
             )
         else:
             await message.reply_text(caption, reply_markup=buttons)
 
-    # ---------------------------------------------------------
-    #  /commands list
-    # ---------------------------------------------------------
-    @app.on_message(filters.command("commands", config.COMMAND_PREFIX))
-    async def commands_list(client: Client, message: Message):
-        if not _loader:
-            return await message.reply_text("❌ Error loading commands!")
-
-        text = "📋 **All Commands:**\n\n"
-
-        for module_name, data in _loader.get_help_data().items():
-            emoji = data.get("emoji", "📦")
-            name = data.get("name", module_name.title())
-            commands = data.get("commands", {})
-
-            if commands:
-                text += f"{emoji} **{name}:**\n"
-                for cmd, desc in commands.items():
-                    text += f"  • `/{cmd}` - {desc}\n"
-                text += "\n"
-
-        await message.reply_text(text)
-
-    # ---------------------------------------------------------
-    #  Back to main help menu
-    # ---------------------------------------------------------
+    # -----------------------------
+    # help_main callback
+    # -----------------------------
     @app.on_callback_query(filters.regex("^help_main$"))
-    async def help_main_callback(client: Client, callback: CallbackQuery):
+    async def help_main_callback(client, callback):
 
         caption = """
 📖 **Smash & Pass Bot - Help**
 
-Welcome to the help menu!
-
-🎮 **Quick Start**
-1. Use `/smash`  
-2. Click **Smash**  
-3. Win → add to collection!
-
-**Choose a category:**
+Choose a category:
 """
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        # Update with image
         if os.path.exists(HELP_IMAGE_PATH):
-            await callback.message.edit_media(
-                media=InputMediaPhoto(
-                    HELP_IMAGE_PATH,
-                    caption=caption
-                ),
-                reply_markup=buttons
-            )
+            with open(HELP_IMAGE_PATH, "rb") as img:
+                await callback.message.edit_media(
+                    InputMediaPhoto(
+                        media=img,
+                        caption=caption
+                    ),
+                    reply_markup=buttons
+                )
         else:
             await callback.message.edit_text(caption, reply_markup=buttons)
 
         await callback.answer()
 
-    # ---------------------------------------------------------
-    #  Selected module help
-    # ---------------------------------------------------------
+    # -----------------------------
+    # help_{module} callback
+    # -----------------------------
     @app.on_callback_query(filters.regex(r"^help_(\w+)$"))
-    async def help_module_callback(client: Client, callback: CallbackQuery):
+    async def module_help_callback(client, callback):
 
         module_name = callback.data.split("_", 1)[1]
 
         if module_name == "close":
             await callback.message.delete()
-            return await callback.answer("Closed!")
+            return
 
         text = get_module_help_text(module_name)
 
@@ -204,24 +156,24 @@ Welcome to the help menu!
             [InlineKeyboardButton("❌ Close", callback_data="help_close")]
         ])
 
-        # Replace with local image + caption
         if os.path.exists(HELP_IMAGE_PATH):
-            await callback.message.edit_media(
-                media=InputMediaPhoto(
-                    HELP_IMAGE_PATH,
-                    caption=text
-                ),
-                reply_markup=buttons
-            )
+            with open(HELP_IMAGE_PATH, "rb") as img:
+                await callback.message.edit_media(
+                    InputMediaPhoto(
+                        media=img,
+                        caption=text
+                    ),
+                    reply_markup=buttons
+                )
         else:
             await callback.message.edit_text(text, reply_markup=buttons)
 
         await callback.answer()
 
-    # ---------------------------------------------------------
-    #  Close help
-    # ---------------------------------------------------------
+    # -----------------------------
+    # help_close
+    # -----------------------------
     @app.on_callback_query(filters.regex("^help_close$"))
-    async def help_close(client: Client, callback: CallbackQuery):
+    async def help_close(client, callback):
         await callback.message.delete()
         await callback.answer("Closed!")
