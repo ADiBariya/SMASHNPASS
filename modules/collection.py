@@ -1,5 +1,3 @@
-# modules/collection.py - Collection System Module
-
 from pyrogram import Client, filters
 from pyrogram.types import (
     Message,
@@ -80,9 +78,15 @@ Use /smash to start collecting waifus!
         text += f"Page {page}/{total_pages}\n\n"
 
         for i, waifu in enumerate(waifus, 1):
-            rarity_emoji = wm.get_rarity_emoji(waifu.get("waifu_rarity", "common"))
-            text += f"{rarity_emoji} **{waifu.get('waifu_name')}**\n"
-            text += f"   └ {waifu.get('waifu_anime')} | ⚔️ {waifu.get('waifu_power')}\n"
+            # Handle both field naming conventions
+            name = waifu.get("waifu_name") or waifu.get("name", "Unknown")
+            anime = waifu.get("waifu_anime") or waifu.get("anime", "Unknown")
+            rarity = waifu.get("waifu_rarity") or waifu.get("rarity", "common")
+            power = waifu.get("waifu_power") or waifu.get("power", 0)
+            
+            rarity_emoji = wm.get_rarity_emoji(rarity)
+            text += f"{rarity_emoji} **{name}**\n"
+            text += f"   └ {anime} | ⚔️ {power}\n"
 
         # Create pagination buttons
         buttons = []
@@ -145,9 +149,15 @@ Use /smash to start collecting waifus!
         text += f"Page {page}/{total_pages}\n\n"
 
         for i, waifu in enumerate(waifus, 1):
-            rarity_emoji = wm.get_rarity_emoji(waifu.get("waifu_rarity", "common"))
-            text += f"{rarity_emoji} **{waifu.get('waifu_name')}**\n"
-            text += f"   └ {waifu.get('waifu_anime')} | ⚔️ {waifu.get('waifu_power')}\n"
+            # Handle both field naming conventions
+            name = waifu.get("waifu_name") or waifu.get("name", "Unknown")
+            anime = waifu.get("waifu_anime") or waifu.get("anime", "Unknown")
+            rarity = waifu.get("waifu_rarity") or waifu.get("rarity", "common")
+            power = waifu.get("waifu_power") or waifu.get("power", 0)
+            
+            rarity_emoji = wm.get_rarity_emoji(rarity)
+            text += f"{rarity_emoji} **{name}**\n"
+            text += f"   └ {anime} | ⚔️ {power}\n"
 
         # Create pagination buttons
         buttons = []
@@ -166,6 +176,10 @@ Use /smash to start collecting waifus!
         buttons.append([
             InlineKeyboardButton("🟡 Legendary", callback_data="col_filter_legendary"),
             InlineKeyboardButton("🟣 Epic", callback_data="col_filter_epic")
+        ])
+        buttons.append([
+            InlineKeyboardButton("🔵 Rare", callback_data="col_filter_rare"),
+            InlineKeyboardButton("⚪ Common", callback_data="col_filter_common")
         ])
         buttons.append([
             InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
@@ -194,7 +208,10 @@ Use /smash to start collecting waifus!
         text = f"{rarity_emoji} **Your {rarity.title()} Waifus** ({len(waifus)})\n\n"
 
         for waifu in waifus[:10]:  # Show max 10
-            text += f"• **{waifu.get('waifu_name')}** - {waifu.get('waifu_anime')}\n"
+            # Handle both field naming conventions
+            name = waifu.get("waifu_name") or waifu.get("name", "Unknown")
+            anime = waifu.get("waifu_anime") or waifu.get("anime", "Unknown")
+            text += f"• **{name}** - {anime}\n"
 
         if len(waifus) > 10:
             text += f"\n_...and {len(waifus) - 10} more_"
@@ -323,8 +340,11 @@ Use /smash to start collecting waifus!
         if full_waifu:
             db.add_waifu_to_collection(target_user.id, full_waifu)
 
+        # Handle both field naming conventions for display
+        waifu_name = waifu.get('waifu_name') or waifu.get('name', 'Unknown')
+        
         await message.reply_text(
             f"🎁 **Gift Successful!**\n\n"
-            f"You gifted **{waifu.get('waifu_name')}** to "
+            f"You gifted **{waifu_name}** to "
             f"{Utils.mention_user(target_user.id, target_user.first_name)}!"
         )
