@@ -48,7 +48,7 @@ except ImportError:
 
 # Startup and Help image URL (same image)
 STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"
-HELP_IMAGE_URL = STARTUP_IMAGE_URL  # Use same image for help
+HELP_IMAGE_URL = "https://i.ibb.co/QjvLFwrP/nari-1.jpg"  
 
 
 def load_modules():
