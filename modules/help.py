@@ -9,8 +9,6 @@ from pyrogram.types import (
 import os
 import config
 
-# Path to your local help image
-# Put image at: project/assets/help.jpg
 HELP_IMAGE_PATH = os.path.join("assets", "smash.jpg")
 
 # Help data for this module
