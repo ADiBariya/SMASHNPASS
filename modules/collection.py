@@ -28,34 +28,13 @@ Use the inline buttons to navigate pages and filter by rarity.
 
 ITEMS_PER_PAGE = 5
 
-
 # ─────────────────────────────────────────────────────────────
-#  Helper: unified way to get a user's collection
+#  Helper: Get user's collection from collections table
 # ─────────────────────────────────────────────────────────────
 
-def get_user_collection_unified(user_id: int) -> List[Dict]:
-    """
-    Read the collection from both possible places:
-    1) collections table
-    2) users.collection (embedded array)
-    Prefer the collections table if it has entries.
-    """
-    # 1) collections table
-    table_items = db.get_full_collection(user_id)  # uses db.collections.find(...)
-    if table_items:
-        logger.info(f"[COL] User {user_id}: {len(table_items)} in collections table")
-        return table_items
-
-    # 2) embedded array in users collection
-    user = db.get_user(user_id)
-    if user and user.get("collection"):
-        embedded = user["collection"]
-        logger.info(f"[COL] User {user_id}: {len(embedded)} in embedded user.collection")
-        return embedded
-
-    logger.info(f"[COL] User {user_id}: collection empty in both locations")
-    return []
-
+def get_user_collection(user_id: int) -> List[Dict]:
+    """Get user's collection from collections table (where waifus actually are)"""
+    return db.get_full_collection(user_id)
 
 # ─────────────────────────────────────────────────────────────
 #  /collection command
@@ -66,11 +45,10 @@ async def collection_command(client: Client, message: Message):
     user = message.from_user
     await show_collection_message(message, user.id, page=1)
 
-
 async def show_collection_message(message: Message, user_id: int, page: int = 1):
     wm = get_waifu_manager()
 
-    all_waifus = get_user_collection_unified(user_id)
+    all_waifus = get_user_collection(user_id)
     total = len(all_waifus)
 
     if total == 0:
@@ -97,20 +75,17 @@ Use /smash to start collecting waifus!
     text += f"Page {page}/{total_pages}\n\n"
 
     for w in page_waifus:
-        # Support both schemas: table (`waifu_*`) and embedded (`name`, `anime`, etc.)
-        name = w.get("waifu_name") or w.get("name") or "Unknown"
-        anime = w.get("waifu_anime") or w.get("anime") or "Unknown"
-        rarity = w.get("waifu_rarity") or w.get("rarity") or "common"
-        power = w.get("waifu_power") or w.get("power") or 0
+        name = w.get("waifu_name", "Unknown")
+        anime = w.get("waifu_anime", "Unknown")
+        rarity = w.get("waifu_rarity", "common")
+        power = w.get("waifu_power", 0)
 
         rarity_emoji = wm.get_rarity_emoji(rarity)
         text += f"{rarity_emoji} **{name}**\n"
         text += f"   └ {anime} | ⚔️ {power}\n"
 
     buttons = build_collection_keyboard(page, total_pages)
-
     await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
-
 
 # ─────────────────────────────────────────────────────────────
 #  Callback handlers for pagination & filters
@@ -121,18 +96,16 @@ async def view_collection_callback(client: Client, callback: CallbackQuery):
     user = callback.from_user
     await show_collection_callback(callback, user.id, page=1)
 
-
 @Client.on_callback_query(filters.regex(r"^col_page_(\d+)$"))
 async def collection_page_callback(client: Client, callback: CallbackQuery):
     user = callback.from_user
     page = int(callback.data.split("_")[2])
     await show_collection_callback(callback, user.id, page)
 
-
 async def show_collection_callback(callback: CallbackQuery, user_id: int, page: int = 1):
     wm = get_waifu_manager()
 
-    all_waifus = get_user_collection_unified(user_id)
+    all_waifus = get_user_collection(user_id)
     total = len(all_waifus)
 
     if total == 0:
@@ -161,20 +134,18 @@ Use /smash to start collecting waifus!
     text += f"Page {page}/{total_pages}\n\n"
 
     for w in page_waifus:
-        name = w.get("waifu_name") or w.get("name") or "Unknown"
-        anime = w.get("waifu_anime") or w.get("anime") or "Unknown"
-        rarity = w.get("waifu_rarity") or w.get("rarity") or "common"
-        power = w.get("waifu_power") or w.get("power") or 0
+        name = w.get("waifu_name", "Unknown")
+        anime = w.get("waifu_anime", "Unknown")
+        rarity = w.get("waifu_rarity", "common")
+        power = w.get("waifu_power", 0)
 
         rarity_emoji = wm.get_rarity_emoji(rarity)
         text += f"{rarity_emoji} **{name}**\n"
         text += f"   └ {anime} | ⚔️ {power}\n"
 
     buttons = build_collection_keyboard(page, total_pages)
-
     await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
     await callback.answer()
-
 
 def build_collection_keyboard(page: int, total_pages: int):
     buttons = []
@@ -205,23 +176,18 @@ def build_collection_keyboard(page: int, total_pages: int):
 
     return buttons
 
-
 @Client.on_callback_query(filters.regex(r"^col_filter_(\w+)$"))
 async def collection_filter_callback(client: Client, callback: CallbackQuery):
     rarity = callback.data.split("_")[2]
     user = callback.from_user
     wm = get_waifu_manager()
 
-    all_waifus = get_user_collection_unified(user.id)
+    all_waifus = get_user_collection(user.id)
     if not all_waifus:
         await callback.answer("Your collection is empty!", show_alert=True)
         return
 
-    filtered = []
-    for w in all_waifus:
-        r = w.get("waifu_rarity") or w.get("rarity") or "common"
-        if r.lower() == rarity.lower():
-            filtered.append(w)
+    filtered = [w for w in all_waifus if w.get("waifu_rarity", "common").lower() == rarity.lower()]
 
     if not filtered:
         await callback.answer(f"No {rarity} waifus in your collection!", show_alert=True)
@@ -231,8 +197,8 @@ async def collection_filter_callback(client: Client, callback: CallbackQuery):
     text = f"{rarity_emoji} **Your {rarity.title()} Waifus** ({len(filtered)})\n\n"
 
     for w in filtered[:10]:
-        name = w.get("waifu_name") or w.get("name") or "Unknown"
-        anime = w.get("waifu_anime") or w.get("anime") or "Unknown"
+        name = w.get("waifu_name", "Unknown")
+        anime = w.get("waifu_anime", "Unknown")
         text += f"• **{name}** - {anime}\n"
 
     if len(filtered) > 10:
@@ -245,11 +211,9 @@ async def collection_filter_callback(client: Client, callback: CallbackQuery):
     await callback.message.edit_text(text, reply_markup=buttons)
     await callback.answer()
 
-
 @Client.on_callback_query(filters.regex(r"^col_info$"))
 async def collection_info_callback(client: Client, callback: CallbackQuery):
     await callback.answer("Use arrows to navigate pages!")
-
 
 # ─────────────────────────────────────────────────────────────
 #  /waifu info
@@ -284,15 +248,8 @@ async def waifu_info_command(client: Client, message: Message):
 
     rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
 
-    # Check ownership (from both sources)
-    all_waifus = get_user_collection_unified(user.id)
-    owned = False
-    for w in all_waifus:
-        wid = w.get("waifu_id") or w.get("id")
-        if wid == waifu.get("id"):
-            owned = True
-            break
-
+    # Check ownership from collections table
+    owned = db.check_waifu_owned(user.id, waifu.get("id"))
     owned_text = "✅ You own this waifu!" if owned else "❌ Not in your collection"
 
     text = f"""
@@ -314,7 +271,6 @@ async def waifu_info_command(client: Client, message: Message):
             await message.reply_text(text)
     else:
         await message.reply_text(text)
-
 
 # ─────────────────────────────────────────────────────────────
 #  /gift
@@ -352,7 +308,7 @@ async def gift_waifu_command(client: Client, message: Message):
         await message.reply_text("❌ You can't gift to a bot!")
         return
 
-    # Check ownership via main collections table (trading uses that)
+    # Check ownership from collections table
     waifu = db.get_waifu_from_collection(user.id, waifu_id)
     if not waifu:
         await message.reply_text("❌ You don't own this waifu!")
@@ -361,16 +317,14 @@ async def gift_waifu_command(client: Client, message: Message):
     # Ensure target exists
     db.get_or_create_user(target_user.id, target_user.username, target_user.first_name)
 
-    # Move from sender to receiver using your DB helpers
+    # Move from sender to receiver
     db.remove_from_collection(user.id, waifu_id)
-    from helpers import get_waifu_manager
     wm = get_waifu_manager()
     full_waifu = wm.get_waifu_by_id(waifu_id)
     if full_waifu:
         db.add_to_collection(target_user.id, full_waifu)
 
-    waifu_name = waifu.get("waifu_name") or waifu.get("name") or "Unknown"
-
+    waifu_name = waifu.get("waifu_name", "Unknown")
     await message.reply_text(
         f"🎁 **Gift Successful!**\n\n"
         f"You gifted **{waifu_name}** to "
