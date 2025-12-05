@@ -22,6 +22,14 @@ HELP = {
     }
 }
 
+# 🖼️ Welcome Image URL - Change this to your own image
+START_IMAGE = "https://files.catbox.moe/jcy3qf.jpg"
+
+# Alternative images you can use:
+# START_IMAGE = "https://i.imgur.com/abc123.jpg"  # Your custom image
+# START_IMAGE = "https://telegra.ph/file/xxxxx.jpg"  # Telegraph image
+# START_IMAGE = "https://i.ibb.co/xxxxx/image.jpg"  # ImgBB image
+
 
 def setup(app: Client):
     """Setup function called by loader"""
@@ -42,25 +50,23 @@ def setup(app: Client):
         text = f"""
 👋 **Welcome {user.first_name}!**
 
-🎮 **Smash & Pass Waifu Bot**
+🎮 **Smash or Pass Waifu Game**
 
 Collect your favorite anime waifus by playing the Smash or Pass game!
 
 🎯 **How to Play:**
 • Use /smash to get a random waifu
-• Choose **Smash** to try winning her
-• Choose **Pass** to skip
+• Choose **💥 Smash** to try winning her
+• Choose **👋 Pass** to skip
 • If you win, she joins your collection!
 
 📦 **Features:**
 • 50+ Beautiful Waifus
-• Rarity System (Common to Legendary)
-• Collection System
-• Trading with friends
-• Daily Rewards
-• Leaderboards
+• Rarity System (Common → Legendary)
+• Collection & Trading System
+• Daily Rewards & Leaderboards
 
-**Ready to start? Use /smash now!**
+✨ **Ready to start? Tap Play Now!**
 """
         
         buttons = InlineKeyboardMarkup([
@@ -74,14 +80,24 @@ Collect your favorite anime waifus by playing the Smash or Pass game!
             ],
             [
                 InlineKeyboardButton("➕ Add to Group", 
-                    url=f"https://t.me/{Config.BOT_USERNAME}?startgroup=true")
+                    url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
             ]
         ])
         
-        await message.reply_text(text, reply_markup=buttons)
+        # Send with image
+        try:
+            await message.reply_photo(
+                photo=START_IMAGE,
+                caption=text,
+                reply_markup=buttons
+            )
+        except Exception as e:
+            # If image fails, send text only
+            print(f"⚠️ Failed to send start image: {e}")
+            await message.reply_text(text, reply_markup=buttons)
     
     
-    @app.on_message(filters.command("start", Config.CMD_PREFIX) & filters.group)
+    @app.on_message(filters.command("start", config.CMD_PREFIX) & filters.group)
     async def start_group(client: Client, message: Message):
         """Handle /start command in group"""
         user = message.from_user
@@ -93,7 +109,7 @@ Collect your favorite anime waifus by playing the Smash or Pass game!
         )
         
         text = f"""
-🎮 **Smash & Pass Waifu Bot**
+🎮 **Smash or Pass Waifu Game**
 
 Hey {user.first_name}! Ready to collect waifus?
 
@@ -108,10 +124,18 @@ Use /help for all commands.
             ]
         ])
         
-        await message.reply_text(text, reply_markup=buttons)
+        # Send with image in group too
+        try:
+            await message.reply_photo(
+                photo=START_IMAGE,
+                caption=text,
+                reply_markup=buttons
+            )
+        except Exception:
+            await message.reply_text(text, reply_markup=buttons)
     
     
-    @app.on_message(filters.command("ping", Config.CMD_PREFIX))
+    @app.on_message(filters.command("ping", config.CMD_PREFIX))
     async def ping_command(client: Client, message: Message):
         """Check bot latency"""
         import time
@@ -125,13 +149,18 @@ Use /help for all commands.
         await msg.edit_text(f"🏓 **Pong!**\n⚡ Latency: `{latency:.2f}ms`")
     
     
-    @app.on_message(filters.command("stats", Config.CMD_PREFIX))
+    @app.on_message(filters.command("stats", config.CMD_PREFIX))
     async def stats_command(client: Client, message: Message):
         """View user statistics"""
         user = message.from_user
         user_data = db.get_or_create_user(user.id, user.username, user.first_name)
         
         collection_count = db.get_collection_count(user.id)
+        total_smash = user_data.get('total_smash', 0)
+        total_wins = user_data.get('total_wins', 0)
+        
+        # Calculate win rate safely
+        win_rate = (total_wins / total_smash * 100) if total_smash > 0 else 0
         
         text = f"""
 📊 **Stats for {user.first_name}**
@@ -140,18 +169,21 @@ Use /help for all commands.
 📦 **Waifus Collected:** {collection_count}
 
 🎮 **Game Stats:**
-• Total Smashes: {user_data.get('total_smash', 0)}
-• Total Passes: {user_data.get('total_pass', 0)}
-• Wins: {user_data.get('total_wins', 0)} ✅
-• Losses: {user_data.get('total_losses', 0)} ❌
+├ Total Smashes: {total_smash}
+├ Total Passes: {user_data.get('total_pass', 0)}
+├ Wins: {total_wins} ✅
+└ Losses: {user_data.get('total_losses', 0)} ❌
 
-📈 **Win Rate:** {(user_data.get('total_wins', 0) / max(user_data.get('total_smash', 1), 1) * 100):.1f}%
+📈 **Win Rate:** {win_rate:.1f}%
 """
         
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("📦 Collection", callback_data="view_collection"),
                 InlineKeyboardButton("🏆 Leaderboard", callback_data="leaderboard_main")
+            ],
+            [
+                InlineKeyboardButton("🎮 Play Now", callback_data="play_smash")
             ]
         ])
         
@@ -165,6 +197,10 @@ Use /help for all commands.
         user_data = db.get_or_create_user(user.id, user.username, user.first_name)
         
         collection_count = db.get_collection_count(user.id)
+        total_smash = user_data.get('total_smash', 0)
+        total_wins = user_data.get('total_wins', 0)
+        
+        win_rate = (total_wins / total_smash * 100) if total_smash > 0 else 0
         
         text = f"""
 📊 **Stats for {user.first_name}**
@@ -173,12 +209,12 @@ Use /help for all commands.
 📦 **Waifus Collected:** {collection_count}
 
 🎮 **Game Stats:**
-• Total Smashes: {user_data.get('total_smash', 0)}
-• Total Passes: {user_data.get('total_pass', 0)}
-• Wins: {user_data.get('total_wins', 0)} ✅
-• Losses: {user_data.get('total_losses', 0)} ❌
+├ Total Smashes: {total_smash}
+├ Total Passes: {user_data.get('total_pass', 0)}
+├ Wins: {total_wins} ✅
+└ Losses: {user_data.get('total_losses', 0)} ❌
 
-📈 **Win Rate:** {(user_data.get('total_wins', 0) / max(user_data.get('total_smash', 1), 1) * 100):.1f}%
+📈 **Win Rate:** {win_rate:.1f}%
 """
         
         buttons = InlineKeyboardMarkup([
@@ -188,7 +224,18 @@ Use /help for all commands.
             ]
         ])
         
-        await callback.message.edit_text(text, reply_markup=buttons)
+        try:
+            await callback.message.edit_caption(
+                caption=text,
+                reply_markup=buttons
+            )
+        except Exception:
+            # If message has no photo, edit text
+            try:
+                await callback.message.edit_text(text, reply_markup=buttons)
+            except Exception:
+                pass
+        
         await callback.answer()
     
     
@@ -200,9 +247,11 @@ Use /help for all commands.
         text = f"""
 👋 **Welcome {user.first_name}!**
 
-🎮 **Smash & Pass Waifu Bot**
+🎮 **Smash or Pass Waifu Game**
 
-Use the buttons below to navigate!
+Collect your favorite anime waifus!
+
+✨ Use the buttons below to navigate!
 """
         
         buttons = InlineKeyboardMarkup([
@@ -216,5 +265,61 @@ Use the buttons below to navigate!
             ]
         ])
         
-        await callback.message.edit_text(text, reply_markup=buttons)
+        try:
+            await callback.message.edit_caption(
+                caption=text,
+                reply_markup=buttons
+            )
+        except Exception:
+            try:
+                await callback.message.edit_text(text, reply_markup=buttons)
+            except Exception:
+                pass
+        
+        await callback.answer()
+    
+    
+    @app.on_callback_query(filters.regex("^help_main$"))
+    async def help_main_callback(client: Client, callback: CallbackQuery):
+        """Handle help button callback"""
+        text = """
+📖 **Help Menu**
+
+🎮 **Game Commands:**
+├ /smash - Start a new game
+├ /collection - View your waifus
+├ /stats - View your statistics
+└ /daily - Claim daily reward
+
+💰 **Economy Commands:**
+├ /balance - Check coins
+├ /gift - Gift waifu to friend
+└ /trade - Trade waifus
+
+🏆 **Other Commands:**
+├ /leaderboard - Top players
+├ /profile - Your profile
+└ /ping - Bot latency
+
+**Tip:** Legendary waifus are rare but powerful!
+"""
+        
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
+                InlineKeyboardButton("🔙 Back", callback_data="start_back")
+            ]
+        ])
+        
+        try:
+            await callback.message.edit_caption(
+                caption=text,
+                reply_markup=buttons
+            )
+        except Exception:
+            try:
+                await callback.message.edit_text(text, reply_markup=buttons)
+            except Exception:
+                pass
+        
         await callback.answer()
