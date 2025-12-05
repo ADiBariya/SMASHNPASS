@@ -15,25 +15,115 @@ class WaifuManager:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._load_waifus()
+            cls._instance._initialized = False
         return cls._instance
+    
+    def __init__(self):
+        if self._initialized:
+            return
+        self._initialized = True
+        self._load_waifus()
     
     def _load_waifus(self):
         """Load waifus from JSON file"""
-        json_path = Path("waifus.json")
+        # ✅ FIXED: Correct path to data folder
+        json_path = Path("data/waifus.json")
+        
+        print(f"📂 Looking for waifus at: {json_path.absolute()}")
         
         if not json_path.exists():
+            print(f"⚠️ waifus.json not found! Creating default waifus...")
+            self.waifus = self._get_default_waifus()
+            self.rarity_colors = {
+                "common": "⚪",
+                "rare": "🔵",
+                "epic": "🟣",
+                "legendary": "🟡"
+            }
+            self.rarity_weights = {
+                "common": 50,
+                "rare": 30,
+                "epic": 15,
+                "legendary": 5
+            }
+            # Save default waifus
+            self._save_waifus()
+            return
+        
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            self.waifus = data.get("waifus", [])
+            self.rarity_colors = data.get("rarity_colors", {
+                "common": "⚪",
+                "rare": "🔵",
+                "epic": "🟣",
+                "legendary": "🟡"
+            })
+            self.rarity_weights = data.get("rarity_weights", {
+                "common": 50,
+                "rare": 30,
+                "epic": 15,
+                "legendary": 5
+            })
+            print(f"✅ Loaded {len(self.waifus)} waifus successfully!")
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON Error: {e}")
+            self.waifus = self._get_default_waifus()
+            self.rarity_colors = {"common": "⚪", "rare": "🔵", "epic": "🟣", "legendary": "🟡"}
+            self.rarity_weights = {"common": 50, "rare": 30, "epic": 15, "legendary": 5}
+        except Exception as e:
+            print(f"❌ Error loading waifus: {e}")
             self.waifus = []
             self.rarity_colors = {}
             self.rarity_weights = {}
-            return
-        
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        
-        self.waifus = data.get("waifus", [])
-        self.rarity_colors = data.get("rarity_colors", {})
-        self.rarity_weights = data.get("rarity_weights", {})
+    
+    def _get_default_waifus(self) -> List[Dict]:
+        """Return default waifus if file not found"""
+        return [
+            {
+                "id": 1,
+                "name": "Boa hancock",
+                "anime": "Naruto Shippuden",
+                "rarity": "rare",
+                "power": 75,
+                "image": "https://files.catbox.moe/iu35t6.jpg"
+            },
+            {
+                "id": 2,
+                "name": "Nami",
+                "anime": "One Piece",
+                "rarity": "legendary",
+                "power": 95,
+                "image": "https://files.catbox.moe/reh8mz.jpg"
+            },
+            {
+                "id": 3,
+                "name": "Robin",
+                "anime": "One piece",
+                "rarity": "epic",
+                "power": 85,
+                "image": "https://files.catbox.moe/0oqwqt.jpg"
+            },
+            {
+                "id": 4,
+                "name": "Yamato",
+                "anime": "One piece",
+                "rarity": "epic",
+                "power": 90,
+                "image": "https://files.catbox.moe/5rnwlt.jpg"
+            },
+            {
+                "id": 5,
+                "name": "Marin",
+                "anime": "My Dress up Darling",
+                "rarity": "legendary",
+                "power": 98,
+                "image": "https://files.catbox.moe/86wqd9.jpg"
+            }
+        ]
     
     def reload_waifus(self):
         """Reload waifus from JSON file"""
@@ -42,6 +132,7 @@ class WaifuManager:
     def get_random_waifu(self) -> Optional[Dict]:
         """Get a random waifu based on rarity weights"""
         if not self.waifus:
+            print("❌ No waifus in list!")
             return None
         
         # Group waifus by rarity
@@ -56,7 +147,7 @@ class WaifuManager:
         rarities = list(self.rarity_weights.keys())
         weights = list(self.rarity_weights.values())
         
-        if not rarities:
+        if not rarities or not weights:
             return random.choice(self.waifus)
         
         selected_rarity = random.choices(rarities, weights=weights, k=1)[0]
@@ -109,7 +200,13 @@ class WaifuManager:
     
     def get_rarity_emoji(self, rarity: str) -> str:
         """Get emoji for rarity"""
-        return self.rarity_colors.get(rarity, "⚪")
+        default_emojis = {
+            "common": "⚪",
+            "rare": "🔵",
+            "epic": "🟣",
+            "legendary": "🟡"
+        }
+        return self.rarity_colors.get(rarity, default_emojis.get(rarity, "⚪"))
     
     def get_total_count(self) -> int:
         """Get total number of waifus"""
@@ -126,17 +223,27 @@ class WaifuManager:
     
     def _save_waifus(self):
         """Save waifus to JSON file"""
-        json_path = Path("waifus.json")
+        # ✅ FIXED: Correct path
+        json_path = Path("data/waifus.json")
+        
+        # Create data folder if not exists
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        
         data = {
             "waifus": self.waifus,
             "rarity_colors": self.rarity_colors,
             "rarity_weights": self.rarity_weights
         }
         
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+        try:
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4, ensure_ascii=False)
+            print(f"✅ Saved {len(self.waifus)} waifus to {json_path}")
+        except Exception as e:
+            print(f"❌ Error saving waifus: {e}")
 
 
+# Singleton getter function
 def get_waifu_manager() -> WaifuManager:
     """Get WaifuManager instance"""
     return WaifuManager()
@@ -198,8 +305,10 @@ class Utils:
             return 50
     
     @staticmethod
-    def format_waifu_card(waifu: Dict, wm: WaifuManager) -> str:
+    def format_waifu_card(waifu: Dict, wm: WaifuManager = None) -> str:
         """Format waifu data into a nice card text"""
+        if wm is None:
+            wm = get_waifu_manager()
         rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
         
         text = f"""
@@ -208,13 +317,14 @@ class Utils:
 📺 **Anime:** {waifu.get('anime', 'Unknown')}
 💎 **Rarity:** {waifu.get('rarity', 'common').title()}
 ⚔️ **Power:** {waifu.get('power', 0)}
-
 """
         return text.strip()
     
     @staticmethod
-    def format_collection_card(waifu: Dict, wm: WaifuManager) -> str:
+    def format_collection_card(waifu: Dict, wm: WaifuManager = None) -> str:
         """Format collection waifu data"""
+        if wm is None:
+            wm = get_waifu_manager()
         rarity_emoji = wm.get_rarity_emoji(waifu.get("waifu_rarity", "common"))
         
         obtained_at = waifu.get("obtained_at")
@@ -314,22 +424,8 @@ def get_waifus_by_anime(anime: str) -> List[Dict]:
 
 def get_rarity_emoji(rarity: str) -> str:
     """Get emoji for rarity"""
-    # Default emojis if manager not loaded
-    default_emojis = {
-        "common": "⚪",
-        "uncommon": "🟢",
-        "rare": "🔵",
-        "epic": "🟣",
-        "legendary": "🟡"
-    }
-    
     wm = _get_manager()
-    emoji = wm.get_rarity_emoji(rarity)
-    
-    if emoji == "⚪" and rarity.lower() in default_emojis:
-        return default_emojis[rarity.lower()]
-    
-    return emoji
+    return wm.get_rarity_emoji(rarity)
 
 
 def get_rarity_value(rarity: str) -> int:
