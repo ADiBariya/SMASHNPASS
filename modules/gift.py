@@ -403,7 +403,3 @@ async def confirm_sell_callback(client: Client, callback: CallbackQuery):
         f"Coins Received: {sell_price:,}"
     )
     await callback.answer("Sold!")
-- Maintain all gift history and notifications
-- Allow selling waifus you own
-
-The gift system will now work with the same data source that your `/collection` command uses.
