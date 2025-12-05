@@ -1,4 +1,3 @@
-
 from pyrogram import Client, filters
 from pyrogram.types import (
     Message,
@@ -7,7 +6,12 @@ from pyrogram.types import (
     CallbackQuery,
     InputMediaPhoto
 )
+import os
 import config
+
+# Path to your local help image
+# Put image at: project/assets/help.jpg
+HELP_IMAGE_PATH = os.path.join("assets", "smash.jpg")
 
 # Help data for this module
 HELP = {
@@ -95,34 +99,35 @@ def get_module_help_text(module_name: str) -> str:
 def setup(app: Client):
     """Setup function called by loader"""
 
-    HELP_IMAGE = "https://i.ibb.co/Mx3WS7Qs/photo-2025-12-05-20-59-39.jpg"
-
     # ---------------------------------------------------------
-    #  /help command (now photo-based!)
+    #  /help command
     # ---------------------------------------------------------
     @app.on_message(filters.command("help", config.COMMAND_PREFIX))
     async def help_command(client: Client, message: Message):
-
         caption = """
-📖 **Smash & Pass Bot - Help Menu**
+📖 **Smash & Pass Bot - Help**
 
-Welcome to the help panel! Select a category below.
+Welcome to the help menu! Select a category below to learn more.
 
-🎮 **Quick Start**
-1. Use `/smash`
-2. Tap **Smash** button
-3. Win = added to your collection!
+🎮 **Quick Start:**
+1. Use `/smash` to get a random waifu  
+2. Tap **Smash** to try winning  
+3. If successful → added to your collection!
 
-Choose a module:
+**Choose a category:**
 """
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        await message.reply_photo(
-            HELP_IMAGE,
-            caption=caption,
-            reply_markup=buttons
-        )
+        # Send photo + caption if available
+        if os.path.exists(HELP_IMAGE_PATH):
+            await message.reply_photo(
+                HELP_IMAGE_PATH,
+                caption=caption,
+                reply_markup=buttons
+            )
+        else:
+            await message.reply_text(caption, reply_markup=buttons)
 
     # ---------------------------------------------------------
     #  /commands list
@@ -154,22 +159,32 @@ Choose a module:
     async def help_main_callback(client: Client, callback: CallbackQuery):
 
         caption = """
-📖 **Smash & Pass Bot - Help Menu**
+📖 **Smash & Pass Bot - Help**
+
+Welcome to the help menu!
 
 🎮 **Quick Start**
-1. Use `/smash`
-2. Tap Smash
-3. Win and collect waifus!
+1. Use `/smash`  
+2. Click **Smash**  
+3. Win → add to collection!
 
-Choose a module:
+**Choose a category:**
 """
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        await callback.message.edit_media(
-            InputMediaPhoto(HELP_IMAGE, caption=caption),
-            reply_markup=buttons
-        )
+        # Update with image
+        if os.path.exists(HELP_IMAGE_PATH):
+            await callback.message.edit_media(
+                media=InputMediaPhoto(
+                    HELP_IMAGE_PATH,
+                    caption=caption
+                ),
+                reply_markup=buttons
+            )
+        else:
+            await callback.message.edit_text(caption, reply_markup=buttons)
+
         await callback.answer()
 
     # ---------------------------------------------------------
@@ -191,13 +206,17 @@ Choose a module:
             [InlineKeyboardButton("❌ Close", callback_data="help_close")]
         ])
 
-        await callback.message.edit_media(
-            InputMediaPhoto(
-                HELP_IMAGE,
-                caption=text
-            ),
-            reply_markup=buttons
-        )
+        # Replace with local image + caption
+        if os.path.exists(HELP_IMAGE_PATH):
+            await callback.message.edit_media(
+                media=InputMediaPhoto(
+                    HELP_IMAGE_PATH,
+                    caption=text
+                ),
+                reply_markup=buttons
+            )
+        else:
+            await callback.message.edit_text(text, reply_markup=buttons)
 
         await callback.answer()
 
