@@ -10,7 +10,7 @@ import os
 import config
 
 # Local image path
-HELP_IMAGE_PATH = "assets/smash.jpg"   # <-- KEEP YOUR FILE HERE
+HELP_IMAGE_PATH = "https://files.catbox.moe/n1743y.jpg"   # <-- KEEP YOUR FILE HERE
 
 
 # Help data for this module
