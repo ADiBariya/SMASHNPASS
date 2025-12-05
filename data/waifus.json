@@ -6,7 +6,7 @@
     "series": "Sword Art Online",
     "rarity": "Common",
     "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
+      "endpoint": "https://files.catbox.moe/4sqd6r.jpg"
     }
   },
   {
@@ -15,7 +15,7 @@
     "series": "Re:Zero",
     "rarity": "Legendary",
     "image": {
-      "endpoint": "https://api.waifu.pics/sfw/maid"
+      "endpoint": "https://files.catbox.moe/ohoyrg.jpg"
     }
   },
   {
@@ -24,7 +24,7 @@
     "series": "Re:Zero",
     "rarity": "Common",
     "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
+      "endpoint": "https://files.catbox.moe/u39vwk.jpg"
     }
   },
   {
@@ -33,7 +33,7 @@
     "series": "Naruto",
     "rarity": "Common",
     "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
+      "endpoint": "https://files.catbox.moe/kvo699.jpg"
     }
   },
   {
@@ -42,7 +42,7 @@
     "series": "Naruto",
     "rarity": "Common",
     "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
+      "endpoint": "https://files.catbox.moe/9j0zjq.jpg"
     }
   },
   {
@@ -51,128 +51,6 @@
     "series": "Naruto",
     "rarity": "Legendary",
     "image": {
-      "endpoint": "https://api.waifu.pics/sfw/maid"
-    }
-  },
-  {
-    "id": "W-0007",
-    "name": "Nami",
-    "series": "One Piece",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
-    }
-  },
-  {
-    "id": "W-0008",
-    "name": "Nico Robin",
-    "series": "One Piece",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
-    }
-  },
-  {
-    "id": "W-0009",
-    "name": "Boa Hancock",
-    "series": "One Piece",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
-    }
-  },
-  {
-    "id": "W-0010",
-    "name": "Zero Two",
-    "series": "Darling in the Franxx",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
-    }
-  },
-  {
-    "id": "W-0011",
-    "name": "Mikasa Ackerman",
-    "series": "Attack on Titan",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
-    }
-  },
-  {
-    "id": "W-0012",
-    "name": "Nezuko Kamado",
-    "series": "Demon Slayer",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
-    }
-  },
-  {
-    "id": "W-0013",
-    "name": "Shinobu Kocho",
-    "series": "Demon Slayer",
-    "rarity": "Rare",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/neko"
-    }
-  },
-  {
-    "id": "W-0014",
-    "name": "Kaguya Shinomiya",
-    "series": "Kaguya-sama",
-    "rarity": "Legendary",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/maid"
-    }
-  },
-  {
-    "id": "W-0015",
-    "name": "Chika Fujiwara",
-    "series": "Kaguya-sama",
-    "rarity": "Rare",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/neko"
-    }
-  },
-  {
-    "id": "W-0016",
-    "name": "Yor Forger",
-    "series": "Spy x Family",
-    "rarity": "Rare",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/neko"
-    }
-  },
-  {
-    "id": "W-0017",
-    "name": "Anya Forger",
-    "series": "Spy x Family",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/waifu"
-    }
-  },
-  {
-    "id": "W-0018",
-    "name": "Makima",
-    "series": "Chainsaw Man",
-    "rarity": "Rare",
-    "image": {
-      "endpoint": "https://api.waifu.pics/sfw/neko"
+      "endpoint": "https://files.catbox.moe/f0fgwd.jpg"
     }
   }
-    ],
-    "rarity_colors": {
-        "common": "⚪",
-        "rare": "🔵",
-        "epic": "🟣",
-        "legendary": "🟡"
-    },
-    "rarity_weights": {
-        "common": 50,
-        "rare": 30,
-        "epic": 15,
-        "legendary": 5
-    }
-}
