@@ -5,7 +5,8 @@ from pyrogram.types import (
     Message,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
-    CallbackQuery
+    CallbackQuery,
+    InputMediaPhoto
 )
 import config
 
@@ -95,26 +96,34 @@ def get_module_help_text(module_name: str) -> str:
 def setup(app: Client):
     """Setup function called by loader"""
 
+    HELP_IMAGE = "https://i.ibb.co/Mx3WS7Qs/photo-2025-12-05-20-59-39.jpg"
+
     # ---------------------------------------------------------
-    #  /help command
+    #  /help command (now photo-based!)
     # ---------------------------------------------------------
     @app.on_message(filters.command("help", config.COMMAND_PREFIX))
     async def help_command(client: Client, message: Message):
-        text = """
-📖 **Smash & Pass Bot - Help**
 
-Welcome to the help menu! Select a category below to learn more.
+        caption = """
+📖 **Smash & Pass Bot - Help Menu**
 
-🎮 **Quick Start:**
-1. Use `/smash` to get a random waifu  
-2. Tap **Smash** to try winning  
-3. If successful → added to your collection!
+Welcome to the help panel! Select a category below.
 
-**Choose a category:**  
+🎮 **Quick Start**
+1. Use `/smash`
+2. Tap **Smash** button
+3. Win = added to your collection!
+
+Choose a module:
 """
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
-        await message.reply_text(text, reply_markup=buttons)
+
+        await message.reply_photo(
+            HELP_IMAGE,
+            caption=caption,
+            reply_markup=buttons
+        )
 
     # ---------------------------------------------------------
     #  /commands list
@@ -145,22 +154,23 @@ Welcome to the help menu! Select a category below to learn more.
     @app.on_callback_query(filters.regex("^help_main$"))
     async def help_main_callback(client: Client, callback: CallbackQuery):
 
-        text = """
-📖 **Smash & Pass Bot - Help**
-
-Welcome to the help menu!
+        caption = """
+📖 **Smash & Pass Bot - Help Menu**
 
 🎮 **Quick Start**
-1. Use `/smash`  
-2. Click **Smash**  
-3. Win → add to collection!
+1. Use `/smash`
+2. Tap Smash
+3. Win and collect waifus!
 
-**Choose a category:**
+Choose a module:
 """
 
         buttons = InlineKeyboardMarkup(get_help_buttons())
 
-        await callback.message.edit_text(text, reply_markup=buttons)
+        await callback.message.edit_media(
+            InputMediaPhoto(HELP_IMAGE, caption=caption),
+            reply_markup=buttons
+        )
         await callback.answer()
 
     # ---------------------------------------------------------
@@ -183,12 +193,13 @@ Welcome to the help menu!
         ])
 
         await callback.message.edit_media(
-    media=InputMediaPhoto(
-        "https://i.ibb.co/Mx3WS7Qs/photo-2025-12-05-20-59-39.jpg",
-        caption=text
-    ),
-    reply_markup=buttons
-)
+            InputMediaPhoto(
+                HELP_IMAGE,
+                caption=text
+            ),
+            reply_markup=buttons
+        )
+
         await callback.answer()
 
     # ---------------------------------------------------------
