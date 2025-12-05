@@ -24,7 +24,7 @@ START_IMAGE = "https://files.catbox.moe/jcy3qf.jpg"
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  /start Command - Direct decorator (no setup wrapper)
+#  /start Command
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_message(filters.command("start", config.COMMAND_PREFIX))
@@ -149,6 +149,7 @@ async def stats_command(client: Client, message: Message):
 
 @Client.on_callback_query(filters.regex("^view_stats$"))
 async def view_stats_callback(client: Client, callback: CallbackQuery):
+    """View stats callback"""
     user = callback.from_user
     
     try:
@@ -188,6 +189,7 @@ async def view_stats_callback(client: Client, callback: CallbackQuery):
 
 @Client.on_callback_query(filters.regex("^start_back$"))
 async def start_back_callback(client: Client, callback: CallbackQuery):
+    """Back to start callback"""
     user = callback.from_user
     
     text = f"""
@@ -221,19 +223,34 @@ async def start_back_callback(client: Client, callback: CallbackQuery):
 
 @Client.on_callback_query(filters.regex("^help_main$"))
 async def help_main_callback(client: Client, callback: CallbackQuery):
+    """Help menu callback"""
+    print(f"📖 [HELP] Callback received from {callback.from_user.first_name}")
+    
     text = """
 📖 **Help Menu**
 
-🎮 /smash - Start game
-📦 /collection - Your waifus
-📊 /stats - Statistics
-💰 /daily - Daily reward
-🏓 /ping - Bot latency
+🎮 **Game Commands:**
+├ /smash - Start a new game
+├ /collection - View your waifus
+├ /stats - Your statistics
+└ /daily - Claim daily reward
+
+💰 **Economy:**
+├ /balance - Check coins
+├ /shop - Visit shop
+└ /gift - Gift waifu/coins
+
+🏆 **Others:**
+├ /leaderboard - Top players
+├ /profile - Your profile
+└ /ping - Bot latency
+
+**Tip:** Legendary waifus are rare but powerful!
 """
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
+            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
             InlineKeyboardButton("🔙 Back", callback_data="start_back")
         ]
     ])
@@ -243,6 +260,87 @@ async def help_main_callback(client: Client, callback: CallbackQuery):
             await callback.message.edit_caption(caption=text, reply_markup=buttons)
         else:
             await callback.message.edit_text(text, reply_markup=buttons)
-    except:
-        pass
+        print("✅ [HELP] Menu sent!")
+    except Exception as e:
+        print(f"❌ [HELP] Error: {e}")
+    
+    await callback.answer()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  📦 View Collection Callback (Add here if not in collection.py)
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_callback_query(filters.regex("^view_collection$"))
+async def view_collection_callback(client: Client, callback: CallbackQuery):
+    """View collection callback"""
+    user = callback.from_user
+    
+    print(f"📦 [COLLECTION] Callback from {user.first_name}")
+    
+    try:
+        collection = db.get_user_collection(user.id)
+    except Exception as e:
+        print(f"❌ [COLLECTION] DB Error: {e}")
+        await callback.answer("❌ Database error!", show_alert=True)
+        return
+    
+    if not collection:
+        text = f"""
+📦 **{user.first_name}'s Collection**
+
+😢 **Your collection is empty!**
+
+Play /smash to win waifus and add them to your collection!
+"""
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
+                InlineKeyboardButton("🔙 Back", callback_data="start_back")
+            ]
+        ])
+    else:
+        # Show first 5 waifus
+        text = f"""
+📦 **{user.first_name}'s Collection**
+
+📊 **Total Waifus:** {len(collection)}
+
+"""
+        # Get rarity emoji helper
+        rarity_emojis = {
+            "common": "⚪",
+            "rare": "🔵",
+            "epic": "🟣",
+            "legendary": "🟡"
+        }
+        
+        for i, waifu in enumerate(collection[:5], 1):
+            rarity = waifu.get("waifu_rarity") or waifu.get("rarity", "common")
+            emoji = rarity_emojis.get(rarity, "⚪")
+            name = waifu.get("waifu_name") or waifu.get("name", "Unknown")
+            power = waifu.get("waifu_power") or waifu.get("power", 0)
+            text += f"{i}. {emoji} **{name}** (⚔️ {power})\n"
+        
+        if len(collection) > 5:
+            text += f"\n... and {len(collection) - 5} more!"
+        
+        text += "\n\nUse /collection for full list!"
+        
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🎮 Play More", callback_data="play_smash"),
+                InlineKeyboardButton("🔙 Back", callback_data="start_back")
+            ]
+        ])
+    
+    try:
+        if callback.message.photo:
+            await callback.message.edit_caption(caption=text, reply_markup=buttons)
+        else:
+            await callback.message.edit_text(text, reply_markup=buttons)
+        print("✅ [COLLECTION] Sent!")
+    except Exception as e:
+        print(f"❌ [COLLECTION] Edit error: {e}")
+    
     await callback.answer()
