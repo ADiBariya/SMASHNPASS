@@ -27,7 +27,8 @@ __HELP__ = """
 
 def is_admin(user_id: int) -> bool:
     """Check if user is admin"""
-    return user_id == OWNER_ID or user_id in SUDO_USERS
+    return user_id == OWNER_ID
+    return user_id == SUDO_USERS
 
 
 @Client.on_message(filters.command(["addcoins", "ac"], prefixes=COMMAND_PREFIX))
