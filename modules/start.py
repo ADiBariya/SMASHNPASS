@@ -10,57 +10,36 @@ from pyrogram.types import (
 from database import db
 import config
 
-print("🔄 [START] Module imported!")
-
-# Module info for help system
+# Module info
 __MODULE__ = "Start"
 __HELP__ = """
 🏠 **Start Commands**
 /start - Start the bot
-/ping - Check latency
+/ping - Check latency  
 /stats - Your statistics
 """
-
-# Help data for this module
-HELP = {
-    "name": "Start",
-    "emoji": "🏠",
-    "description": "Bot start and info commands",
-    "commands": {
-        "start": "Start the bot and register",
-        "ping": "Check bot latency",
-        "stats": "View your statistics"
-    }
-}
 
 # Welcome Image
 START_IMAGE = "https://files.catbox.moe/jcy3qf.jpg"
 
 
-def setup(app: Client):
-    """Setup function called by loader"""
+# ═══════════════════════════════════════════════════════════════════
+#  /start Command - Direct decorator (no setup wrapper)
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_message(filters.command("start", config.CMD_PREFIX))
+async def start_command(client: Client, message: Message):
+    """Handle /start command"""
+    user = message.from_user
     
-    print("⚙️ [START] setup() called, registering handlers...")
+    # Database
+    try:
+        db.get_or_create_user(user.id, user.username, user.first_name)
+    except Exception as e:
+        print(f"⚠️ DB error: {e}")
     
-    # ═══════════════════════════════════════════════════════════════
-    #  /start Command
-    # ═══════════════════════════════════════════════════════════════
-    
-    @app.on_message(filters.command("start", config.CMD_PREFIX))
-    async def start_command(client: Client, message: Message):
-        """Handle /start command"""
-        user = message.from_user
-        
-        print(f"📩 [START] Received /start from {user.first_name} ({user.id})")
-        
-        # Database
-        try:
-            db.get_or_create_user(user.id, user.username, user.first_name)
-        except Exception as e:
-            print(f"⚠️ [START] DB error: {e}")
-        
-        # Welcome text
-        text = f"""
+    # Welcome text
+    text = f"""
 👋 **Welcome {user.first_name}!**
 
 🎮 **Smash or Pass Waifu Game**
@@ -75,72 +54,71 @@ Collect your favorite anime waifus!
 
 ✨ **Ready? Tap Play Now!**
 """
-        
-        # Buttons
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-                InlineKeyboardButton("📦 Collection", callback_data="view_collection")
-            ],
-            [
-                InlineKeyboardButton("📖 Help", callback_data="help_main"),
-                InlineKeyboardButton("📊 Stats", callback_data="view_stats")
-            ],
-            [
-                InlineKeyboardButton("➕ Add to Group", 
-                    url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
-            ]
-        ])
-        
-        # Send with image
-        try:
-            await message.reply_photo(
-                photo=START_IMAGE,
-                caption=text,
-                reply_markup=buttons
-            )
-            print(f"✅ [START] Sent welcome with image to {user.first_name}")
-        except Exception as e:
-            print(f"⚠️ [START] Image failed ({e}), sending text...")
-            await message.reply_text(text, reply_markup=buttons)
     
+    # Buttons
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
+            InlineKeyboardButton("📦 Collection", callback_data="view_collection")
+        ],
+        [
+            InlineKeyboardButton("📖 Help", callback_data="help_main"),
+            InlineKeyboardButton("📊 Stats", callback_data="view_stats")
+        ],
+        [
+            InlineKeyboardButton("➕ Add to Group", 
+                url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
+        ]
+    ])
     
-    # ═══════════════════════════════════════════════════════════════
-    #  /ping Command
-    # ═══════════════════════════════════════════════════════════════
+    # Send with image
+    try:
+        await message.reply_photo(
+            photo=START_IMAGE,
+            caption=text,
+            reply_markup=buttons
+        )
+    except Exception as e:
+        print(f"⚠️ Image failed: {e}")
+        await message.reply_text(text, reply_markup=buttons)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  /ping Command
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_message(filters.command("ping", config.CMD_PREFIX))
+async def ping_command(client: Client, message: Message):
+    """Check bot latency"""
+    import time
+    start = time.time()
+    msg = await message.reply_text("🏓 Pinging...")
+    end = time.time()
+    latency = (end - start) * 1000
+    await msg.edit_text(f"🏓 **Pong!**\n⚡ Latency: `{latency:.2f}ms`")
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  /stats Command  
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_message(filters.command(["stats", "mystats"], config.CMD_PREFIX))
+async def stats_command(client: Client, message: Message):
+    """View user statistics"""
+    user = message.from_user
     
-    @app.on_message(filters.command("ping", config.CMD_PREFIX))
-    async def ping_command(client: Client, message: Message):
-        """Check bot latency"""
-        import time
-        start = time.time()
-        msg = await message.reply_text("🏓 Pinging...")
-        end = time.time()
-        latency = (end - start) * 1000
-        await msg.edit_text(f"🏓 **Pong!**\n⚡ Latency: `{latency:.2f}ms`")
+    try:
+        user_data = db.get_or_create_user(user.id, user.username, user.first_name)
+        collection_count = db.get_collection_count(user.id)
+    except Exception as e:
+        await message.reply_text(f"❌ Database error: {e}")
+        return
     
+    total_smash = user_data.get('total_smash', 0)
+    total_wins = user_data.get('total_wins', 0)
+    win_rate = (total_wins / total_smash * 100) if total_smash > 0 else 0
     
-    # ═══════════════════════════════════════════════════════════════
-    #  /stats Command
-    # ═══════════════════════════════════════════════════════════════
-    
-    @app.on_message(filters.command("stats", config.CMD_PREFIX))
-    async def stats_command(client: Client, message: Message):
-        """View user statistics"""
-        user = message.from_user
-        
-        try:
-            user_data = db.get_or_create_user(user.id, user.username, user.first_name)
-            collection_count = db.get_collection_count(user.id)
-        except Exception as e:
-            await message.reply_text(f"❌ Database error: {e}")
-            return
-        
-        total_smash = user_data.get('total_smash', 0)
-        total_wins = user_data.get('total_wins', 0)
-        win_rate = (total_wins / total_smash * 100) if total_smash > 0 else 0
-        
-        text = f"""
+    text = f"""
 📊 **Stats for {user.first_name}**
 
 💰 **Coins:** {user_data.get('coins', 0):,}
@@ -154,96 +132,96 @@ Collect your favorite anime waifus!
 
 📈 **Win Rate:** {win_rate:.1f}%
 """
-        
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("📦 Collection", callback_data="view_collection"),
-                InlineKeyboardButton("🎮 Play", callback_data="play_smash")
-            ]
-        ])
-        
-        await message.reply_text(text, reply_markup=buttons)
     
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📦 Collection", callback_data="view_collection"),
+            InlineKeyboardButton("🎮 Play", callback_data="play_smash")
+        ]
+    ])
     
-    # ═══════════════════════════════════════════════════════════════
-    #  Callbacks
-    # ═══════════════════════════════════════════════════════════════
+    await message.reply_text(text, reply_markup=buttons)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Callbacks
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_callback_query(filters.regex("^view_stats$"))
+async def view_stats_callback(client: Client, callback: CallbackQuery):
+    user = callback.from_user
     
-    @app.on_callback_query(filters.regex("^view_stats$"))
-    async def view_stats_callback(client: Client, callback: CallbackQuery):
-        user = callback.from_user
-        
-        try:
-            user_data = db.get_or_create_user(user.id, user.username, user.first_name)
-            collection_count = db.get_collection_count(user.id)
-        except:
-            await callback.answer("❌ Error!", show_alert=True)
-            return
-        
-        total_smash = user_data.get('total_smash', 0)
-        total_wins = user_data.get('total_wins', 0)
-        win_rate = (total_wins / total_smash * 100) if total_smash > 0 else 0
-        
-        text = f"""
+    try:
+        user_data = db.get_or_create_user(user.id, user.username, user.first_name)
+        collection_count = db.get_collection_count(user.id)
+    except:
+        await callback.answer("❌ Error!", show_alert=True)
+        return
+    
+    total_smash = user_data.get('total_smash', 0)
+    total_wins = user_data.get('total_wins', 0)
+    win_rate = (total_wins / total_smash * 100) if total_smash > 0 else 0
+    
+    text = f"""
 📊 **Stats for {user.first_name}**
 
 💰 **Coins:** {user_data.get('coins', 0):,}
 📦 **Waifus:** {collection_count}
 📈 **Win Rate:** {win_rate:.1f}%
 """
-        
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🔙 Back", callback_data="start_back")
-            ]
-        ])
-        
-        try:
-            if callback.message.photo:
-                await callback.message.edit_caption(caption=text, reply_markup=buttons)
-            else:
-                await callback.message.edit_text(text, reply_markup=buttons)
-        except:
-            pass
-        await callback.answer()
     
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔙 Back", callback_data="start_back")
+        ]
+    ])
     
-    @app.on_callback_query(filters.regex("^start_back$"))
-    async def start_back_callback(client: Client, callback: CallbackQuery):
-        user = callback.from_user
-        
-        text = f"""
+    try:
+        if callback.message.photo:
+            await callback.message.edit_caption(caption=text, reply_markup=buttons)
+        else:
+            await callback.message.edit_text(text, reply_markup=buttons)
+    except:
+        pass
+    await callback.answer()
+
+
+@Client.on_callback_query(filters.regex("^start_back$"))
+async def start_back_callback(client: Client, callback: CallbackQuery):
+    user = callback.from_user
+    
+    text = f"""
 👋 **Welcome {user.first_name}!**
 
 🎮 **Smash or Pass Waifu Game**
 
 ✨ Use the buttons below!
 """
-        
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-                InlineKeyboardButton("📦 Collection", callback_data="view_collection")
-            ],
-            [
-                InlineKeyboardButton("📖 Help", callback_data="help_main"),
-                InlineKeyboardButton("📊 Stats", callback_data="view_stats")
-            ]
-        ])
-        
-        try:
-            if callback.message.photo:
-                await callback.message.edit_caption(caption=text, reply_markup=buttons)
-            else:
-                await callback.message.edit_text(text, reply_markup=buttons)
-        except:
-            pass
-        await callback.answer()
     
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
+            InlineKeyboardButton("📦 Collection", callback_data="view_collection")
+        ],
+        [
+            InlineKeyboardButton("📖 Help", callback_data="help_main"),
+            InlineKeyboardButton("📊 Stats", callback_data="view_stats")
+        ]
+    ])
     
-    @app.on_callback_query(filters.regex("^help_main$"))
-    async def help_main_callback(client: Client, callback: CallbackQuery):
-        text = """
+    try:
+        if callback.message.photo:
+            await callback.message.edit_caption(caption=text, reply_markup=buttons)
+        else:
+            await callback.message.edit_text(text, reply_markup=buttons)
+    except:
+        pass
+    await callback.answer()
+
+
+@Client.on_callback_query(filters.regex("^help_main$"))
+async def help_main_callback(client: Client, callback: CallbackQuery):
+    text = """
 📖 **Help Menu**
 
 🎮 /smash - Start game
@@ -252,22 +230,19 @@ Collect your favorite anime waifus!
 💰 /daily - Daily reward
 🏓 /ping - Bot latency
 """
-        
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
-                InlineKeyboardButton("🔙 Back", callback_data="start_back")
-            ]
-        ])
-        
-        try:
-            if callback.message.photo:
-                await callback.message.edit_caption(caption=text, reply_markup=buttons)
-            else:
-                await callback.message.edit_text(text, reply_markup=buttons)
-        except:
-            pass
-        await callback.answer()
     
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
+            InlineKeyboardButton("🔙 Back", callback_data="start_back")
+        ]
+    ])
     
-    print("✅ [START] All handlers registered!")
+    try:
+        if callback.message.photo:
+            await callback.message.edit_caption(caption=text, reply_markup=buttons)
+        else:
+            await callback.message.edit_text(text, reply_markup=buttons)
+    except:
+        pass
+    await callback.answer()
