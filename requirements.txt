@@ -11,3 +11,4 @@ pytz
 cachetools
 colorlog
 rich
+requests
