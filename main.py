@@ -40,16 +40,15 @@ BOT_START_TIME = datetime.now()
 # --------------------------
 # LOG GROUP & STARTUP IMAGE
 # --------------------------
-# Add this to your config.py:
-# LOG_GROUP_ID = -1001234567890  # Your log group ID
 try:
     from config import LOG_GROUP_ID
 except ImportError:
     LOG_GROUP_ID = None
     logger.warning("⚠️ LOG_GROUP_ID not found in config. Log notifications disabled.")
 
-# Startup image URL (change this to your preferred image)
-STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"  # Replace with your image
+# Startup and Help image URL (same image)
+STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"
+HELP_IMAGE_URL = STARTUP_IMAGE_URL  # Use same image for help
 
 
 def load_modules():
@@ -247,10 +246,16 @@ async def start_bot():
     logger.info("👋 Bot stopped!")
 
 
-# Help command handler (registered after modules)
+# ═══════════════════════════════════════════════════════════════════
+#  /help Command Handler (with image)
+# ═══════════════════════════════════════════════════════════════════
+
 @app.on_message(filters.command(["help"], prefixes=[".", "/", "!"]))
 async def help_handler(client, message):
-    """Dynamic help handler"""
+    """Dynamic help handler with image"""
+    
+    print(f"📖 [HELP] Command from {message.from_user.first_name}")
+    
     # Check if specific module help is requested
     if len(message.command) > 1:
         module_name = message.command[1].lower()
@@ -275,7 +280,7 @@ async def help_handler(client, message):
                 callback_data=f"help_{module_name}"
             )
         )
-        if len(row) == 3:
+        if len(row) == 2:  # Changed from 3 to 2 for better layout
             buttons.append(row)
             row = []
     
@@ -286,17 +291,42 @@ async def help_handler(client, message):
         InlineKeyboardButton("📋 All Commands", callback_data="help_all")
     ])
     
-    await message.reply_text(
-        "📚 **Waifu Bot Help**\n\n"
-        "Select a module to view its commands:",
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
+    caption = """
+📚 **Waifu Bot Help**
 
+Welcome to the help menu!
+
+Select a module below to view its commands:
+"""
+    
+    # Send with image
+    try:
+        await message.reply_photo(
+            photo=HELP_IMAGE_URL,
+            caption=caption,
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+        print("✅ [HELP] Sent with image!")
+    except Exception as e:
+        print(f"⚠️ [HELP] Image failed: {e}")
+        # Fallback to text
+        await message.reply_text(
+            caption,
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Help Callback Handler (with image support)
+# ═══════════════════════════════════════════════════════════════════
 
 @app.on_callback_query(filters.regex(r"^help_"))
 async def help_callback_handler(client, callback):
-    """Handle help callbacks"""
+    """Handle help callbacks with image support"""
+    
     data = callback.data.replace("help_", "")
+    
+    print(f"📖 [HELP] Callback: {data} from {callback.from_user.first_name}")
     
     if data == "all":
         text = get_full_help()
@@ -305,10 +335,20 @@ async def help_callback_handler(client, callback):
         
         buttons = [[InlineKeyboardButton("🔙 Back", callback_data="help_back")]]
         
-        await callback.message.edit_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        try:
+            if callback.message.photo:
+                await callback.message.edit_caption(
+                    caption=text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            else:
+                await callback.message.edit_text(
+                    text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            print("✅ [HELP] All commands shown")
+        except Exception as e:
+            print(f"❌ [HELP] Error: {e}")
     
     elif data == "back":
         buttons = []
@@ -321,7 +361,7 @@ async def help_callback_handler(client, callback):
                     callback_data=f"help_{module_name}"
                 )
             )
-            if len(row) == 3:
+            if len(row) == 2:  # Changed from 3 to 2
                 buttons.append(row)
                 row = []
         
@@ -332,20 +372,47 @@ async def help_callback_handler(client, callback):
             InlineKeyboardButton("📋 All Commands", callback_data="help_all")
         ])
         
-        await callback.message.edit_text(
-            "📚 **Waifu Bot Help**\n\n"
-            "Select a module to view its commands:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        caption = """
+📚 **Waifu Bot Help**
+
+Select a module to view its commands:
+"""
+        
+        try:
+            if callback.message.photo:
+                await callback.message.edit_caption(
+                    caption=caption,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            else:
+                await callback.message.edit_text(
+                    caption,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            print("✅ [HELP] Back to main menu")
+        except Exception as e:
+            print(f"❌ [HELP] Error: {e}")
     
     elif data in LOADED_MODULES:
         info = LOADED_MODULES[data]
         buttons = [[InlineKeyboardButton("🔙 Back", callback_data="help_back")]]
         
-        await callback.message.edit_text(
-            f"📖 **{info['name']} Help**\n\n{info['help']}",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
+        text = f"📖 **{info['name']} Help**\n\n{info['help']}"
+        
+        try:
+            if callback.message.photo:
+                await callback.message.edit_caption(
+                    caption=text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            else:
+                await callback.message.edit_text(
+                    text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            print(f"✅ [HELP] Module '{info['name']}' shown")
+        except Exception as e:
+            print(f"❌ [HELP] Error: {e}")
     
     await callback.answer()
 
