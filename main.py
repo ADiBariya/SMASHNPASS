@@ -361,7 +361,7 @@ async def help_callback_handler(client, callback):
                     callback_data=f"help_{module_name}"
                 )
             )
-            if len(row) == 2:  # Changed from 3 to 2
+            if len(row) == 3:  # chnge if needed 2 row 
                 buttons.append(row)
                 row = []
         
