@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.enums import ParseMode
 from database import db
 from config import COMMAND_PREFIX
 from helpers.utils import get_rarity_emoji
@@ -84,13 +85,14 @@ async def gift_cmd(client: Client, message: Message):
             ]
         ])
 
+        # FIX: Use plain text instead of markdown for user mentions
+        target_name = target.first_name or "User"
         return await message.reply_text(
              f"🎁 **Confirm Coin Gift**\n\n"
-             f"**To:** [{target.first_name}](tg://user?id={target.id})\n"
+             f"**To:** {target_name} (ID: {target.id})\n"
              f"**Amount:** {amount:,} coins\n\n"
              "Confirm?",
-             reply_markup=buttons,
-             parse_mode="markdown"
+             reply_markup=buttons
         )
 
     # =============================================================
@@ -118,15 +120,16 @@ async def gift_cmd(client: Client, message: Message):
         ]
     ])
 
+    # FIX: Use plain text instead of markdown links
+    target_name = target.first_name or "User"
     await message.reply_text(
         f"🎁 **Confirm Waifu Gift**\n\n"
-        f"**To:** [{target.first_name}](tg://user?id={target.id})\n\n"
+        f"**To:** {target_name} (ID: {target.id})\n\n"
         f"{emoji} **{waifu['name']}**\n"
         f"📺 {waifu.get('anime')}\n"
         f"⭐ {waifu.get('rarity')}\n\n"
         f"⚠️ This action cannot be undone!",
-        reply_markup=buttons,
-        parse_mode="markdown"
+        reply_markup=buttons
     )
 
 # =============================================================
@@ -175,10 +178,11 @@ async def gift_coins_callback(client: Client, callback: CallbackQuery):
     # Notify target
     try:
         sender = callback.from_user
+        sender_name = sender.first_name or "Someone"
         await client.send_message(
             target_id,
             f"🎁 **You received a gift!**\n\n"
-            f"From: {sender.first_name}\n"
+            f"From: {sender_name}\n"
             f"Amount: {amount:,} coins"
         )
     except:
@@ -234,10 +238,11 @@ async def gift_waifu_callback(client: Client, callback: CallbackQuery):
     # Notify
     try:
         sender = callback.from_user
+        sender_name = sender.first_name or "Someone"
         await client.send_message(
             target_id,
             f"🎁 **New Waifu Gift!**\n\n"
-            f"From: {sender.first_name}\n"
+            f"From: {sender_name}\n"
             f"{emoji} {waifu['name']}"
         )
     except:
