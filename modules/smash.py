@@ -10,7 +10,7 @@ from pyrogram.types import (
 )
 from database import db
 from helpers import get_waifu_manager, Utils
-import config
+import config  # lowercase import
 
 # Help data for this module
 HELP = {
@@ -31,7 +31,7 @@ active_games = {}
 def setup(app: Client):
     """Setup function called by loader"""
     
-    @app.on_message(filters.command(["smash", "waifu", "sp"], Config.CMD_PREFIX))
+    @app.on_message(filters.command(["smash", "waifu", "sp"], config.CMD_PREFIX))  # ✅ Fixed
     async def smash_command(client: Client, message: Message):
         """Start a new smash or pass game"""
         user = message.from_user
@@ -126,13 +126,13 @@ def setup(app: Client):
             return
         
         # Set cooldown
-        db.set_cooldown(user.id, "smash", Config.GAME_COOLDOWN)
+        db.set_cooldown(user.id, "smash", config.GAME_COOLDOWN)  # ✅ Fixed
         
         # Update stats
         db.increment_user_stats(user.id, "total_smash")
         
         # Calculate win/lose
-        win_chance = Config.WIN_CHANCE
+        win_chance = config.WIN_CHANCE  # ✅ Fixed
         
         # Rarity affects win chance
         rarity = waifu.get("rarity", "common")
