@@ -25,10 +25,11 @@ __HELP__ = """
 """
 
 
+ADMINS = {OWNER_ID, *SUDO_USERS}   # if SUDO_USERS is a list
+
 def is_admin(user_id: int) -> bool:
-    """Check if user is admin"""
-    return user_id == OWNER_ID
-    return user_id == SUDO_USERS
+    return user_id in ADMINS
+
 
 
 @Client.on_message(filters.command(["addcoins", "ac"], prefixes=COMMAND_PREFIX))
