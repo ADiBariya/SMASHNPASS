@@ -6,10 +6,13 @@ API_HASH = os.environ.get("API_HASH", "d1d8331e5b288c572e8bb6baa7d8f833")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "6970989601:AAFYsCo54bL8uphlBsd0qYz69o7JDFehxZg")
 
 # Owner Configuration
+import os
+
 OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
 
 sudo_default = "1737646273"
 SUDO_USERS = list(map(int, os.environ.get("SUDO_USERS", sudo_default).split()))
+
 
 # MongoDB Configuration
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://nefer:nefer6080@cluster0.wtfay3u.mongodb.net/?retryWrites=true&w=majority")
