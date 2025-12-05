@@ -1,3 +1,4 @@
+# modules/chatbot.py - Fixed Midnight Desire Chatbot
 
 from pyrogram import Client, filters
 from pyrogram.types import Message
@@ -11,9 +12,9 @@ __HELP__ = """
 Seductive AI girlfriend with emotions & memory.
 
 **Triggers:**
-• Reply to Midnight's messages  
-• Mention "midnight" in chat  
-• Emotional keywords auto-chat  
+• Reply to Midnight's messages
+• Mention "midnight" in chat
+• Emotional keywords auto-chat
 
 Example:
 `midnight I miss you`
@@ -28,7 +29,6 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro
 BOT_NAME = "Midnight"
 MEMORY_FILE = "data/midnight_memory.json"
 
-
 # --------------------------
 # MEMORY SYSTEM
 # --------------------------
@@ -39,28 +39,24 @@ def load_memory():
     except:
         return {}
 
-
 def save_memory(memory):
     with open(MEMORY_FILE, "w") as f:
         json.dump(memory, f, indent=4)
 
-
 memory = load_memory()
 
-
 # --------------------------
-# TYPING EFFECT
+# TYPING EFFECT - FIXED
 # --------------------------
-async def simulate_typing(message: Message, text: str):
-    await message.chat.send_chat_action("typing")
+async def simulate_typing(client: Client, message: Message, text: str):
+    """Simulate typing with proper client reference"""
+    await client.send_chat_action(message.chat.id, "typing")
     await asyncio.sleep(min(2.5, len(text) * 0.01))
-
 
 # --------------------------
 # ASK GEMINI
 # --------------------------
 async def ask_gemini(prompt: str, user_name: str):
-
     persona = f"""
 You are Midnight — a seductive, emotional, caring girlfriend AI.
 You talk soft, teasing, romantic, and human.
@@ -93,7 +89,6 @@ Rules:
         print("Gemini Error:", e)
         return "Baby… Midnight is having trouble talking. Try again."
 
-
 # --------------------------
 # MEMORY UPDATE
 # --------------------------
@@ -108,13 +103,11 @@ def update_memory(uid: str, text: str):
 
     save_memory(memory)
 
-
 # --------------------------
-# MAIN CHATBOT HANDLER
+# MAIN CHATBOT HANDLER - FIXED
 # --------------------------
 @Client.on_message(filters.text & ~filters.bot)
-async def midnight_handler(client, message: Message):
-
+async def midnight_handler(client: Client, message: Message):
     user = message.from_user
     text = message.text
     uid = str(user.id)
@@ -123,20 +116,20 @@ async def midnight_handler(client, message: Message):
 
     # Trigger 1: If replying to Midnight
     if message.reply_to_message and message.reply_to_message.from_user.is_self:
-        await simulate_typing(message, text)
+        await simulate_typing(client, message, text)
         reply = await ask_gemini(text, user.first_name)
         return await message.reply_text(reply)
 
     # Trigger 2: Mentioning Midnight
     if BOT_NAME.lower() in text.lower():
-        await simulate_typing(message, text)
+        await simulate_typing(client, message, text)
         reply = await ask_gemini(text, user.first_name)
         return await message.reply_text(reply)
 
     # Trigger 3: Emotional auto-chat
     emotional_words = ["miss", "alone", "sad", "hurt", "love", "bored", "hi", "hey"]
     if any(w in text.lower() for w in emotional_words):
-        if time.time() % 10 < 1:
-            await simulate_typing(message, text)
+        if time.time() % 10 < 1:  # Only respond to 10% of emotional messages
+            await simulate_typing(client, message, text)
             reply = await ask_gemini(text, user.first_name)
             return await message.reply_text(reply)
