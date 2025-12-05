@@ -330,3 +330,94 @@ def setup(app: Client):
     # Direct Commands - Quick Access
     # =========================================
     @app.on_message(filters.command("topwins", config.COMMAND_PREFIX))
+    async def topwins_command(client: Client, message: Message):
+        """Show top winners directly"""
+        top_users = db.get_top_winners(10)
+
+        text = "🎯 **🏆 TOP BATTLE CHAMPIONS 🏆**\n\n"
+        medals = ["🥇", "🥈", "🥉"]
+
+        if not top_users:
+            text += "*No winners yet! Start battling!*"
+        else:
+            for i, user_data in enumerate(top_users, 1):
+                medal = medals[i - 1] if i <= 3 else f"**{i}.**"
+
+                # Get proper name
+                user_id = user_data.get("user_id")
+                name = await get_user_name(client, user_id, user_data)
+                wins = user_data.get("total_wins", 0)
+
+                # Add battle emojis based on position
+                if i == 1:
+                    text += f"{medal} **{name}** — {wins} wins ⚔️💥\n"
+                elif i == 2:
+                    text += f"{medal} **{name}** — {wins} wins ⚔️🔥\n"
+                elif i == 3:
+                    text += f"{medal} **{name}** — {wins} wins ⚔️✨\n"
+                else:
+                    text += f"{medal} **{name}** — {wins} wins\n"
+
+        await message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+
+    @app.on_message(filters.command("toprich", config.COMMAND_PREFIX))
+    async def toprich_command(client: Client, message: Message):
+        """Show richest players directly"""
+        top_users = db.get_top_rich(10)
+
+        text = "💰 **💎 TOP COIN MASTERS 💎**\n\n"
+        medals = ["🥇", "🥈", "🥉"]
+
+        if not top_users:
+            text += "*No rich players yet! Earn coins!*"
+        else:
+            for i, user_data in enumerate(top_users, 1):
+                medal = medals[i - 1] if i <= 3 else f"**{i}.**"
+
+                # Get proper name
+                user_id = user_data.get("user_id")
+                name = await get_user_name(client, user_id, user_data)
+                coins = user_data.get("coins", 0)
+
+                # Add money emojis based on position
+                if i == 1:
+                    text += f"{medal} **{name}** — {coins:,} coins 💰💎\n"
+                elif i == 2:
+                    text += f"{medal} **{name}** — {coins:,} coins 💰✨\n"
+                elif i == 3:
+                    text += f"{medal} **{name}** — {coins:,} coins 💰🔥\n"
+                else:
+                    text += f"{medal} **{name}** — {coins:,} coins\n"
+
+        await message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+
+    @app.on_message(filters.command("top", config.COMMAND_PREFIX))
+    async def top_command(client: Client, message: Message):
+        """Show top collectors directly"""
+        top_users = db.get_top_collectors(10)
+
+        text = "📦 **👑 TOP WAIFU COLLECTORS 👑**\n\n"
+        medals = ["🥇", "🥈", "🥉"]
+
+        if not top_users:
+            text += "*No collectors yet! Be the first!*"
+        else:
+            for i, user_data in enumerate(top_users, 1):
+                medal = medals[i - 1] if i <= 3 else f"**{i}.**"
+
+                # Get proper name
+                user_id = user_data.get("user_id")
+                name = await get_user_name(client, user_id, user_data)
+                count = user_data.get("count", 0)
+
+                # Add sexy emojis based on position
+                if i == 1:
+                    text += f"{medal} **{name}** — {count} waifus 💘🔥\n"
+                elif i == 2:
+                    text += f"{medal} **{name}** — {count} waifus 💖✨\n"
+                elif i == 3:
+                    text += f"{medal} **{name}** — {count} waifus 💕🌟\n"
+                else:
+                    text += f"{medal} **{name}** — {count} waifus\n"
+
+        await message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
