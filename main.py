@@ -4,8 +4,9 @@ import asyncio
 import importlib
 import logging
 from pathlib import Path
-from pyrogram import Client, idle
-from pyrogram.handlers import MessageHandler, CallbackQueryHandler
+from datetime import datetime
+from pyrogram import Client, idle, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from database import db
 
@@ -33,6 +34,23 @@ app = Client(
 LOADED_MODULES = {}
 HELP_COMMANDS = {}
 
+# Bot start time for uptime tracking
+BOT_START_TIME = datetime.now()
+
+# --------------------------
+# LOG GROUP & STARTUP IMAGE
+# --------------------------
+# Add this to your config.py:
+# LOG_GROUP_ID = -1001234567890  # Your log group ID
+try:
+    from config import LOG_GROUP_ID
+except ImportError:
+    LOG_GROUP_ID = None
+    logger.warning("⚠️ LOG_GROUP_ID not found in config. Log notifications disabled.")
+
+# Startup image URL (change this to your preferred image)
+STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"  # Replace with your image
+
 
 def load_modules():
     """Load all modules from modules folder"""
@@ -40,7 +58,7 @@ def load_modules():
     
     if not modules_path.exists():
         logger.error("Modules folder not found!")
-        return
+        return 0, 0
     
     loaded = 0
     failed = 0
@@ -93,12 +111,112 @@ def get_module_list():
     return text
 
 
+async def send_startup_notification(me, loaded_count, failed_count):
+    """Send startup notification to log group and owner"""
+    startup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    caption = f"""
+🚀 **Bot Started Successfully!**
+
+**Bot Information:**
+├ **Username:** @{me.username}
+├ **Bot ID:** `{me.id}`
+├ **Name:** {me.first_name}
+└ **Started:** `{startup_time}`
+
+**Module Status:**
+├ ✅ **Loaded:** {loaded_count}
+├ ❌ **Failed:** {failed_count}
+└ 📊 **Total:** {loaded_count + failed_count}
+
+**System Status:**
+├ 🗄️ **Database:** Connected
+├ 🔧 **Plugins:** Active
+└ 🟢 **Status:** Online
+
+━━━━━━━━━━━━━━━━━━━━
+⏰ Bot is now running!
+    """
+    
+    # Send to log group
+    if LOG_GROUP_ID:
+        try:
+            logger.info(f"📤 Sending startup notification to log group: {LOG_GROUP_ID}")
+            await app.send_photo(
+                chat_id=LOG_GROUP_ID,
+                photo=STARTUP_IMAGE_URL,
+                caption=caption
+            )
+            logger.info("✅ Startup notification sent to log group!")
+        except Exception as e:
+            logger.error(f"❌ Failed to send to log group: {e}")
+            # Fallback to text message
+            try:
+                await app.send_message(
+                    chat_id=LOG_GROUP_ID,
+                    text=caption + "\n\n⚠️ _Image failed to load_"
+                )
+                logger.info("✅ Startup notification sent (text fallback)")
+            except Exception as e2:
+                logger.error(f"❌ Failed to send text fallback: {e2}")
+    
+    # Send to owner
+    try:
+        logger.info(f"📤 Sending startup notification to owner: {OWNER_ID}")
+        await app.send_message(
+            OWNER_ID,
+            f"✅ **Bot Started!**\n\n"
+            f"**Bot:** @{me.username}\n"
+            f"**Modules:** {loaded_count} loaded, {failed_count} failed\n"
+            f"**Status:** 🟢 Online\n"
+            f"**Time:** `{startup_time}`"
+        )
+        logger.info("✅ Startup notification sent to owner!")
+    except Exception as e:
+        logger.error(f"❌ Failed to send to owner: {e}")
+
+
+async def send_shutdown_notification(me):
+    """Send shutdown notification to log group"""
+    if not LOG_GROUP_ID:
+        return
+    
+    shutdown_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    uptime_delta = datetime.now() - BOT_START_TIME
+    days = uptime_delta.days
+    hours, remainder = divmod(uptime_delta.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    uptime = f"{days}d {hours}h {minutes}m {seconds}s" if days > 0 else f"{hours}h {minutes}m {seconds}s"
+    
+    text = f"""
+🛑 **Bot Stopped**
+
+**Bot:** @{me.username}
+**Stopped:** `{shutdown_time}`
+**Uptime:** `{uptime}`
+**Status:** 🔴 Offline
+
+━━━━━━━━━━━━━━━━━━━━
+👋 Bot has been shut down.
+    """
+    
+    try:
+        await app.send_message(
+            chat_id=LOG_GROUP_ID,
+            text=text
+        )
+        logger.info("✅ Shutdown notification sent to log group!")
+    except Exception as e:
+        logger.error(f"❌ Failed to send shutdown notification: {e}")
+
+
 async def start_bot():
     """Start the bot"""
     logger.info("🚀 Starting Waifu Bot...")
     
     # Load modules
-    load_modules()
+    loaded, failed = load_modules()
     
     # Connect to database
     try:
@@ -114,20 +232,15 @@ async def start_bot():
     me = await app.get_me()
     logger.info(f"🤖 Bot started as @{me.username}")
     
-    # Notify owner
-    try:
-        await app.send_message(
-            OWNER_ID,
-            f"✅ **Bot Started!**\n\n"
-            f"**Bot:** @{me.username}\n"
-            f"**Modules:** {len(LOADED_MODULES)}\n"
-            f"**Status:** Online"
-        )
-    except:
-        pass
+    # Send startup notifications
+    await send_startup_notification(me, loaded, failed)
     
     # Keep bot running
+    logger.info("✅ Bot is now idle and ready!")
     await idle()
+    
+    # Send shutdown notification
+    await send_shutdown_notification(me)
     
     # Cleanup
     await app.stop()
@@ -135,13 +248,9 @@ async def start_bot():
 
 
 # Help command handler (registered after modules)
-from pyrogram import filters
-
 @app.on_message(filters.command(["help"], prefixes=[".", "/", "!"]))
 async def help_handler(client, message):
     """Dynamic help handler"""
-    from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    
     # Check if specific module help is requested
     if len(message.command) > 1:
         module_name = message.command[1].lower()
@@ -187,8 +296,6 @@ async def help_handler(client, message):
 @app.on_callback_query(filters.regex(r"^help_"))
 async def help_callback_handler(client, callback):
     """Handle help callbacks"""
-    from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    
     data = callback.data.replace("help_", "")
     
     if data == "all":
@@ -258,4 +365,6 @@ if __name__ == "__main__":
         logger.info("👋 Received interrupt, shutting down...")
     except Exception as e:
         logger.error(f"❌ Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
