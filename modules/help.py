@@ -6,7 +6,7 @@ from pyrogram.types import (
 import os
 import config
 
-HELP_IMAGE_PATH = "assets/help.jpg"   # <--- Your image path
+HELP_IMAGE_PATH = "assets/smash.jpg"   # <--- Your image path
 
 _loader = None
 
