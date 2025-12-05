@@ -155,7 +155,7 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
     total_pages = max(1, math.ceil(len(collection) / per_page))
     page = max(1, min(page, total_pages))
 
-    start = (page - 1) * per page
+    start = (page - 1) * per_page
     end = start + per_page
     page_items = collection[start:end]
 
