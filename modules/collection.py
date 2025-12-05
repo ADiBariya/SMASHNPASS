@@ -330,4 +330,3 @@ async def gift_waifu_command(client: Client, message: Message):
         f"You gifted **{waifu_name}** to "
         f"{Utils.mention_user(target_user.id, target_user.first_name)}!"
     )
-This should now perfectly match what you see in the inline collection preview!
