@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.enums import ParseMode
 from database import db
 from helpers.utils import get_rarity_emoji, calculate_collection_value
 from config import COMMAND_PREFIX
@@ -20,10 +21,11 @@ __HELP__ = """
 `.rename <name>` - Set display name
 """
 
+
 # ---------- SAFE MARKDOWN ESCAPE ----------
-def md_escape(text: str):
+def md_escape(text: str) -> str:
     if not isinstance(text, str):
-        return text
+        return str(text) if text else ""
     return (
         text.replace("_", "\\_")
             .replace("*", "\\*")
@@ -43,7 +45,7 @@ async def profile_cmd(client: Client, message: Message):
         target = message.reply_to_message.from_user
     elif len(message.command) > 1:
         try:
-            target = await client.get_users(message.command[1])   # FIXED (missing await)
+            target = await client.get_users(message.command[1])
         except:
             return await message.reply_text("❌ User not found!")
     else:
@@ -118,19 +120,23 @@ async def profile_cmd(client: Client, message: Message):
         ]
     ]
 
-    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
+    await message.reply_text(
+        text, 
+        reply_markup=InlineKeyboardMarkup(buttons), 
+        parse_mode=ParseMode.MARKDOWN
+    )
 
 
 # ------------------ COLLECTION ------------------ #
 
 @Client.on_message(filters.command(["collection", "col", "waifus"], prefixes=COMMAND_PREFIX))
-async def collection_cmd(client, message):
+async def collection_cmd(client: Client, message: Message):
 
     if message.reply_to_message:
         target = message.reply_to_message.from_user
     elif len(message.command) > 1:
         try:
-            target = await client.get_users(message.command[1])   # FIXED
+            target = await client.get_users(message.command[1])
         except:
             return await message.reply_text("❌ User not found!")
     else:
@@ -162,11 +168,11 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
     text = f"📦 **Waifu Collection** (Page {page}/{total_pages})\n\n"
 
     for waifu in page_items:
-        safe_name = md_escape(waifu["name"])
+        safe_name = md_escape(waifu.get("name", "Unknown"))
         safe_anime = md_escape(waifu.get("anime", "Unknown"))
         emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
 
-        text += f"{emoji} **{safe_name}** [ID: {waifu['id']}]\n"
+        text += f"{emoji} **{safe_name}** \\[ID: {waifu.get('id', 0)}\\]\n"
         text += f"   └ {safe_anime}\n"
 
     text += f"\n📊 Total: {len(collection)} waifus"
@@ -194,16 +200,15 @@ async def show_collection_page(msg_or_cb, user_id: int, page: int):
     markup = InlineKeyboardMarkup(buttons)
 
     if isinstance(msg_or_cb, Message):
-        await msg_or_cb.reply_text(text, reply_markup=markup, parse_mode="md")
+        await msg_or_cb.reply_text(text, reply_markup=markup, parse_mode=ParseMode.MARKDOWN)
     else:
-        await msg_or_cb.message.edit_text(text, reply_markup=markup, parse_mode="md")
-        await msg_or_cb.answer()
+        await msg_or_cb.message.edit_text(text, reply_markup=markup, parse_mode=ParseMode.MARKDOWN)
 
 
 # ------------------ CALLBACKS ------------------ #
 
 @Client.on_callback_query(filters.regex(r"^col_(\d+)_(\d+)$"))
-async def cb_collection_page(client, cb):
+async def cb_collection_page(client: Client, cb: CallbackQuery):
     user_id = int(cb.matches[0].group(1))
     page = int(cb.matches[0].group(2))
     await show_collection_page(cb, user_id, page)
@@ -211,7 +216,7 @@ async def cb_collection_page(client, cb):
 
 
 @Client.on_callback_query(filters.regex(r"^colfilter_(\d+)_(\w+)$"))
-async def cb_collection_filter(client, cb):
+async def cb_collection_filter(client: Client, cb: CallbackQuery):
 
     user_id = int(cb.matches[0].group(1))
     rarity = cb.matches[0].group(2)
@@ -227,8 +232,8 @@ async def cb_collection_filter(client, cb):
 
     text = f"📦 **{rarity} Waifus** ({len(filtered)})\n\n"
     for waifu in filtered[:15]:
-        safe_name = md_escape(waifu["name"])
-        text += f"{emoji} **{safe_name}** [ID: {waifu['id']}]\n"
+        safe_name = md_escape(waifu.get("name", "Unknown"))
+        text += f"{emoji} **{safe_name}** \\[ID: {waifu.get('id', 0)}\\]\n"
 
     if len(filtered) > 15:
         text += f"\n... and {len(filtered) - 15} more"
@@ -236,15 +241,48 @@ async def cb_collection_filter(client, cb):
     await cb.message.edit_text(
         text,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data=f"col_{user_id}_1")]]),
-        parse_mode="md"
+        parse_mode=ParseMode.MARKDOWN
     )
+    await cb.answer()
+
+
+@Client.on_callback_query(filters.regex(r"^stats_(\d+)$"))
+async def cb_stats(client: Client, cb: CallbackQuery):
+    user_id = int(cb.matches[0].group(1))
+    user_data = db.get_user(user_id)
+    
+    collection = user_data.get("collection", [])
+    coins = user_data.get("coins", 0)
+    wins = user_data.get("wins", 0)
+    losses = user_data.get("losses", 0)
+    
+    total_games = wins + losses
+    win_rate = (wins / total_games * 100) if total_games else 0
+    collection_value = calculate_collection_value(collection)
+    
+    text = f"""
+📊 **User Statistics**
+
+💰 **Coins:** {coins:,}
+💎 **Collection Value:** {collection_value:,}
+📦 **Waifus:** {len(collection)}
+
+🎮 **Games:** {total_games}
+✅ **Wins:** {wins}
+❌ **Losses:** {losses}
+📈 **Win Rate:** {win_rate:.1f}%
+"""
+    
+    buttons = [[InlineKeyboardButton("🔙 Back", callback_data=f"col_{user_id}_1")]]
+    
+    await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.MARKDOWN)
     await cb.answer()
 
 
 # ------------------ WAIFU INFO ------------------ #
 
 @Client.on_message(filters.command(["waifuinfo", "wi", "info"], prefixes=COMMAND_PREFIX))
-async def waifu_info_cmd(client, message):
+async def waifu_info_cmd(client: Client, message: Message):
 
     if len(message.command) < 2:
         return await message.reply_text("❌ **Usage:** `.waifuinfo <waifu_id>`")
@@ -265,7 +303,7 @@ async def waifu_info_cmd(client, message):
     emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
     value = waifu.get("value", 100)
 
-    safe_name = md_escape(waifu["name"])
+    safe_name = md_escape(waifu.get("name", "Unknown"))
     safe_anime = md_escape(waifu.get("anime", "Unknown"))
 
     text = f"""
@@ -274,7 +312,7 @@ async def waifu_info_cmd(client, message):
 📺 **Anime:** {safe_anime}
 ⭐ **Rarity:** {waifu.get('rarity', 'Common')}
 💰 **Value:** {value:,} coins
-🆔 **ID:** {waifu['id']}
+🆔 **ID:** {waifu.get('id', 0)}
 📅 **Obtained:** {waifu.get('obtained_at', 'Unknown')}
 """
 
@@ -286,15 +324,24 @@ async def waifu_info_cmd(client, message):
     ]
 
     if waifu.get("image"):
-        await message.reply_photo(waifu["image"], caption=text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
+        await message.reply_photo(
+            waifu["image"], 
+            caption=text, 
+            reply_markup=InlineKeyboardMarkup(buttons), 
+            parse_mode=ParseMode.MARKDOWN
+        )
     else:
-        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
+        await message.reply_text(
+            text, 
+            reply_markup=InlineKeyboardMarkup(buttons), 
+            parse_mode=ParseMode.MARKDOWN
+        )
 
 
 # ------------------ STATS ------------------ #
 
 @Client.on_message(filters.command(["stats", "mystats"], prefixes=COMMAND_PREFIX))
-async def stats_cmd(client, message):
+async def stats_cmd(client: Client, message: Message):
 
     user_id = message.from_user.id
     user_data = db.get_user(user_id)
@@ -330,13 +377,13 @@ async def stats_cmd(client, message):
 📉 Spent: {total_spent:,}
 """
 
-    await message.reply_text(text, parse_mode="md")
+    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 
 # ------------------ LEADERBOARD ------------------ #
 
 @Client.on_message(filters.command(["top", "leaderboard", "lb"], prefixes=COMMAND_PREFIX))
-async def leaderboard_cmd(client, message):
+async def leaderboard_cmd(client: Client, message: Message):
 
     all_users = list(db.users.find({}))
 
@@ -347,7 +394,7 @@ async def leaderboard_cmd(client, message):
 
     for i, user in enumerate(sorted_users):
         medal = medals[i] if i < 3 else f"{i + 1}."
-        name = md_escape(user.get("display_name", f"User_{user['user_id']}"))
+        name = md_escape(user.get("display_name", f"User\\_{user['user_id']}"))
         count = len(user.get("collection", []))
         text += f"{medal} {name} — **{count}** waifus\n"
 
@@ -358,13 +405,13 @@ async def leaderboard_cmd(client, message):
         ]
     ]
 
-    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
+    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.MARKDOWN)
 
 
 # ------------------ CALLBACK (LB TYPES) ------------------ #
 
-@Client.on_callback_query(filters.regex(r"^lb_(coins|wins)$"))
-async def leaderboard_type_callback(client, cb):
+@Client.on_callback_query(filters.regex(r"^lb_(coins|wins|collection)$"))
+async def leaderboard_type_callback(client: Client, cb: CallbackQuery):
 
     lb_type = cb.matches[0].group(1)
     all_users = list(db.users.find({}))
@@ -374,31 +421,49 @@ async def leaderboard_type_callback(client, cb):
         title = "💰 **Coins Leaderboard**"
         field = "coins"
         suffix = "coins"
-    else:
+    elif lb_type == "wins":
         sorted_users = sorted(all_users, key=lambda x: x.get("wins", 0), reverse=True)[:10]
         title = "🎮 **Wins Leaderboard**"
         field = "wins"
         suffix = "wins"
+    else:  # collection
+        sorted_users = sorted(all_users, key=lambda x: len(x.get("collection", [])), reverse=True)[:10]
+        title = "🏆 **Collection Leaderboard**"
+        field = None
+        suffix = "waifus"
 
     text = f"{title}\n\n"
     medals = ["🥇", "🥈", "🥉"]
 
     for i, user in enumerate(sorted_users):
         medal = medals[i] if i < 3 else f"{i + 1}."
-        name = md_escape(user.get("display_name", f"User_{user['user_id']}"))
-        value = user.get(field, 0)
+        name = md_escape(user.get("display_name", f"User\\_{user['user_id']}"))
+        
+        if field:
+            value = user.get(field, 0)
+        else:
+            value = len(user.get("collection", []))
+        
         text += f"{medal} {name} — **{value:,}** {suffix}\n"
 
-    buttons = [[InlineKeyboardButton("🔙 Back", callback_data="lb_collection")]]
+    buttons = [
+        [
+            InlineKeyboardButton("📦 Collection", callback_data="lb_collection"),
+            InlineKeyboardButton("💰 Coins", callback_data="lb_coins")
+        ],
+        [
+            InlineKeyboardButton("🎮 Wins", callback_data="lb_wins")
+        ]
+    ]
 
-    await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="md")
+    await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=ParseMode.MARKDOWN)
     await cb.answer()
 
 
 # ------------------ RENAME ------------------ #
 
 @Client.on_message(filters.command(["rename", "setname"], prefixes=COMMAND_PREFIX))
-async def rename_cmd(client, message):
+async def rename_cmd(client: Client, message: Message):
 
     if len(message.command) < 2:
         return await message.reply_text("❌ **Usage:** `.rename <new_name>`")
@@ -413,4 +478,4 @@ async def rename_cmd(client, message):
     )
 
     safe = md_escape(new_name)
-    await message.reply_text(f"✅ Display name changed to: **{safe}**", parse_mode="md")
+    await message.reply_text(f"✅ Display name changed to: **{safe}**", parse_mode=ParseMode.MARKDOWN)
