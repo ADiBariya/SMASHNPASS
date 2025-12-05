@@ -2,7 +2,7 @@
 
 from pymongo import MongoClient
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 import config
 
 
@@ -57,7 +57,112 @@ class Database:
         user = self.get_user(user_id)
         if not user:
             user = self.create_user(user_id, username, first_name)
+        else:
+            # Update user info if provided
+            if username or first_name:
+                self.save_user_info_data(user_id, username, first_name)
         return user
+    
+    def save_user_info(self, user) -> bool:
+        """
+        Save user's Telegram info to database
+        
+        Args:
+            user: Pyrogram User object
+        
+        Returns:
+            bool: True if saved successfully
+        """
+        if not user:
+            return False
+        
+        try:
+            update_data = {"user_id": user.id}
+            
+            # Add available fields
+            if hasattr(user, 'first_name') and user.first_name:
+                update_data["first_name"] = user.first_name
+            
+            if hasattr(user, 'last_name') and user.last_name:
+                update_data["last_name"] = user.last_name
+            
+            if hasattr(user, 'username') and user.username:
+                update_data["username"] = user.username
+            
+            # Update or insert
+            self.users.update_one(
+                {"user_id": user.id},
+                {
+                    "$set": update_data,
+                    "$setOnInsert": {
+                        "coins": 0,
+                        "total_smash": 0,
+                        "total_pass": 0,
+                        "total_wins": 0,
+                        "total_losses": 0,
+                        "created_at": datetime.now(),
+                        "last_daily": None
+                    }
+                },
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            print(f"Error saving user info: {e}")
+            return False
+    
+    def save_user_info_data(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> bool:
+        """
+        Save user info from raw data
+        
+        Args:
+            user_id: Telegram user ID
+            username: Username (optional)
+            first_name: First name (optional)
+            last_name: Last name (optional)
+        
+        Returns:
+            bool: True if saved successfully
+        """
+        try:
+            update_data = {}
+            
+            if first_name:
+                update_data["first_name"] = first_name
+            if last_name:
+                update_data["last_name"] = last_name
+            if username:
+                update_data["username"] = username
+            
+            if update_data:
+                self.users.update_one(
+                    {"user_id": user_id},
+                    {"$set": update_data},
+                    upsert=True
+                )
+            return True
+        except Exception as e:
+            print(f"Error saving user data: {e}")
+            return False
+    
+    def get_user_display_name(self, user_id: int) -> str:
+        """
+        Get user's display name from database
+        
+        Returns first_name > username > User ID
+        """
+        user = self.get_user(user_id)
+        
+        if user:
+            # Priority: display_name > first_name > username > User ID
+            if user.get("display_name"):
+                return user["display_name"]
+            if user.get("first_name"):
+                return user["first_name"]
+            if user.get("username"):
+                return f"@{user['username']}"
+        
+        return f"User {user_id}"
     
     def update_user(self, user_id: int, update_data: Dict) -> bool:
         """Update user data"""
@@ -92,12 +197,12 @@ class Database:
         """Add waifu to user collection"""
         collection_entry = {
             "user_id": user_id,
-            "waifu_id": waifu_data["id"],
-            "waifu_name": waifu_data["name"],
-            "waifu_anime": waifu_data["anime"],
-            "waifu_rarity": waifu_data["rarity"],
-            "waifu_image": waifu_data["image"],
-            "waifu_power": waifu_data["power"],
+            "waifu_id": waifu_data.get("id"),
+            "waifu_name": waifu_data.get("name"),
+            "waifu_anime": waifu_data.get("anime"),
+            "waifu_rarity": waifu_data.get("rarity"),
+            "waifu_image": waifu_data.get("image"),
+            "waifu_power": waifu_data.get("power", 0),
             "obtained_at": datetime.now(),
             "obtained_method": "smash"
         }
@@ -113,6 +218,10 @@ class Database:
             .skip(skip)
             .limit(per_page)
         )
+    
+    def get_full_collection(self, user_id: int) -> List[Dict]:
+        """Get user's complete collection without pagination"""
+        return list(self.collections.find({"user_id": user_id}).sort("obtained_at", -1))
     
     def get_collection_count(self, user_id: int) -> int:
         """Get total waifus in user collection"""
@@ -183,7 +292,7 @@ class Database:
         )
         return True
     
-    def check_cooldown(self, user_id: int, action: str) -> tuple[bool, int]:
+    def check_cooldown(self, user_id: int, action: str) -> Tuple[bool, int]:
         """Check if user is on cooldown. Returns (is_on_cooldown, remaining_seconds)"""
         expires_at = self.get_cooldown(user_id, action)
         if expires_at and expires_at > datetime.now():
@@ -193,7 +302,7 @@ class Database:
     
     # ============ DAILY OPERATIONS ============
     
-    def can_claim_daily(self, user_id: int) -> tuple[bool, int]:
+    def can_claim_daily(self, user_id: int) -> Tuple[bool, int]:
         """Check if user can claim daily reward"""
         user = self.get_user(user_id)
         if not user or not user.get("last_daily"):
@@ -228,30 +337,57 @@ class Database:
         ]
         results = list(self.collections.aggregate(pipeline))
         
-        # Add user details
+        # Add user details and fix format
+        formatted_results = []
         for result in results:
-            user = self.get_user(result["_id"])
+            user_id = result["_id"]
+            user = self.get_user(user_id)
+            
+            formatted = {
+                "user_id": user_id,
+                "count": result["count"],
+                "username": None,
+                "first_name": None
+            }
+            
             if user:
-                result["username"] = user.get("username")
-                result["first_name"] = user.get("first_name")
+                formatted["username"] = user.get("username")
+                formatted["first_name"] = user.get("first_name")
+                formatted["display_name"] = user.get("display_name")
+            
+            formatted_results.append(formatted)
         
-        return results
+        return formatted_results
     
     def get_top_winners(self, limit: int = 10) -> List[Dict]:
         """Get top users by wins"""
-        return list(
+        results = list(
             self.users.find({"total_wins": {"$gt": 0}})
             .sort("total_wins", -1)
             .limit(limit)
         )
+        
+        # Ensure user_id field exists
+        for result in results:
+            if "user_id" not in result and "_id" in result:
+                result["user_id"] = result.get("user_id")
+        
+        return results
     
     def get_top_rich(self, limit: int = 10) -> List[Dict]:
         """Get top users by coins"""
-        return list(
+        results = list(
             self.users.find({"coins": {"$gt": 0}})
             .sort("coins", -1)
             .limit(limit)
         )
+        
+        # Ensure user_id field exists
+        for result in results:
+            if "user_id" not in result and "_id" in result:
+                result["user_id"] = result.get("user_id")
+        
+        return results
     
     # ============ TRADE OPERATIONS ============
     
@@ -343,3 +479,7 @@ class Database:
             "total_smashes": smash_result[0]["total"] if smash_result else 0,
             "total_passes": pass_result[0]["total"] if pass_result else 0
         }
+
+
+# Create global instance
+db = Database()
