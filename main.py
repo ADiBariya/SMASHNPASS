@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from pyrogram import Client, idle, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID
 from database import db
 
@@ -45,6 +45,16 @@ try:
 except ImportError:
     LOG_GROUP_ID = None
     logger.warning("⚠️ LOG_GROUP_ID not found in config. Log notifications disabled.")
+
+# --------------------------
+# SUDO USERS CONFIGURATION
+# --------------------------
+try:
+    from config import SUDO_USERS
+except ImportError:
+    sudo_default = "1737646273"
+    SUDO_USERS = list(map(int, os.environ.get("SUDO_USERS", sudo_default).split()))
+    logger.info(f"📋 SUDO Users: {SUDO_USERS}")
 
 # Startup and Help image URL (same image)
 STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"
@@ -415,6 +425,93 @@ Select a module to view its commands:
             print(f"❌ [HELP] Error: {e}")
     
     await callback.answer()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  /logs Command Handler (Owner & Sudo only)
+# ═══════════════════════════════════════════════════════════════════
+
+@app.on_message(filters.command(["logs"], prefixes=[".", "/", "!"]))
+async def logs_handler(client: Client, message: Message):
+    """Send bot logs to authorized users"""
+    
+    user_id = message.from_user.id
+    
+    # Check if user is owner or sudo
+    if user_id != OWNER_ID and user_id not in SUDO_USERS:
+        await message.reply_text(
+            "❌ **Access Denied!**\n"
+            "This command is only for Owner and Sudo users."
+        )
+        logger.warning(f"⚠️ Unauthorized /logs attempt by {message.from_user.first_name} ({user_id})")
+        return
+    
+    logger.info(f"📋 /logs command from {message.from_user.first_name} ({user_id})")
+    
+    # Check if log file exists
+    log_file = "bot.log"
+    if not os.path.exists(log_file):
+        await message.reply_text("❌ **Log file not found!**")
+        return
+    
+    # Get file size
+    file_size = os.path.getsize(log_file)
+    file_size_mb = file_size / (1024 * 1024)
+    
+    # Prepare caption
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    uptime_delta = datetime.now() - BOT_START_TIME
+    days = uptime_delta.days
+    hours, remainder = divmod(uptime_delta.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime = f"{days}d {hours}h {minutes}m {seconds}s" if days > 0 else f"{hours}h {minutes}m {seconds}s"
+    
+    caption = f"""
+📋 **Bot Logs**
+
+**Requested by:** {message.from_user.mention}
+**Time:** `{current_time}`
+**Uptime:** `{uptime}`
+**File Size:** `{file_size_mb:.2f} MB`
+
+━━━━━━━━━━━━━━━━━━━━
+📁 `bot.log`
+"""
+    
+    try:
+        # Send to the group/chat where command was used
+        await message.reply_document(
+            document=log_file,
+            caption=caption,
+            file_name=f"bot_logs_{current_time.replace(' ', '_').replace(':', '-')}.log"
+        )
+        logger.info(f"✅ Logs sent to chat {message.chat.id}")
+        
+        # Also send to user's DM if command was used in a group
+        if message.chat.type != "private":
+            try:
+                await client.send_document(
+                    chat_id=user_id,
+                    document=log_file,
+                    caption=caption + "\n\n📍 _Sent from: " + f"{message.chat.title}_",
+                    file_name=f"bot_logs_{current_time.replace(' ', '_').replace(':', '-')}.log"
+                )
+                await message.reply_text(
+                    "📨 **Logs also sent to your DM!**",
+                    quote=False
+                )
+                logger.info(f"✅ Logs also sent to DM of {user_id}")
+            except Exception as dm_error:
+                logger.error(f"❌ Failed to send logs to DM: {dm_error}")
+                await message.reply_text(
+                    "⚠️ **Could not send to DM.** Please start the bot in private first.",
+                    quote=False
+                )
+        
+    except Exception as e:
+        error_msg = f"❌ **Failed to send logs!**\n`{str(e)}`"
+        await message.reply_text(error_msg)
+        logger.error(f"❌ Failed to send logs: {e}")
 
 
 if __name__ == "__main__":
