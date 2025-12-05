@@ -10,6 +10,17 @@ from pyrogram.types import (
 from database import db
 import config
 
+print("🔄 [START] Module imported!")
+
+# Module info for help system
+__MODULE__ = "Start"
+__HELP__ = """
+🏠 **Start Commands**
+/start - Start the bot
+/ping - Check latency
+/stats - Your statistics
+"""
+
 # Help data for this module
 HELP = {
     "name": "Start",
@@ -22,37 +33,39 @@ HELP = {
     }
 }
 
-# 🖼️ Welcome Image URL - Change this to your own image
+# Welcome Image
 START_IMAGE = "https://files.catbox.moe/jcy3qf.jpg"
-
-# Alternative images you can use:
-# START_IMAGE = "https://i.imgur.com/abc123.jpg"  # Your custom image
-# START_IMAGE = "https://telegra.ph/file/xxxxx.jpg"  # Telegraph image
-# START_IMAGE = "https://i.ibb.co/xxxxx/image.jpg"  # ImgBB image
 
 
 def setup(app: Client):
     """Setup function called by loader"""
     
-    @app.on_message(filters.command("start", config.CMD_PREFIX) & filters.private)
-    async def start_private(client: Client, message: Message):
-        """Handle /start command in private chat"""
+    print("⚙️ [START] setup() called, registering handlers...")
+    
+    # ═══════════════════════════════════════════════════════════════
+    #  /start Command
+    # ═══════════════════════════════════════════════════════════════
+    
+    @app.on_message(filters.command("start", config.CMD_PREFIX))
+    async def start_command(client: Client, message: Message):
+        """Handle /start command"""
         user = message.from_user
         
-        # Get or create user in database
-        db.get_or_create_user(
-            user_id=user.id,
-            username=user.username,
-            first_name=user.first_name
-        )
+        print(f"📩 [START] Received /start from {user.first_name} ({user.id})")
         
-        # Welcome message
+        # Database
+        try:
+            db.get_or_create_user(user.id, user.username, user.first_name)
+        except Exception as e:
+            print(f"⚠️ [START] DB error: {e}")
+        
+        # Welcome text
         text = f"""
 👋 **Welcome {user.first_name}!**
 
 🎮 **Smash or Pass Waifu Game**
 
-Collect your favorite anime waifus by playing the Smash or Pass game!
+Collect your favorite anime waifus!
 
 🎯 **How to Play:**
 • Use /smash to get a random waifu
@@ -60,15 +73,10 @@ Collect your favorite anime waifus by playing the Smash or Pass game!
 • Choose **👋 Pass** to skip
 • If you win, she joins your collection!
 
-📦 **Features:**
-• 50+ Beautiful Waifus
-• Rarity System (Common → Legendary)
-• Collection & Trading System
-• Daily Rewards & Leaderboards
-
-✨ **Ready to start? Tap Play Now!**
+✨ **Ready? Tap Play Now!**
 """
         
+        # Buttons
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
@@ -91,86 +99,56 @@ Collect your favorite anime waifus by playing the Smash or Pass game!
                 caption=text,
                 reply_markup=buttons
             )
+            print(f"✅ [START] Sent welcome with image to {user.first_name}")
         except Exception as e:
-            # If image fails, send text only
-            print(f"⚠️ Failed to send start image: {e}")
+            print(f"⚠️ [START] Image failed ({e}), sending text...")
             await message.reply_text(text, reply_markup=buttons)
     
     
-    @app.on_message(filters.command("start", config.CMD_PREFIX) & filters.group)
-    async def start_group(client: Client, message: Message):
-        """Handle /start command in group"""
-        user = message.from_user
-        
-        db.get_or_create_user(
-            user_id=user.id,
-            username=user.username,
-            first_name=user.first_name
-        )
-        
-        text = f"""
-🎮 **Smash or Pass Waifu Game**
-
-Hey {user.first_name}! Ready to collect waifus?
-
-Use /smash to start playing!
-Use /help for all commands.
-"""
-        
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
-                InlineKeyboardButton("📖 Help", callback_data="help_main")
-            ]
-        ])
-        
-        # Send with image in group too
-        try:
-            await message.reply_photo(
-                photo=START_IMAGE,
-                caption=text,
-                reply_markup=buttons
-            )
-        except Exception:
-            await message.reply_text(text, reply_markup=buttons)
-    
+    # ═══════════════════════════════════════════════════════════════
+    #  /ping Command
+    # ═══════════════════════════════════════════════════════════════
     
     @app.on_message(filters.command("ping", config.CMD_PREFIX))
     async def ping_command(client: Client, message: Message):
         """Check bot latency"""
         import time
-        
         start = time.time()
         msg = await message.reply_text("🏓 Pinging...")
         end = time.time()
-        
         latency = (end - start) * 1000
-        
         await msg.edit_text(f"🏓 **Pong!**\n⚡ Latency: `{latency:.2f}ms`")
     
+    
+    # ═══════════════════════════════════════════════════════════════
+    #  /stats Command
+    # ═══════════════════════════════════════════════════════════════
     
     @app.on_message(filters.command("stats", config.CMD_PREFIX))
     async def stats_command(client: Client, message: Message):
         """View user statistics"""
         user = message.from_user
-        user_data = db.get_or_create_user(user.id, user.username, user.first_name)
         
-        collection_count = db.get_collection_count(user.id)
+        try:
+            user_data = db.get_or_create_user(user.id, user.username, user.first_name)
+            collection_count = db.get_collection_count(user.id)
+        except Exception as e:
+            await message.reply_text(f"❌ Database error: {e}")
+            return
+        
         total_smash = user_data.get('total_smash', 0)
         total_wins = user_data.get('total_wins', 0)
-        
-        # Calculate win rate safely
         win_rate = (total_wins / total_smash * 100) if total_smash > 0 else 0
         
         text = f"""
 📊 **Stats for {user.first_name}**
 
 💰 **Coins:** {user_data.get('coins', 0):,}
-📦 **Waifus Collected:** {collection_count}
+📦 **Waifus:** {collection_count}
 
 🎮 **Game Stats:**
-├ Total Smashes: {total_smash}
-├ Total Passes: {user_data.get('total_pass', 0)}
+├ Smashes: {total_smash}
+├ Passes: {user_data.get('total_pass', 0)}
 ├ Wins: {total_wins} ✅
 └ Losses: {user_data.get('total_losses', 0)} ❌
 
@@ -180,68 +158,58 @@ Use /help for all commands.
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("📦 Collection", callback_data="view_collection"),
-                InlineKeyboardButton("🏆 Leaderboard", callback_data="leaderboard_main")
-            ],
-            [
-                InlineKeyboardButton("🎮 Play Now", callback_data="play_smash")
+                InlineKeyboardButton("🎮 Play", callback_data="play_smash")
             ]
         ])
         
         await message.reply_text(text, reply_markup=buttons)
     
     
+    # ═══════════════════════════════════════════════════════════════
+    #  Callbacks
+    # ═══════════════════════════════════════════════════════════════
+    
     @app.on_callback_query(filters.regex("^view_stats$"))
     async def view_stats_callback(client: Client, callback: CallbackQuery):
-        """Handle stats button callback"""
         user = callback.from_user
-        user_data = db.get_or_create_user(user.id, user.username, user.first_name)
         
-        collection_count = db.get_collection_count(user.id)
+        try:
+            user_data = db.get_or_create_user(user.id, user.username, user.first_name)
+            collection_count = db.get_collection_count(user.id)
+        except:
+            await callback.answer("❌ Error!", show_alert=True)
+            return
+        
         total_smash = user_data.get('total_smash', 0)
         total_wins = user_data.get('total_wins', 0)
-        
         win_rate = (total_wins / total_smash * 100) if total_smash > 0 else 0
         
         text = f"""
 📊 **Stats for {user.first_name}**
 
 💰 **Coins:** {user_data.get('coins', 0):,}
-📦 **Waifus Collected:** {collection_count}
-
-🎮 **Game Stats:**
-├ Total Smashes: {total_smash}
-├ Total Passes: {user_data.get('total_pass', 0)}
-├ Wins: {total_wins} ✅
-└ Losses: {user_data.get('total_losses', 0)} ❌
-
+📦 **Waifus:** {collection_count}
 📈 **Win Rate:** {win_rate:.1f}%
 """
         
         buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("📦 Collection", callback_data="view_collection"),
                 InlineKeyboardButton("🔙 Back", callback_data="start_back")
             ]
         ])
         
         try:
-            await callback.message.edit_caption(
-                caption=text,
-                reply_markup=buttons
-            )
-        except Exception:
-            # If message has no photo, edit text
-            try:
+            if callback.message.photo:
+                await callback.message.edit_caption(caption=text, reply_markup=buttons)
+            else:
                 await callback.message.edit_text(text, reply_markup=buttons)
-            except Exception:
-                pass
-        
+        except:
+            pass
         await callback.answer()
     
     
     @app.on_callback_query(filters.regex("^start_back$"))
     async def start_back_callback(client: Client, callback: CallbackQuery):
-        """Handle back to start callback"""
         user = callback.from_user
         
         text = f"""
@@ -249,9 +217,7 @@ Use /help for all commands.
 
 🎮 **Smash or Pass Waifu Game**
 
-Collect your favorite anime waifus!
-
-✨ Use the buttons below to navigate!
+✨ Use the buttons below!
 """
         
         buttons = InlineKeyboardMarkup([
@@ -266,60 +232,42 @@ Collect your favorite anime waifus!
         ])
         
         try:
-            await callback.message.edit_caption(
-                caption=text,
-                reply_markup=buttons
-            )
-        except Exception:
-            try:
+            if callback.message.photo:
+                await callback.message.edit_caption(caption=text, reply_markup=buttons)
+            else:
                 await callback.message.edit_text(text, reply_markup=buttons)
-            except Exception:
-                pass
-        
+        except:
+            pass
         await callback.answer()
     
     
     @app.on_callback_query(filters.regex("^help_main$"))
     async def help_main_callback(client: Client, callback: CallbackQuery):
-        """Handle help button callback"""
         text = """
 📖 **Help Menu**
 
-🎮 **Game Commands:**
-├ /smash - Start a new game
-├ /collection - View your waifus
-├ /stats - View your statistics
-└ /daily - Claim daily reward
-
-💰 **Economy Commands:**
-├ /balance - Check coins
-├ /gift - Gift waifu to friend
-└ /trade - Trade waifus
-
-🏆 **Other Commands:**
-├ /leaderboard - Top players
-├ /profile - Your profile
-└ /ping - Bot latency
-
-**Tip:** Legendary waifus are rare but powerful!
+🎮 /smash - Start game
+📦 /collection - Your waifus
+📊 /stats - Statistics
+💰 /daily - Daily reward
+🏓 /ping - Bot latency
 """
         
         buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
+                InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
                 InlineKeyboardButton("🔙 Back", callback_data="start_back")
             ]
         ])
         
         try:
-            await callback.message.edit_caption(
-                caption=text,
-                reply_markup=buttons
-            )
-        except Exception:
-            try:
+            if callback.message.photo:
+                await callback.message.edit_caption(caption=text, reply_markup=buttons)
+            else:
                 await callback.message.edit_text(text, reply_markup=buttons)
-            except Exception:
-                pass
-        
+        except:
+            pass
         await callback.answer()
+    
+    
+    print("✅ [START] All handlers registered!")
