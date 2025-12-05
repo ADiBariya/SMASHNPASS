@@ -46,6 +46,10 @@ class Database:
             "total_pass": 0,
             "total_wins": 0,
             "total_losses": 0,
+            "total_earned": 0,
+            "total_spent": 0,
+            "collection": [],
+            "inventory": [],
             "created_at": datetime.now(),
             "last_daily": None
         }
@@ -64,32 +68,20 @@ class Database:
         return user
     
     def save_user_info(self, user) -> bool:
-        """
-        Save user's Telegram info to database
-        
-        Args:
-            user: Pyrogram User object
-        
-        Returns:
-            bool: True if saved successfully
-        """
+        """Save user's Telegram info to database"""
         if not user:
             return False
         
         try:
             update_data = {"user_id": user.id}
             
-            # Add available fields
             if hasattr(user, 'first_name') and user.first_name:
                 update_data["first_name"] = user.first_name
-            
             if hasattr(user, 'last_name') and user.last_name:
                 update_data["last_name"] = user.last_name
-            
             if hasattr(user, 'username') and user.username:
                 update_data["username"] = user.username
             
-            # Update or insert
             self.users.update_one(
                 {"user_id": user.id},
                 {
@@ -100,6 +92,10 @@ class Database:
                         "total_pass": 0,
                         "total_wins": 0,
                         "total_losses": 0,
+                        "total_earned": 0,
+                        "total_spent": 0,
+                        "collection": [],
+                        "inventory": [],
                         "created_at": datetime.now(),
                         "last_daily": None
                     }
@@ -112,21 +108,9 @@ class Database:
             return False
     
     def save_user_info_data(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> bool:
-        """
-        Save user info from raw data
-        
-        Args:
-            user_id: Telegram user ID
-            username: Username (optional)
-            first_name: First name (optional)
-            last_name: Last name (optional)
-        
-        Returns:
-            bool: True if saved successfully
-        """
+        """Save user info from raw data"""
         try:
             update_data = {}
-            
             if first_name:
                 update_data["first_name"] = first_name
             if last_name:
@@ -145,25 +129,6 @@ class Database:
             print(f"Error saving user data: {e}")
             return False
     
-    def get_user_display_name(self, user_id: int) -> str:
-        """
-        Get user's display name from database
-        
-        Returns first_name > username > User ID
-        """
-        user = self.get_user(user_id)
-        
-        if user:
-            # Priority: display_name > first_name > username > User ID
-            if user.get("display_name"):
-                return user["display_name"]
-            if user.get("first_name"):
-                return user["first_name"]
-            if user.get("username"):
-                return f"@{user['username']}"
-        
-        return f"User {user_id}"
-    
     def update_user(self, user_id: int, update_data: Dict) -> bool:
         """Update user data"""
         result = self.users.update_one(
@@ -176,25 +141,76 @@ class Database:
         """Increment user statistics"""
         result = self.users.update_one(
             {"user_id": user_id},
-            {"$inc": {field: value}}
+            {"$inc": {field: value}},
+            upsert=True
         )
-        return result.modified_count > 0
+        return result.modified_count > 0 or result.upserted_id is not None
+    
+    # ============ COIN OPERATIONS ============
     
     def add_coins(self, user_id: int, amount: int) -> bool:
         """Add coins to user"""
-        return self.increment_user_stats(user_id, "coins", amount)
+        result = self.users.update_one(
+            {"user_id": user_id},
+            {"$inc": {"coins": amount, "total_earned": amount}},
+            upsert=True
+        )
+        return result.modified_count > 0 or result.upserted_id is not None
     
     def remove_coins(self, user_id: int, amount: int) -> bool:
-        """Remove coins from user"""
+        """Remove coins from user (checks balance)"""
         user = self.get_user(user_id)
         if user and user.get("coins", 0) >= amount:
-            return self.increment_user_stats(user_id, "coins", -amount)
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$inc": {"coins": -amount, "total_spent": amount}}
+            )
+            return result.modified_count > 0
         return False
+    
+    def update_coins(self, user_id: int, amount: int) -> bool:
+        """
+        Update coins (add or remove based on positive/negative value)
+        
+        Args:
+            user_id: User ID
+            amount: Positive to add, negative to remove
+        
+        Returns:
+            bool: True if successful
+        """
+        if amount >= 0:
+            # Adding coins
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$inc": {"coins": amount, "total_earned": amount}},
+                upsert=True
+            )
+        else:
+            # Removing coins - check balance first
+            user = self.get_user(user_id)
+            current_coins = user.get("coins", 0) if user else 0
+            
+            if current_coins >= abs(amount):
+                result = self.users.update_one(
+                    {"user_id": user_id},
+                    {"$inc": {"coins": amount, "total_spent": abs(amount)}},
+                    upsert=True
+                )
+            else:
+                return False
+        
+        return result.modified_count > 0 or result.upserted_id is not None
+    
+    def get_coins(self, user_id: int) -> int:
+        """Get user's coin balance"""
+        user = self.get_user(user_id)
+        return user.get("coins", 0) if user else 0
     
     # ============ COLLECTION OPERATIONS ============
     
     def add_waifu_to_collection(self, user_id: int, waifu_data: Dict) -> bool:
-        """Add waifu to user collection"""
+        """Add waifu to user collection (in collections table)"""
         collection_entry = {
             "user_id": user_id,
             "waifu_id": waifu_data.get("id"),
@@ -204,9 +220,54 @@ class Database:
             "waifu_image": waifu_data.get("image"),
             "waifu_power": waifu_data.get("power", 0),
             "obtained_at": datetime.now(),
-            "obtained_method": "smash"
+            "obtained_method": waifu_data.get("obtained_from", "smash")
         }
         self.collections.insert_one(collection_entry)
+        return True
+    
+    def add_to_collection(self, user_id: int, waifu_data: Dict) -> bool:
+        """
+        Alias for add_waifu_to_collection
+        Also adds to user's embedded collection array
+        """
+        # Add to collections table
+        self.add_waifu_to_collection(user_id, waifu_data)
+        
+        # Also add to user's embedded collection (optional, for quick access)
+        waifu_entry = {
+            "id": waifu_data.get("id"),
+            "name": waifu_data.get("name"),
+            "anime": waifu_data.get("anime"),
+            "rarity": waifu_data.get("rarity"),
+            "image": waifu_data.get("image"),
+            "power": waifu_data.get("power", 0),
+            "obtained_at": waifu_data.get("obtained_at", datetime.now().strftime("%Y-%m-%d %H:%M")),
+            "obtained_from": waifu_data.get("obtained_from", "smash")
+        }
+        
+        self.users.update_one(
+            {"user_id": user_id},
+            {"$push": {"collection": waifu_entry}},
+            upsert=True
+        )
+        return True
+    
+    def remove_from_collection(self, user_id: int, waifu_id: int) -> bool:
+        """
+        Remove waifu from collection
+        Removes from both collections table and user's embedded array
+        """
+        # Remove from collections table
+        self.collections.delete_one({
+            "user_id": user_id,
+            "waifu_id": waifu_id
+        })
+        
+        # Remove from user's embedded collection
+        self.users.update_one(
+            {"user_id": user_id},
+            {"$pull": {"collection": {"id": waifu_id}}}
+        )
         return True
     
     def get_user_collection(self, user_id: int, page: int = 1, per_page: int = 10) -> List[Dict]:
@@ -243,11 +304,7 @@ class Database:
     
     def remove_waifu_from_collection(self, user_id: int, waifu_id: int) -> bool:
         """Remove waifu from collection (for trading)"""
-        result = self.collections.delete_one({
-            "user_id": user_id,
-            "waifu_id": waifu_id
-        })
-        return result.deleted_count > 0
+        return self.remove_from_collection(user_id, waifu_id)
     
     def get_user_collection_by_rarity(self, user_id: int, rarity: str) -> List[Dict]:
         """Get user waifus filtered by rarity"""
@@ -337,7 +394,7 @@ class Database:
         ]
         results = list(self.collections.aggregate(pipeline))
         
-        # Add user details and fix format
+        # Add user details
         formatted_results = []
         for result in results:
             user_id = result["_id"]
@@ -361,33 +418,19 @@ class Database:
     
     def get_top_winners(self, limit: int = 10) -> List[Dict]:
         """Get top users by wins"""
-        results = list(
+        return list(
             self.users.find({"total_wins": {"$gt": 0}})
             .sort("total_wins", -1)
             .limit(limit)
         )
-        
-        # Ensure user_id field exists
-        for result in results:
-            if "user_id" not in result and "_id" in result:
-                result["user_id"] = result.get("user_id")
-        
-        return results
     
     def get_top_rich(self, limit: int = 10) -> List[Dict]:
         """Get top users by coins"""
-        results = list(
+        return list(
             self.users.find({"coins": {"$gt": 0}})
             .sort("coins", -1)
             .limit(limit)
         )
-        
-        # Ensure user_id field exists
-        for result in results:
-            if "user_id" not in result and "_id" in result:
-                result["user_id"] = result.get("user_id")
-        
-        return results
     
     # ============ TRADE OPERATIONS ============
     
@@ -429,11 +472,12 @@ class Database:
         # Transfer waifu
         waifu = self.get_waifu_from_collection(trade["from_user"], trade["waifu_id"])
         if waifu:
-            self.remove_waifu_from_collection(trade["from_user"], trade["waifu_id"])
+            self.remove_from_collection(trade["from_user"], trade["waifu_id"])
             waifu["user_id"] = trade["to_user"]
             waifu["obtained_method"] = "trade"
             waifu["obtained_at"] = datetime.now()
-            del waifu["_id"]
+            if "_id" in waifu:
+                del waifu["_id"]
             self.collections.insert_one(waifu)
         
         # Handle coins if any
@@ -463,15 +507,14 @@ class Database:
         """Get global bot statistics"""
         total_users = self.users.count_documents({})
         total_waifus = self.collections.count_documents({})
-        total_smashes = self.users.aggregate([
-            {"$group": {"_id": None, "total": {"$sum": "$total_smash"}}}
-        ])
-        total_passes = self.users.aggregate([
-            {"$group": {"_id": None, "total": {"$sum": "$total_pass"}}}
-        ])
         
-        smash_result = list(total_smashes)
-        pass_result = list(total_passes)
+        smash_result = list(self.users.aggregate([
+            {"$group": {"_id": None, "total": {"$sum": "$total_smash"}}}
+        ]))
+        
+        pass_result = list(self.users.aggregate([
+            {"$group": {"_id": None, "total": {"$sum": "$total_pass"}}}
+        ]))
         
         return {
             "total_users": total_users,
