@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # --------------------------
 # GEMINI API KEY
 # --------------------------
-API_KEY = "AIzaSyDGgdOuFui2yhHiYSYYXYHXWu35EGJEdyY"
+API_KEY = "AIzaSyA098NNQX1nrOl4bsTMaRVijzH-tTcHkuI"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
 BOT_NAME = "Midnight"
