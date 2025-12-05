@@ -10,7 +10,18 @@ from pyrogram.types import (
 )
 from database import db
 from helpers import get_waifu_manager, Utils
-import config  # lowercase import
+import config
+
+print("🔄 [SMASH] Module imported!")
+
+# Module info
+__MODULE__ = "Smash"
+__HELP__ = """
+🎮 **Smash Game**
+/smash - Start a new game
+/waifu - Same as smash
+/sp - Short command
+"""
 
 # Help data for this module
 HELP = {
@@ -31,29 +42,58 @@ active_games = {}
 def setup(app: Client):
     """Setup function called by loader"""
     
-    @app.on_message(filters.command(["smash", "waifu", "sp"], config.CMD_PREFIX))  # ✅ Fixed
+    print("⚙️ [SMASH] setup() called!")
+    
+    # Test waifu manager
+    try:
+        wm = get_waifu_manager()
+        print(f"📊 [SMASH] WaifuManager: {len(wm.waifus)} waifus loaded")
+    except Exception as e:
+        print(f"❌ [SMASH] WaifuManager error: {e}")
+    
+    
+    @app.on_message(filters.command(["smash", "waifu", "sp"], config.CMD_PREFIX))
     async def smash_command(client: Client, message: Message):
         """Start a new smash or pass game"""
         user = message.from_user
-        wm = get_waifu_manager()
+        
+        print(f"🎮 [SMASH] /smash from {user.first_name} ({user.id})")
+        
+        try:
+            wm = get_waifu_manager()
+        except Exception as e:
+            print(f"❌ [SMASH] WaifuManager error: {e}")
+            await message.reply_text(f"❌ Error: {e}")
+            return
         
         # Get or create user
-        db.get_or_create_user(user.id, user.username, user.first_name)
+        try:
+            db.get_or_create_user(user.id, user.username, user.first_name)
+        except Exception as e:
+            print(f"⚠️ [SMASH] DB error: {e}")
         
         # Check cooldown
-        on_cooldown, remaining = db.check_cooldown(user.id, "smash")
-        if on_cooldown:
-            await message.reply_text(
-                f"⏳ **Cooldown!**\n\n"
-                f"Please wait **{Utils.format_time(remaining)}** before playing again!"
-            )
-            return
+        try:
+            on_cooldown, remaining = db.check_cooldown(user.id, "smash")
+            if on_cooldown:
+                await message.reply_text(
+                    f"⏳ **Cooldown!**\n\n"
+                    f"Please wait **{Utils.format_time(remaining)}** before playing again!"
+                )
+                return
+        except Exception as e:
+            print(f"⚠️ [SMASH] Cooldown error (ignoring): {e}")
         
         # Get random waifu
         waifu = wm.get_random_waifu()
         
+        print(f"🎲 [SMASH] Got waifu: {waifu.get('name') if waifu else 'None'}")
+        
         if not waifu:
-            await message.reply_text("❌ No waifus available! Please try again later.")
+            await message.reply_text(
+                "❌ **No waifus available!**\n\n"
+                "Check `data/waifus.json` file."
+            )
             return
         
         # Store active game
@@ -92,16 +132,24 @@ def setup(app: Client):
                     caption=text,
                     reply_markup=buttons
                 )
+                print(f"✅ [SMASH] Sent with image")
             else:
                 await message.reply_text(text, reply_markup=buttons)
+                print(f"✅ [SMASH] Sent without image")
         except Exception as e:
-            # If image fails, send text only
-            await message.reply_text(text, reply_markup=buttons)
+            print(f"⚠️ [SMASH] Image failed: {e}")
+            try:
+                await message.reply_text(text, reply_markup=buttons)
+            except Exception as e2:
+                print(f"❌ [SMASH] Text also failed: {e2}")
     
     
     @app.on_callback_query(filters.regex(r"^smash_(\d+)_(\d+)$"))
     async def smash_callback(client: Client, callback: CallbackQuery):
         """Handle smash button click"""
+        
+        print(f"💥 [SMASH] Callback: {callback.data}")
+        
         data = callback.data.split("_")
         game_user_id = int(data[1])
         waifu_id = int(data[2])
@@ -126,13 +174,19 @@ def setup(app: Client):
             return
         
         # Set cooldown
-        db.set_cooldown(user.id, "smash", config.GAME_COOLDOWN)  # ✅ Fixed
+        try:
+            db.set_cooldown(user.id, "smash", config.GAME_COOLDOWN)
+        except Exception as e:
+            print(f"⚠️ [SMASH] Cooldown set error: {e}")
         
         # Update stats
-        db.increment_user_stats(user.id, "total_smash")
+        try:
+            db.increment_user_stats(user.id, "total_smash")
+        except Exception as e:
+            print(f"⚠️ [SMASH] Stats error: {e}")
         
         # Calculate win/lose
-        win_chance = config.WIN_CHANCE  # ✅ Fixed
+        win_chance = getattr(config, 'WIN_CHANCE', 60)
         
         # Rarity affects win chance
         rarity = waifu.get("rarity", "common")
@@ -145,18 +199,30 @@ def setup(app: Client):
         
         is_win = Utils.calculate_win(win_chance)
         
+        print(f"🎲 [SMASH] Chance: {win_chance}%, Result: {'WIN' if is_win else 'LOSE'}")
+        
         rarity_emoji = wm.get_rarity_emoji(rarity)
         
         if is_win:
             # User wins!
-            db.increment_user_stats(user.id, "total_wins")
+            try:
+                db.increment_user_stats(user.id, "total_wins")
+            except:
+                pass
             
             # Add coins based on rarity
             coins = {"common": 10, "rare": 25, "epic": 50, "legendary": 100}.get(rarity, 10)
-            db.add_coins(user.id, coins)
+            
+            try:
+                db.add_coins(user.id, coins)
+            except:
+                pass
             
             # Add waifu to collection
-            db.add_waifu_to_collection(user.id, waifu)
+            try:
+                db.add_waifu_to_collection(user.id, waifu)
+            except Exception as e:
+                print(f"⚠️ [SMASH] Collection error: {e}")
             
             text = f"""
 🎉 **SMASH SUCCESS!**
@@ -180,7 +246,10 @@ Use /collection to see your waifus!
             
         else:
             # User loses
-            db.increment_user_stats(user.id, "total_losses")
+            try:
+                db.increment_user_stats(user.id, "total_losses")
+            except:
+                pass
             
             text = f"""
 💔 **SMASH FAILED!**
@@ -210,8 +279,12 @@ Better luck next time! 😢
                     text=text,
                     reply_markup=buttons
                 )
-        except Exception:
-            await callback.message.reply_text(text, reply_markup=buttons)
+        except Exception as e:
+            print(f"⚠️ [SMASH] Edit error: {e}")
+            try:
+                await callback.message.reply_text(text, reply_markup=buttons)
+            except:
+                pass
         
         await callback.answer("💥 Smashed!" if is_win else "💔 Rejected!")
     
@@ -219,6 +292,9 @@ Better luck next time! 😢
     @app.on_callback_query(filters.regex(r"^pass_(\d+)_(\d+)$"))
     async def pass_callback(client: Client, callback: CallbackQuery):
         """Handle pass button click"""
+        
+        print(f"👋 [PASS] Callback: {callback.data}")
+        
         data = callback.data.split("_")
         game_user_id = int(data[1])
         waifu_id = int(data[2])
@@ -233,10 +309,13 @@ Better luck next time! 😢
         
         # Remove from active games
         if user.id in active_games:
-            old_waifu = active_games.pop(user.id)
+            active_games.pop(user.id)
         
         # Update stats
-        db.increment_user_stats(user.id, "total_pass")
+        try:
+            db.increment_user_stats(user.id, "total_pass")
+        except:
+            pass
         
         # Get new waifu immediately (no cooldown for pass)
         waifu = wm.get_random_waifu()
@@ -275,7 +354,6 @@ Better luck next time! 😢
         
         try:
             if image_url:
-                # Delete old message and send new one with image
                 await callback.message.delete()
                 await callback.message.reply_photo(
                     photo=image_url,
@@ -293,8 +371,12 @@ Better luck next time! 😢
                         text=text,
                         reply_markup=buttons
                     )
-        except Exception:
-            await callback.message.reply_text(text, reply_markup=buttons)
+        except Exception as e:
+            print(f"⚠️ [PASS] Error: {e}")
+            try:
+                await callback.message.reply_text(text, reply_markup=buttons)
+            except:
+                pass
         
         await callback.answer("👋 Passed!")
     
@@ -303,19 +385,28 @@ Better luck next time! 😢
     async def play_smash_callback(client: Client, callback: CallbackQuery):
         """Handle play smash button from other menus"""
         user = callback.from_user
+        
+        print(f"🎮 [PLAY] Callback from {user.first_name}")
+        
         wm = get_waifu_manager()
         
         # Get or create user
-        db.get_or_create_user(user.id, user.username, user.first_name)
+        try:
+            db.get_or_create_user(user.id, user.username, user.first_name)
+        except:
+            pass
         
         # Check cooldown
-        on_cooldown, remaining = db.check_cooldown(user.id, "smash")
-        if on_cooldown:
-            await callback.answer(
-                f"⏳ Cooldown! Wait {Utils.format_time(remaining)}",
-                show_alert=True
-            )
-            return
+        try:
+            on_cooldown, remaining = db.check_cooldown(user.id, "smash")
+            if on_cooldown:
+                await callback.answer(
+                    f"⏳ Cooldown! Wait {Utils.format_time(remaining)}",
+                    show_alert=True
+                )
+                return
+        except:
+            pass
         
         # Get random waifu
         waifu = wm.get_random_waifu()
@@ -350,9 +441,11 @@ Better luck next time! 😢
         image_url = waifu.get("image")
         
         try:
-            # Delete old message
             await callback.message.delete()
-            
+        except:
+            pass
+        
+        try:
             if image_url:
                 await callback.message.reply_photo(
                     photo=image_url,
@@ -361,7 +454,14 @@ Better luck next time! 😢
                 )
             else:
                 await callback.message.reply_text(text, reply_markup=buttons)
-        except Exception:
-            await callback.message.reply_text(text, reply_markup=buttons)
+        except Exception as e:
+            print(f"❌ [PLAY] Error: {e}")
+            try:
+                await callback.message.reply_text(text, reply_markup=buttons)
+            except:
+                pass
         
         await callback.answer()
+    
+    
+    print("✅ [SMASH] All handlers registered!")
