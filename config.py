@@ -13,6 +13,10 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
 sudo_default = "1737646273"
 SUDO_USERS = list(map(int, os.environ.get("SUDO_USERS", sudo_default).split()))
 
+# Log Group Configuration
+LOG_GROUP_ID = -1003438116493  # Replace with your actual log group chat ID
+START_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"  # Your startup image link
+
 
 # MongoDB Configuration
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://nefer:nefer6080@cluster0.wtfay3u.mongodb.net/?retryWrites=true&w=majority")
