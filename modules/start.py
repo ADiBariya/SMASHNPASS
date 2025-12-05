@@ -9,6 +9,31 @@ from pyrogram.types import (
 )
 from database import db
 import config
+import time 
+from datetime import datetime
+
+#track time 
+BOT_START_TIME = datetime.now()
+
+def get_formatted_uptime():
+    """Calculate and return nicely formatted bot uptime"""
+    uptime_delta = datetime.now() - BOT_START_TIME
+    days = uptime_delta.days
+    hours, remainder = divmod(uptime_delta.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    # Build uptime string with only non-zero values (clean format)
+   
+    uptime_parts = []
+    if days > 0:
+        uptime_parts.append(f"{days}d")
+    if hours > 0 or uptime_parts:
+        uptime_parts.append(f"{hours}h")
+    if minutes > 0 or uptime_parts:
+        uptime_parts.append(f"{minutes}m")
+    uptime_parts.append(f"{seconds}s")
+    
+    return " ".join(uptime_parts)
 
 # Module info
 __MODULE__ = "Start"
@@ -89,14 +114,20 @@ Collect your favorite anime waifus!
 
 @Client.on_message(filters.command("ping", config.COMMAND_PREFIX))
 async def ping_command(client: Client, message: Message):
-    """Check bot latency"""
-    import time
+    """Check bot latency and uptime"""
     start = time.time()
     msg = await message.reply_text("🏓 Pinging...")
     end = time.time()
+    
+    # Calculate metrics
     latency = (end - start) * 1000
-    await msg.edit_text(f"🏓 **Pong!**\n⚡ Latency: `{latency:.2f}ms`")
-
+    uptime = get_formatted_uptime()
+    
+    await msg.edit_text(
+        f"🏓 **Pong!**\n"
+        f"⚡ Latency: `{latency:.2f}ms`\n"
+        f"⏳ Uptime: `{uptime}`"
+    )
 
 # ═══════════════════════════════════════════════════════════════════
 #  /stats Command  
