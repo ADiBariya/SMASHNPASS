@@ -10,15 +10,29 @@ __MODULE__ = "Gift"
 __HELP__ = """
 🎁 **Gift Commands**
 
-`.gift @user <waifu_id>` - Gift waifu  
-`.gift @user coins <amount>` - Gift coins  
-`.gifthistory` - View gift history  
+`.gift @user <waifu_id>` - Gift waifu
+`.gift @user coins <amount>` - Gift coins
+`.gifthistory` - View gift history
 `.received` - View received gifts
 
-• Gifts are permanent  
-• Minimum 100 coins for coin gifts  
+• Gifts are permanent
+• Minimum 100 coins for coin gifts
 """
 
+# =============================================================
+#  Helper Functions
+# =============================================================
+
+def get_user_waifus(user_id: int):
+    """Get user's waifus from collections table"""
+    return list(db.collections.find({"user_id": user_id}))
+
+def find_waifu_by_id(user_id: int, waifu_id: int):
+    """Find a waifu by ID in user's collection"""
+    return db.collections.find_one({
+        "user_id": user_id,
+        "waifu_id": waifu_id
+    })
 
 # =============================================================
 #  GIFT COMMAND
@@ -85,7 +99,6 @@ async def gift_cmd(client: Client, message: Message):
             ]
         ])
 
-        # FIX: Use plain text instead of markdown for user mentions
         target_name = target.first_name or "User"
         return await message.reply_text(
              f"🎁 **Confirm Coin Gift**\n\n"
@@ -103,15 +116,13 @@ async def gift_cmd(client: Client, message: Message):
     except:
         return await message.reply_text("❌ Invalid waifu ID!")
 
-    user_data = db.get_user(user_id)
-    collection = user_data.get("collection", [])
-
-    waifu = next((w for w in collection if w.get("id") == waifu_id), None)
+    # Check if user owns this waifu in collections table
+    waifu = find_waifu_by_id(user_id, waifu_id)
 
     if not waifu:
         return await message.reply_text("❌ You don't own this waifu!")
 
-    emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
+    emoji = get_rarity_emoji(waifu.get("waifu_rarity", "Common"))
 
     buttons = InlineKeyboardMarkup([
         [
@@ -120,14 +131,13 @@ async def gift_cmd(client: Client, message: Message):
         ]
     ])
 
-    # FIX: Use plain text instead of markdown links
     target_name = target.first_name or "User"
     await message.reply_text(
         f"🎁 **Confirm Waifu Gift**\n\n"
         f"**To:** {target_name} (ID: {target.id})\n\n"
-        f"{emoji} **{waifu['name']}**\n"
-        f"📺 {waifu.get('anime')}\n"
-        f"⭐ {waifu.get('rarity')}\n\n"
+        f"{emoji} **{waifu.get('waifu_name', 'Unknown')}**\n"
+        f"📺 {waifu.get('waifu_anime', 'Unknown')}\n"
+        f"⭐ {waifu.get('waifu_rarity', 'Common')}\n\n"
         f"⚠️ This action cannot be undone!",
         reply_markup=buttons
     )
@@ -146,7 +156,7 @@ async def gift_coins_callback(client: Client, callback: CallbackQuery):
     if user_data.get("coins", 0) < amount:
         return await callback.answer("❌ Not enough coins!", show_alert=True)
 
-    # 🔥 Ensure target exists in DB (MOST IMPORTANT FIX)
+    # Ensure target exists in DB
     db.users.update_one(
         {"user_id": target_id},
         {"$setOnInsert": {"coins": 0, "collection": []}},
@@ -191,7 +201,7 @@ async def gift_coins_callback(client: Client, callback: CallbackQuery):
     await callback.answer("Gift sent!")
 
 # =============================================================
-#  WAIFU GIFT CALLBACK
+#  WAIFU GIFT CALLBACK - FIXED
 # =============================================================
 @Client.on_callback_query(filters.regex(r"^giftwaifu_(\d+)_(\d+)$"))
 async def gift_waifu_callback(client: Client, callback: CallbackQuery):
@@ -199,28 +209,45 @@ async def gift_waifu_callback(client: Client, callback: CallbackQuery):
     target_id = int(callback.matches[0].group(1))
     waifu_id = int(callback.matches[0].group(2))
 
-    user_data = db.get_user(user_id)
-    collection = user_data.get("collection", [])
-
-    waifu = next((w for w in collection if w.get("id") == waifu_id), None)
+    # Check if user still owns this waifu
+    waifu = find_waifu_by_id(user_id, waifu_id)
     if not waifu:
         return await callback.answer("❌ Waifu not found!", show_alert=True)
 
-    # Transfer waifu
-    db.remove_waifu_from_collection(user_id, waifu_id)
+    # Get waifu details for transfer
+    waifu_name = waifu.get("waifu_name", "Unknown")
+    waifu_anime = waifu.get("waifu_anime", "Unknown")
+    waifu_rarity = waifu.get("waifu_rarity", "Common")
+    waifu_power = waifu.get("waifu_power", 0)
+    waifu_image = waifu.get("waifu_image", "")
 
-    waifu_copy = waifu.copy()
-    waifu_copy["gifted_from"] = user_id
-    waifu_copy["gifted_at"] = datetime.now().strftime("%Y-%m-%d")
+    # Remove from sender's collection
+    db.collections.delete_one({
+        "user_id": user_id,
+        "waifu_id": waifu_id
+    })
 
-    db.add_waifu_to_collection(target_id, waifu_copy)
+    # Add to receiver's collection
+    new_waifu_entry = {
+        "user_id": target_id,
+        "waifu_id": waifu_id,
+        "waifu_name": waifu_name,
+        "waifu_anime": waifu_anime,
+        "waifu_rarity": waifu_rarity,
+        "waifu_power": waifu_power,
+        "waifu_image": waifu_image,
+        "obtained_at": datetime.now(),
+        "obtained_method": "gift",
+        "gifted_from": user_id
+    }
+    db.collections.insert_one(new_waifu_entry)
 
     # Log
     gift_log = {
         "type": "waifu",
         "from_id": user_id,
         "to_id": target_id,
-        "waifu_name": waifu["name"],
+        "waifu_name": waifu_name,
         "waifu_id": waifu_id,
         "timestamp": datetime.now().isoformat()
     }
@@ -228,11 +255,11 @@ async def gift_waifu_callback(client: Client, callback: CallbackQuery):
     db.users.update_one({"user_id": user_id}, {"$push": {"gifts_sent": gift_log}})
     db.users.update_one({"user_id": target_id}, {"$push": {"gifts_received": gift_log}}, upsert=True)
 
-    emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
+    emoji = get_rarity_emoji(waifu_rarity)
 
     await callback.message.edit_text(
         f"🎁 **Waifu Gifted!**\n\n"
-        f"{emoji} {waifu['name']}"
+        f"{emoji} {waifu_name}"
     )
 
     # Notify
@@ -243,13 +270,12 @@ async def gift_waifu_callback(client: Client, callback: CallbackQuery):
             target_id,
             f"🎁 **New Waifu Gift!**\n\n"
             f"From: {sender_name}\n"
-            f"{emoji} {waifu['name']}"
+            f"{emoji} {waifu_name}"
         )
     except:
         pass
 
     await callback.answer("Gifted!")
-
 
 # =============================================================
 #  CANCEL
@@ -258,7 +284,6 @@ async def gift_waifu_callback(client: Client, callback: CallbackQuery):
 async def gift_cancel_callback(client: Client, callback: CallbackQuery):
     await callback.message.edit_text("❌ Gift cancelled.")
     await callback.answer()
-
 
 # =============================================================
 #  GIFT HISTORY
@@ -284,7 +309,6 @@ async def gift_history_cmd(client: Client, message: Message):
 
     await message.reply_text(text)
 
-
 # =============================================================
 #  RECEIVED GIFTS
 # =============================================================
@@ -309,7 +333,6 @@ async def received_gifts_cmd(client: Client, message: Message):
 
     await message.reply_text(text)
 
-
 # =============================================================
 #  SELL WAIFU
 # =============================================================
@@ -324,18 +347,16 @@ async def sell_waifu_cmd(client: Client, message: Message):
         return await message.reply_text("❌ Invalid ID!")
 
     user_id = message.from_user.id
-    user_data = db.get_user(user_id)
 
-    collection = user_data.get("collection", [])
-    waifu = next((w for w in collection if w.get("id") == waifu_id), None)
-
+    # Check if user owns this waifu
+    waifu = find_waifu_by_id(user_id, waifu_id)
     if not waifu:
         return await message.reply_text("❌ You don't own this waifu!")
 
-    value = waifu.get("value", 100)
+    value = waifu.get("waifu_power", 100) * 10  # Base value on power
     sell_price = value // 2
 
-    emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
+    emoji = get_rarity_emoji(waifu.get("waifu_rarity", "Common"))
 
     buttons = InlineKeyboardMarkup([
         [
@@ -346,13 +367,12 @@ async def sell_waifu_cmd(client: Client, message: Message):
 
     await message.reply_text(
         f"💰 **Sell Waifu**\n\n"
-        f"{emoji} {waifu['name']}\n"
-        f"⭐ {waifu.get('rarity')}\n\n"
+        f"{emoji} {waifu.get('waifu_name', 'Unknown')}\n"
+        f"⭐ {waifu.get('waifu_rarity', 'Common')}\n\n"
         f"Value: {value:,}\n"
         f"Sell Price: {sell_price:,}\n",
         reply_markup=buttons
     )
-
 
 # =============================================================
 #  CONFIRM SELL
@@ -363,19 +383,27 @@ async def confirm_sell_callback(client: Client, callback: CallbackQuery):
     waifu_id = int(callback.matches[0].group(1))
     sell_price = int(callback.matches[0].group(2))
 
-    user_data = db.get_user(user_id)
-    collection = user_data.get("collection", [])
-
-    waifu = next((w for w in collection if w.get("id") == waifu_id), None)
+    # Check if user still owns this waifu
+    waifu = find_waifu_by_id(user_id, waifu_id)
     if not waifu:
         return await callback.answer("❌ Waifu not found!", show_alert=True)
 
-    db.remove_waifu_from_collection(user_id, waifu_id)
+    # Remove waifu from collection
+    db.collections.delete_one({
+        "user_id": user_id,
+        "waifu_id": waifu_id
+    })
+
+    # Add coins
     db.add_coins(user_id, sell_price)
 
     await callback.message.edit_text(
         f"✅ **Sold!**\n\n"
-        f"{waifu['name']}\n"
+        f"{waifu.get('waifu_name', 'Unknown')}\n"
         f"Coins Received: {sell_price:,}"
     )
     await callback.answer("Sold!")
+- Maintain all gift history and notifications
+- Allow selling waifus you own
+
+The gift system will now work with the same data source that your `/collection` command uses.
