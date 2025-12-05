@@ -280,7 +280,7 @@ async def help_handler(client, message):
                 callback_data=f"help_{module_name}"
             )
         )
-        if len(row) == 2:  # Changed from 3 to 2 for better layout
+        if len(row) == 3:
             buttons.append(row)
             row = []
     
