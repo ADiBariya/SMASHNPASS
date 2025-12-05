@@ -3,7 +3,7 @@ import os
 # Bot Configuration - Main credentials
 API_ID = int(os.environ.get("API_ID", "22733269"))
 API_HASH = os.environ.get("API_HASH", "d1d8331e5b288c572e8bb6baa7d8f833")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "67890556580:AAE7aS8D9hZOOd5n3jCCqJvOWvUSf7CME7M")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "7890556580:AAGZCMV_P4x4CZ5q20YJrhsn4zz-xyL0Ves")
 
 # Owner Configuration
 import os
