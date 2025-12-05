@@ -182,7 +182,13 @@ Welcome to the help menu!
             [InlineKeyboardButton("❌ Close", callback_data="help_close")]
         ])
 
-        await callback.message.edit_text(text, reply_markup=buttons)
+        await callback.message.edit_media(
+    media=InputMediaPhoto(
+        "https://i.ibb.co/Mx3WS7Qs/photo-2025-12-05-20-59-39.jpg",
+        caption=text
+    ),
+    reply_markup=buttons
+)
         await callback.answer()
 
     # ---------------------------------------------------------
