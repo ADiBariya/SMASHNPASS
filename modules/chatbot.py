@@ -6,6 +6,7 @@ import asyncio
 import requests
 import json
 import time
+import logging
 
 __MODULE__ = "Midnight Desire"
 __HELP__ = """
@@ -19,6 +20,9 @@ Seductive AI girlfriend with emotions & memory.
 Example:
 `midnight I miss you`
 """
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 # --------------------------
 # GEMINI API KEY
@@ -48,10 +52,13 @@ memory = load_memory()
 # --------------------------
 # TYPING EFFECT - FIXED
 # --------------------------
-async def simulate_typing(client: Client, message: Message, text: str):
+async def simulate_typing(client: Client, message: Message):
     """Simulate typing with proper client reference"""
-    await client.send_chat_action(message.chat.id, "typing")
-    await asyncio.sleep(min(2.5, len(text) * 0.01))
+    try:
+        await client.send_chat_action(message.chat.id, "typing")
+        await asyncio.sleep(1.5)  # Fixed delay
+    except Exception as e:
+        logger.error(f"Typing error: {e}")
 
 # --------------------------
 # ASK GEMINI
@@ -80,14 +87,15 @@ Rules:
     try:
         response = requests.post(
             GEMINI_URL + f"?key={API_KEY}",
-            json=payload
+            json=payload,
+            timeout=10
         ).json()
 
         return response["candidates"][0]["content"]["parts"][0]["text"]
 
     except Exception as e:
-        print("Gemini Error:", e)
-        return "Baby… Midnight is having trouble talking. Try again."
+        logger.error(f"Gemini Error: {e}")
+        return "Baby... Midnight is having trouble talking. Try again later."
 
 # --------------------------
 # MEMORY UPDATE
@@ -108,28 +116,32 @@ def update_memory(uid: str, text: str):
 # --------------------------
 @Client.on_message(filters.text & ~filters.bot)
 async def midnight_handler(client: Client, message: Message):
-    user = message.from_user
-    text = message.text
-    uid = str(user.id)
+    try:
+        user = message.from_user
+        text = message.text.lower()
+        uid = str(user.id)
 
-    update_memory(uid, text)
+        # Update memory with user message
+        update_memory(uid, text)
 
-    # Trigger 1: If replying to Midnight
-    if message.reply_to_message and message.reply_to_message.from_user.is_self:
-        await simulate_typing(client, message, text)
-        reply = await ask_gemini(text, user.first_name)
-        return await message.reply_text(reply)
-
-    # Trigger 2: Mentioning Midnight
-    if BOT_NAME.lower() in text.lower():
-        await simulate_typing(client, message, text)
-        reply = await ask_gemini(text, user.first_name)
-        return await message.reply_text(reply)
-
-    # Trigger 3: Emotional auto-chat
-    emotional_words = ["miss", "alone", "sad", "hurt", "love", "bored", "hi", "hey"]
-    if any(w in text.lower() for w in emotional_words):
-        if time.time() % 10 < 1:  # Only respond to 10% of emotional messages
-            await simulate_typing(client, message, text)
-            reply = await ask_gemini(text, user.first_name)
+        # Trigger 1: If replying to Midnight
+        if message.reply_to_message and message.reply_to_message.from_user.is_self:
+            await simulate_typing(client, message)
+            reply = await ask_gemini(message.text, user.first_name)
             return await message.reply_text(reply)
+
+        # Trigger 2: Mentioning Midnight
+        if BOT_NAME.lower() in text:
+            await simulate_typing(client, message)
+            reply = await ask_gemini(message.text, user.first_name)
+            return await message.reply_text(reply)
+
+        # Trigger 3: Emotional auto-chat (10% chance)
+        emotional_words = ["miss", "alone", "sad", "hurt", "love", "bored", "hi", "hey"]
+        if any(w in text for w in emotional_words) and time.time() % 10 < 1:
+            await simulate_typing(client, message)
+            reply = await ask_gemini(message.text, user.first_name)
+            return await message.reply_text(reply)
+
+    except Exception as e:
+        logger.error(f"Chatbot error: {e}")
