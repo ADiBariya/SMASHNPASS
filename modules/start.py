@@ -27,7 +27,7 @@ START_IMAGE = "https://files.catbox.moe/jcy3qf.jpg"
 #  /start Command - Direct decorator (no setup wrapper)
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command("start", config.CMD_PREFIX))
+@Client.on_message(filters.command("start", config.COMMAND_PREFIX))
 async def start_command(client: Client, message: Message):
     """Handle /start command"""
     user = message.from_user
@@ -87,7 +87,7 @@ Collect your favorite anime waifus!
 #  /ping Command
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command("ping", config.CMD_PREFIX))
+@Client.on_message(filters.command("ping", config.COMMAND_PREFIX))
 async def ping_command(client: Client, message: Message):
     """Check bot latency"""
     import time
@@ -102,7 +102,7 @@ async def ping_command(client: Client, message: Message):
 #  /stats Command  
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command(["stats", "mystats"], config.CMD_PREFIX))
+@Client.on_message(filters.command(["stats", "mystats"], config.COMMAND_PREFIX))
 async def stats_command(client: Client, message: Message):
     """View user statistics"""
     user = message.from_user
