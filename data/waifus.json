@@ -1,23 +1,32 @@
-[
-  {
-    "id": 1,
-    "name": "Marin",
-    "image": "https://files.catbox.moe/wbh4of.jpg",
-    "desc": "Cute and Sexy Waifu appears smash her to make her Your!!",
-    "rarity": "Legendary"
-  },
-  {
-    "id": 2,
-    "name": "Nami",
-    "image": "https://files.catbox.moe/uiekcr.jpg",
-    "desc": "Cute and Sexy Waifu appears smash her to make her Your!!",
-    "rarity": "Epic"
-  },
-  {
-    "id": 3,
-    "name": "Robin",
-    "image": "https://files.catbox.moe/4s5oz1.jpg",
-    "desc": "Cute and Sexy Waifu appears smash her to make her Your!!",
-    "rarity": "Epic"
-  }
-]
+{
+    "waifus": [
+        {
+            "id": 1,
+            "name": "Marin",
+            "anime": "My Dress up Darlings",
+            "rarity": "rare",
+            "power": 75,
+            "image": "https://files.catbox.moe/wbh4of.jpg"
+        },
+        {
+            "id": 2,
+            "name": "Nami",
+            "anime": "One Piece",
+            "rarity": "legendary",
+            "power": 95,
+            "image": "https://files.catbox.moe/uiekcr.jpg"
+        }
+    ],
+    "rarity_colors": {
+        "common": "⚪",
+        "rare": "🔵",
+        "epic": "🟣",
+        "legendary": "🟡"
+    },
+    "rarity_weights": {
+        "common": 50,
+        "rare": 30,
+        "epic": 15,
+        "legendary": 5
+    }
+}
