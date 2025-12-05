@@ -17,11 +17,12 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
 sudo_default = "1737646273"
 SUDO_USERS = list(map(int, os.environ.get("SUDO_USERS", sudo_default).split()))
 
+# Ensure owner is in sudo list
 if OWNER_ID not in SUDO_USERS:
     SUDO_USERS.append(OWNER_ID)
 
 # ============================
-#  LOGGING
+#  LOGGING CONFIGURATION
 # ============================
 logging.basicConfig(
     level=logging.INFO,
@@ -34,7 +35,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============================
-#  BOT INIT
+#  BOT INITIALIZATION
 # ============================
 app = Client(
     name="WaifuBot",
@@ -44,6 +45,7 @@ app = Client(
     plugins=dict(root="modules")
 )
 
+# Global variables
 LOADED_MODULES = {}
 BOT_START_TIME = datetime.now()
 STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"
@@ -59,6 +61,7 @@ except ImportError:
 # MODULE LOADER
 # ============================
 def load_modules():
+    """Load all modules from modules folder"""
     modules_path = Path("modules")
     if not modules_path.exists():
         logger.error("❌ Modules folder not found!")
@@ -85,21 +88,21 @@ def load_modules():
     logger.info(f"📦 Modules loaded: {loaded} | Failed: {failed}")
     return loaded, failed
 
-
 # ============================
 # HELP SYSTEM
 # ============================
 def get_full_help():
+    """Generate full help text"""
     text = "📚 **WAIFU BOT HELP**\n\n"
     for name, info in sorted(LOADED_MODULES.items()):
         text += f"**{info['name']}**\n{info['help']}\n\n"
     return text
 
-
 # ============================
 # STARTUP NOTIFICATION
 # ============================
 async def send_startup_notification(me, loaded, failed):
+    """Send startup notification to log group and owner"""
     startup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     caption = f"""
@@ -125,48 +128,59 @@ async def send_startup_notification(me, loaded, failed):
 ⏰ **Bot is now running!**
 """
 
+    # Send to log group if configured
     if LOG_GROUP_ID:
         try:
             await app.send_photo(LOG_GROUP_ID, STARTUP_IMAGE_URL, caption)
             logger.info("✅ Startup message sent to LOG_GROUP_ID.")
         except Exception as e:
             logger.warning(f"⚠️ Failed to send startup photo to LOG_GROUP_ID: {e}")
-            await app.send_message(LOG_GROUP_ID, caption)
+            try:
+                await app.send_message(LOG_GROUP_ID, caption)
+            except Exception as e2:
+                logger.error(f"❌ Failed to send startup text to LOG_GROUP_ID: {e2}")
 
+    # Send to owner
     try:
         await app.send_message(OWNER_ID, caption)
         logger.info("✅ Startup message sent to OWNER_ID.")
     except Exception as e:
         logger.warning(f"⚠️ Couldn't send startup DM to owner: {e}")
 
-
 # ============================
 # SHUTDOWN NOTIFICATION
 # ============================
 async def send_shutdown_notification(me):
+    """Send shutdown notification to log group"""
     if not LOG_GROUP_ID:
         return
+
     uptime = datetime.now() - BOT_START_TIME
+    days = uptime.days
+    hours, remainder = divmod(uptime.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime_str = f"{days}d {hours}h {minutes}m {seconds}s" if days > 0 else f"{hours}h {minutes}m {seconds}s"
+
     text = f"""
 🛑 **Bot Stopped**
 
 **Bot:** @{me.username}
-**Uptime:** `{uptime}`
+**Uptime:** `{uptime_str}`
 ━━━━━━━━━━━━━━━━━━━━
 👋 Bot has been shut down.
 """
     try:
         await app.send_message(LOG_GROUP_ID, text)
         logger.info("🛑 Sent shutdown message to LOG_GROUP_ID")
-    except:
-        pass
-
+    except Exception as e:
+        logger.error(f"❌ Failed to send shutdown message: {e}")
 
 # ============================
 # HELP COMMAND
 # ============================
 @app.on_message(filters.command(["help"], [".", "/", "!"]))
 async def help_cmd(client, message: Message):
+    """Help command handler with image support"""
     buttons, row = [], []
     for mod, info in sorted(LOADED_MODULES.items()):
         row.append(InlineKeyboardButton(info["name"], callback_data=f"help_{mod}"))
@@ -183,24 +197,25 @@ Select a module to view its commands:
 """
     try:
         await message.reply_photo(HELP_IMAGE_URL, caption, reply_markup=InlineKeyboardMarkup(buttons))
-    except:
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to send help image: {e}")
         await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
-
 
 # ============================
 # HELP CALLBACK
 # ============================
 @app.on_callback_query(filters.regex("^help_"))
 async def help_callback(client, cb):
+    """Handle help callbacks"""
     module = cb.data.replace("help_", "")
+
     if module == "all":
         text = get_full_help()
         await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", "help_back")]]))
         return
 
     if module == "back":
-        buttons = []
-        row = []
+        buttons, row = [], []
         for mod, info in sorted(LOADED_MODULES.items()):
             row.append(InlineKeyboardButton(info["name"], callback_data=f"help_{mod}"))
             if len(row) == 3:
@@ -219,13 +234,15 @@ async def help_callback(client, cb):
 
     await cb.answer()
 
-
 # ============================
-# LOGS COMMAND (Owner & Sudo)
+# LOGS COMMAND (Owner & Sudo Only)
 # ============================
 @app.on_message(filters.command(["logs"], [".", "/", "!"]))
 async def logs_handler(client, message: Message):
+    """Send logs to authorized users only"""
     user_id = message.from_user.id
+
+    # Check if user is owner or sudo
     if user_id not in SUDO_USERS and user_id != OWNER_ID:
         return await message.reply_text("❌ **Access Denied!** Only owner or sudo can access logs.")
 
@@ -233,6 +250,7 @@ async def logs_handler(client, message: Message):
     if not os.path.exists(log_path):
         return await message.reply_text("⚠️ **No log file found!**")
 
+    # Get file info
     file_size = os.path.getsize(log_path)
     size_mb = file_size / (1024 * 1024)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -246,22 +264,36 @@ async def logs_handler(client, message: Message):
 """
 
     # Send to chat first
-    await message.reply_document(log_path, caption=caption)
-    logger.info(f"📤 Logs sent in chat to {message.from_user.first_name} ({user_id})")
+    try:
+        await message.reply_document(
+            document=log_path,
+            caption=caption,
+            file_name=f"bot_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        )
+        logger.info(f"📤 Logs sent in chat to {message.from_user.first_name} ({user_id})")
+    except Exception as e:
+        logger.error(f"❌ Failed to send logs in chat: {e}")
+        return await message.reply_text(f"❌ Failed to send logs: {str(e)}")
 
     # Try sending DM as well
     try:
-        await client.send_document(user_id, log_path, caption="📬 **Here’s your DM copy of the log file.**")
+        await client.send_document(
+            chat_id=user_id,
+            document=log_path,
+            caption="📬 **Here's your DM copy of the log file.**",
+            file_name=f"bot_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        )
         logger.info(f"📥 Logs sent by DM to {user_id}")
+        await message.reply_text("📬 **Logs sent!** A copy has also been sent to your DM.")
     except Exception as e:
-        await message.reply_text("⚠️ Could not send DM logs (maybe bot not started in your PM).")
         logger.warning(f"⚠️ DM logs failed to send: {e}")
-
+        await message.reply_text("⚠️ Could not send to your DM. Make sure you've started the bot in private.")
 
 # ============================
 # START BOT TASK
 # ============================
 async def start_bot():
+    """Start the bot with proper initialization"""
     logger.info("🚀 Starting WaifuBot...")
     logger.info("📡 MongoDB auto-connected.")
 
@@ -280,12 +312,22 @@ async def start_bot():
     await app.stop()
     logger.info("🔴 Bot stopped!")
 
-
 # ============================
 # RUN BOT
 # ============================
 if __name__ == "__main__":
-    print("🎴 WAIFU SMASH BOT STARTING...")
+    print("""
+    ╔═══════════════════════════════════════╗
+    ║         🎴 WAIFU SMASH BOT 🎴         ║
+    ║                                       ║
+    ║   Pyrogram Based | MongoDB | Fast     ║
+    ╚═══════════════════════════════════════╝
+    """)
+
+    print(f"👑 Owner ID: {OWNER_ID}")
+    print(f"👥 Sudo Users: {SUDO_USERS}")
+    print(f"📊 Total Sudo Users: {len(SUDO_USERS)}")
+
     try:
         asyncio.get_event_loop().run_until_complete(start_bot())
     except KeyboardInterrupt:
@@ -293,4 +335,6 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e:
         logger.error(f"❌ Fatal Startup Error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
