@@ -7,7 +7,9 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "6970989601:AAFYsCo54bL8uphlBsd0qYz69o7J
 
 # Owner Configuration
 OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
-SUDO_USERS = list(map(int, os.environ.get("SUDO_USERS", "1737646273").split())) if os.environ.get("SUDO_USERS") else []
+
+sudo_default = "1737646273"
+SUDO_USERS = list(map(int, os.environ.get("SUDO_USERS", sudo_default).split()))
 
 # MongoDB Configuration
 MONGO_URI = os.environ.get("MONGO_URI", "mongodb+srv://nefer:nefer6080@cluster0.wtfay3u.mongodb.net/?retryWrites=true&w=majority")
