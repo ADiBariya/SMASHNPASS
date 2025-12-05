@@ -1,5 +1,3 @@
-# modules/collection.py - Collection System Module
-
 from pyrogram import Client, filters
 from pyrogram.types import (
     Message,
@@ -10,6 +8,10 @@ from pyrogram.types import (
 from database import db
 from helpers import get_waifu_manager, Utils
 import config
+import logging
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 # Help data for this module
 __MODULE__ = "Collection"
@@ -54,19 +56,36 @@ def setup(app: Client):
         user = callback.from_user
         await show_collection_callback(callback, user.id, page)
 
+    def get_user_collection_unified(user_id: int) -> List[Dict]:
+        """
+        Get user collection from both sources:
+        1. Collections table (primary)
+        2. Embedded collection in users table (fallback)
+        """
+        # Try collections table first
+        collections_table = list(db.collections.find({"user_id": user_id}))
+        
+        if collections_table:
+            logger.info(f"Found {len(collections_table)} waifus in collections table")
+            return collections_table
+        
+        # Fallback to embedded collection
+        user_data = db.get_user(user_id)
+        if user_data and 'collection' in user_data:
+            embedded_collection = user_data['collection']
+            logger.info(f"Found {len(embedded_collection)} waifus in embedded collection")
+            return embedded_collection
+        
+        logger.info("No collection found")
+        return []
+
     async def show_collection(message: Message, user_id: int, page: int = 1):
         """Show user collection as message"""
         wm = get_waifu_manager()
 
-        # Get user data to check collection
-        user_data = await db.get_user(user_id)
-        
-        if not user_data or 'collection' not in user_data:
-            collection = []
-            total = 0
-        else:
-            collection = user_data.get('collection', [])
-            total = len(collection)
+        # Get unified collection
+        all_waifus = get_user_collection_unified(user_id)
+        total = len(all_waifus)
 
         if total == 0:
             text = """
@@ -88,17 +107,28 @@ Use /smash to start collecting waifus!
         end_idx = min(start_idx + ITEMS_PER_PAGE, total)
         
         # Get waifus for current page
-        page_waifus = collection[start_idx:end_idx]
+        page_waifus = all_waifus[start_idx:end_idx]
 
         text = f"📦 **Your Collection** ({total} waifus)\n"
         text += f"Page {page}/{total_pages}\n\n"
 
         for i, waifu in enumerate(page_waifus, 1):
-            # Handle both possible field naming conventions
-            waifu_name = waifu.get('name') or waifu.get('waifu_name', 'Unknown')
-            waifu_anime = waifu.get('anime') or waifu.get('waifu_anime', 'Unknown')
-            waifu_rarity = waifu.get('rarity') or waifu.get('waifu_rarity', 'common')
-            waifu_power = waifu.get('power') or waifu.get('waifu_power', 0)
+            # Handle both collection table and embedded collection formats
+            waifu_name = (waifu.get('waifu_name') or 
+                         waifu.get('name') or 
+                         'Unknown')
+            
+            waifu_anime = (waifu.get('waifu_anime') or 
+                          waifu.get('anime') or 
+                          'Unknown')
+            
+            waifu_rarity = (waifu.get('waifu_rarity') or 
+                           waifu.get('rarity') or 
+                           'common')
+            
+            waifu_power = (waifu.get('waifu_power') or 
+                          waifu.get('power') or 
+                          0)
             
             rarity_emoji = wm.get_rarity_emoji(waifu_rarity)
             text += f"{rarity_emoji} **{waifu_name}**\n"
@@ -138,15 +168,9 @@ Use /smash to start collecting waifus!
         """Show user collection as callback edit"""
         wm = get_waifu_manager()
 
-        # Get user data to check collection
-        user_data = await db.get_user(user_id)
-        
-        if not user_data or 'collection' not in user_data:
-            collection = []
-            total = 0
-        else:
-            collection = user_data.get('collection', [])
-            total = len(collection)
+        # Get unified collection
+        all_waifus = get_user_collection_unified(user_id)
+        total = len(all_waifus)
 
         if total == 0:
             text = """
@@ -170,17 +194,28 @@ Use /smash to start collecting waifus!
         end_idx = min(start_idx + ITEMS_PER_PAGE, total)
         
         # Get waifus for current page
-        page_waifus = collection[start_idx:end_idx]
+        page_waifus = all_waifus[start_idx:end_idx]
 
         text = f"📦 **Your Collection** ({total} waifus)\n"
         text += f"Page {page}/{total_pages}\n\n"
 
         for i, waifu in enumerate(page_waifus, 1):
-            # Handle both possible field naming conventions
-            waifu_name = waifu.get('name') or waifu.get('waifu_name', 'Unknown')
-            waifu_anime = waifu.get('anime') or waifu.get('waifu_anime', 'Unknown')
-            waifu_rarity = waifu.get('rarity') or waifu.get('waifu_rarity', 'common')
-            waifu_power = waifu.get('power') or waifu.get('waifu_power', 0)
+            # Handle both formats
+            waifu_name = (waifu.get('waifu_name') or 
+                         waifu.get('name') or 
+                         'Unknown')
+            
+            waifu_anime = (waifu.get('waifu_anime') or 
+                          waifu.get('anime') or 
+                          'Unknown')
+            
+            waifu_rarity = (waifu.get('waifu_rarity') or 
+                           waifu.get('rarity') or 
+                           'common')
+            
+            waifu_power = (waifu.get('waifu_power') or 
+                          waifu.get('power') or 
+                          0)
             
             rarity_emoji = wm.get_rarity_emoji(waifu_rarity)
             text += f"{rarity_emoji} **{waifu_name}**\n"
@@ -219,18 +254,19 @@ Use /smash to start collecting waifus!
         user = callback.from_user
         wm = get_waifu_manager()
 
-        # Get user's collection
-        user_data = await db.get_user(user.id)
-        if not user_data or 'collection' not in user_data:
+        # Get unified collection
+        all_waifus = get_user_collection_unified(user.id)
+        
+        if not all_waifus:
             await callback.answer("Your collection is empty!", show_alert=True)
             return
-
-        collection = user_data.get('collection', [])
         
         # Filter by rarity
         filtered_waifus = []
-        for waifu in collection:
-            waifu_rarity = waifu.get('rarity') or waifu.get('waifu_rarity', 'common')
+        for waifu in all_waifus:
+            waifu_rarity = (waifu.get('waifu_rarity') or 
+                           waifu.get('rarity') or 
+                           'common')
             if waifu_rarity.lower() == rarity.lower():
                 filtered_waifus.append(waifu)
 
@@ -243,8 +279,12 @@ Use /smash to start collecting waifus!
         text = f"{rarity_emoji} **Your {rarity.title()} Waifus** ({len(filtered_waifus)})\n\n"
 
         for waifu in filtered_waifus[:10]:  # Show max 10
-            waifu_name = waifu.get('name') or waifu.get('waifu_name', 'Unknown')
-            waifu_anime = waifu.get('anime') or waifu.get('waifu_anime', 'Unknown')
+            waifu_name = (waifu.get('waifu_name') or 
+                         waifu.get('name') or 
+                         'Unknown')
+            waifu_anime = (waifu.get('waifu_anime') or 
+                          waifu.get('anime') or 
+                          'Unknown')
             text += f"• **{waifu_name}** - {waifu_anime}\n"
 
         if len(filtered_waifus) > 10:
@@ -297,15 +337,15 @@ Use /smash to start collecting waifus!
         rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
 
         # Check if user owns this waifu
-        user_data = await db.get_user(user.id)
+        all_waifus = get_user_collection_unified(user.id)
         owned = False
         
-        if user_data and 'collection' in user_data:
-            for collected_waifu in user_data['collection']:
-                collected_id = collected_waifu.get('id') or collected_waifu.get('waifu_id')
-                if collected_id == waifu.get("id"):
-                    owned = True
-                    break
+        for collected_waifu in all_waifus:
+            collected_id = (collected_waifu.get('waifu_id') or 
+                           collected_waifu.get('id'))
+            if collected_id == waifu.get("id"):
+                owned = True
+                break
         
         owned_text = "✅ You own this waifu!" if owned else "❌ Not in your collection"
 
@@ -365,19 +405,19 @@ Use /smash to start collecting waifus!
             return
 
         # Get user's collection
-        user_data = await db.get_user(user.id)
+        all_waifus = get_user_collection_unified(user.id)
         
-        if not user_data or 'collection' not in user_data:
+        if not all_waifus:
             await message.reply_text("❌ Your collection is empty!")
             return
 
         # Find the waifu in collection
-        collection = user_data.get('collection', [])
         waifu_to_gift = None
         waifu_index = -1
         
-        for idx, waifu in enumerate(collection):
-            collected_id = waifu.get('id') or waifu.get('waifu_id')
+        for idx, waifu in enumerate(all_waifus):
+            collected_id = (waifu.get('waifu_id') or 
+                           waifu.get('id'))
             if collected_id == waifu_id:
                 waifu_to_gift = waifu
                 waifu_index = idx
@@ -388,22 +428,20 @@ Use /smash to start collecting waifus!
             return
 
         # Ensure target user exists in db
-        await db.get_or_create_user(target_user.id, target_user.username, target_user.first_name)
+        db.get_or_create_user(target_user.id, target_user.username, target_user.first_name)
 
-        # Remove from sender's collection
-        collection.pop(waifu_index)
-        await db.users.update_one(
-            {"user_id": user.id},
-            {"$set": {"collection": collection}}
-        )
+        # Remove from sender using the proper database method
+        db.remove_from_collection(user.id, waifu_id)
 
-        # Add to receiver's collection
-        await db.users.update_one(
-            {"user_id": target_user.id},
-            {"$push": {"collection": waifu_to_gift}}
-        )
+        # Add to receiver
+        wm = get_waifu_manager()
+        full_waifu_data = wm.get_waifu_by_id(waifu_id)
+        if full_waifu_data:
+            db.add_to_collection(target_user.id, full_waifu_data)
 
-        waifu_name = waifu_to_gift.get('name') or waifu_to_gift.get('waifu_name', 'Unknown')
+        waifu_name = (waifu_to_gift.get('waifu_name') or 
+                     waifu_to_gift.get('name') or 
+                     'Unknown')
         
         await message.reply_text(
             f"🎁 **Gift Successful!**\n\n"
