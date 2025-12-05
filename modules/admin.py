@@ -25,10 +25,8 @@ __HELP__ = """
 """
 
 
-ADMINS = {OWNER_ID, *SUDO_USERS}   # if SUDO_USERS is a list
-
 def is_admin(user_id: int) -> bool:
-    return user_id in ADMINS
+    return user_id == OWNER_ID or user_id in SUDO_USERS
 
 
 
