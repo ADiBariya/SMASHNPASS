@@ -1,4 +1,4 @@
-# modules/trade.py - Trade System (start.py style)
+# modules/trade.py - Fixed Trade System
 
 from pyrogram import Client, filters
 from pyrogram.types import (
@@ -62,9 +62,39 @@ def format_waifu(waifu: dict) -> str:
     return f"{emoji} **{name}**\n📺 {anime}\n⚔️ Power: {power}"
 
 
-def get_waifu_id(waifu: dict) -> str:
-    """Get waifu ID safely"""
-    return str(waifu.get("waifu_id") or waifu.get("id") or waifu.get("_id", "0"))
+def get_waifu_id(waifu: dict):
+    """Get waifu ID safely - returns original type"""
+    wid = waifu.get("waifu_id") or waifu.get("id") or waifu.get("_id")
+    debug(f"get_waifu_id: {wid} (type: {type(wid)})")
+    return wid
+
+
+def normalize_waifu_for_trade(waifu: dict, new_owner_id: int) -> dict:
+    """Normalize waifu data for adding to new owner's collection"""
+    # Create a clean copy with consistent field names
+    normalized = {
+        "waifu_id": waifu.get("waifu_id") or waifu.get("id") or waifu.get("_id"),
+        "waifu_name": waifu.get("waifu_name") or waifu.get("name", "Unknown"),
+        "waifu_anime": waifu.get("waifu_anime") or waifu.get("anime", "Unknown"),
+        "waifu_rarity": waifu.get("waifu_rarity") or waifu.get("rarity", "common"),
+        "waifu_power": waifu.get("waifu_power") or waifu.get("power", 0),
+        "waifu_image": waifu.get("waifu_image") or waifu.get("image", ""),
+        "obtained_at": datetime.now().isoformat(),
+        "obtained_via": "trade",
+        "previous_owner": waifu.get("user_id") or waifu.get("previous_owner"),
+        "user_id": new_owner_id
+    }
+    
+    # Also keep original fields for compatibility
+    normalized["id"] = normalized["waifu_id"]
+    normalized["name"] = normalized["waifu_name"]
+    normalized["anime"] = normalized["waifu_anime"]
+    normalized["rarity"] = normalized["waifu_rarity"]
+    normalized["power"] = normalized["waifu_power"]
+    normalized["image"] = normalized["waifu_image"]
+    
+    debug(f"Normalized waifu: {normalized['waifu_name']} for user {new_owner_id}")
+    return normalized
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -147,11 +177,11 @@ async def trade_command(client: Client, message: Message):
         )
         return
     
-    # Create trade ID (short)
-    trade_id = f"{user.id % 10000}{int(datetime.now().timestamp()) % 100000}"
+    # Create trade ID (short but unique)
+    trade_id = f"{user.id % 100000}{int(datetime.now().timestamp()) % 100000}"
     debug(f"Created trade_id: {trade_id}")
     
-    # Store trade
+    # Store trade with chat message info
     active_trades[trade_id] = {
         "sender_id": user.id,
         "sender_name": user.first_name,
@@ -163,7 +193,9 @@ async def trade_command(client: Client, message: Message):
         "receiver_ok": False,
         "status": "picking",
         "chat_id": message.chat.id,
-        "msg_id": None
+        "msg_id": None,
+        "recv_msg_id": None,  # Track receiver's message
+        "recv_chat_id": None  # Track receiver's chat
     }
     
     # Build waifu buttons (max 10)
@@ -171,7 +203,6 @@ async def trade_command(client: Client, message: Message):
     row = []
     
     for i, waifu in enumerate(collection[:10]):
-        wid = get_waifu_id(waifu)
         name = (waifu.get("waifu_name") or waifu.get("name", "?"))[:12]
         
         # Short callback: tw_{trade_id}_{waifu_index}
@@ -187,10 +218,12 @@ async def trade_command(client: Client, message: Message):
     buttons.append([InlineKeyboardButton("❌ Cancel", callback_data=f"tc_{trade_id}")])
     
     text = f"""
-💘 **New Trade**
+💘 **New Trade Request**
 
+━━━━━━━━━━━━━━━━━━━━━━━━
 **From:** {user.mention}
 **To:** {target.mention}
+━━━━━━━━━━━━━━━━━━━━━━━━
 
 📦 Select a waifu to offer:
 """
@@ -224,12 +257,14 @@ async def sender_select_callback(client: Client, callback: CallbackQuery):
         parts = data.split("_")
         trade_id = parts[1]
         waifu_idx = int(parts[2])
-    except:
+    except Exception as e:
+        debug(f"Parse error: {e}")
         await callback.answer("❌ Invalid!", show_alert=True)
         return
     
     # Check trade exists
     if trade_id not in active_trades:
+        debug(f"Trade {trade_id} not found")
         await callback.answer("❌ Trade expired!", show_alert=True)
         return
     
@@ -248,7 +283,9 @@ async def sender_select_callback(client: Client, callback: CallbackQuery):
     # Get collection
     try:
         collection = db.get_user_collection(user.id)
-    except:
+        debug(f"Got collection with {len(collection) if collection else 0} waifus")
+    except Exception as e:
+        debug(f"DB Error: {e}")
         await callback.answer("❌ DB Error!", show_alert=True)
         return
     
@@ -259,6 +296,7 @@ async def sender_select_callback(client: Client, callback: CallbackQuery):
     # Get selected waifu
     selected = collection[waifu_idx]
     trade["sender_waifu"] = selected
+    trade["sender_waifu_idx"] = waifu_idx  # Store index for removal
     trade["status"] = "waiting"
     
     debug(f"Sender selected: {selected.get('waifu_name') or selected.get('name')}")
@@ -268,24 +306,29 @@ async def sender_select_callback(client: Client, callback: CallbackQuery):
     
     await callback.message.edit_text(
         f"💘 **Trade in Progress**\n\n"
-        f"**You offered:**\n{waifu_text}\n\n"
-        f"⏳ Waiting for {trade['receiver_name']}...",
+        f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"**You offered:**\n{waifu_text}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"⏳ Waiting for **{trade['receiver_name']}** to respond...",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ Cancel", callback_data=f"tc_{trade_id}")]
+            [InlineKeyboardButton("❌ Cancel Trade", callback_data=f"tc_{trade_id}")]
         ])
     )
     
     # Get receiver's collection
     try:
         recv_collection = db.get_user_collection(trade["receiver_id"])
-    except:
-        await callback.message.edit_text("❌ Receiver has no collection!")
+        debug(f"Receiver collection: {len(recv_collection) if recv_collection else 0} waifus")
+    except Exception as e:
+        debug(f"Error getting receiver collection: {e}")
+        await callback.message.edit_text("❌ Error getting receiver's collection!")
         del active_trades[trade_id]
         return
     
     if not recv_collection:
         await callback.message.edit_text(
-            f"❌ {trade['receiver_name']} has no waifus to trade!"
+            f"❌ **Trade Cancelled**\n\n"
+            f"{trade['receiver_name']} has no waifus to trade!"
         )
         del active_trades[trade_id]
         await callback.answer("Trade cancelled!")
@@ -308,33 +351,50 @@ async def sender_select_callback(client: Client, callback: CallbackQuery):
     
     recv_buttons.append([InlineKeyboardButton("❌ Decline", callback_data=f"tc_{trade_id}")])
     
-    # Notify receiver
+    recv_text = f"""
+💘 **Trade Request!**
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+**From:** {trade['sender_name']}
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+**They're offering:**
+{waifu_text}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Select your waifu to trade:
+"""
+    
+    # Try to notify receiver via DM first
+    recv_msg = None
     try:
-        await client.send_message(
+        recv_msg = await client.send_message(
             trade["receiver_id"],
-            f"💘 **Trade Request!**\n\n"
-            f"**From:** {trade['sender_name']}\n\n"
-            f"**They offer:**\n{waifu_text}\n\n"
-            f"📦 Select your waifu to trade:",
+            recv_text,
             reply_markup=InlineKeyboardMarkup(recv_buttons)
         )
-        debug(f"Notified receiver: {trade['receiver_id']}")
+        trade["recv_msg_id"] = recv_msg.id
+        trade["recv_chat_id"] = trade["receiver_id"]
+        debug(f"Notified receiver via DM: {trade['receiver_id']}")
     except Exception as e:
         debug(f"Can't DM receiver: {e}")
         # Try in group
         try:
-            await client.send_message(
+            recv_msg = await client.send_message(
                 trade["chat_id"],
-                f"💘 **{trade['receiver_name']}!**\n\n"
-                f"{trade['sender_name']} wants to trade!\n\n"
-                f"**Offering:**\n{waifu_text}\n\n"
+                f"💘 **Hey {trade['receiver_name']}!**\n\n"
+                f"{trade['sender_name']} wants to trade with you!\n\n"
+                f"**They're offering:**\n{waifu_text}\n\n"
                 f"📦 Select your waifu:",
                 reply_markup=InlineKeyboardMarkup(recv_buttons)
             )
+            trade["recv_msg_id"] = recv_msg.id
+            trade["recv_chat_id"] = trade["chat_id"]
+            debug(f"Notified receiver in group: {trade['chat_id']}")
         except Exception as e2:
             debug(f"Group notify failed: {e2}")
     
-    await callback.answer("✅ Waifu selected!")
+    await callback.answer("✅ Waifu selected! Waiting for response...")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -352,7 +412,8 @@ async def receiver_select_callback(client: Client, callback: CallbackQuery):
         parts = data.split("_")
         trade_id = parts[1]
         waifu_idx = int(parts[2])
-    except:
+    except Exception as e:
+        debug(f"Parse error: {e}")
         await callback.answer("❌ Invalid!", show_alert=True)
         return
     
@@ -363,17 +424,18 @@ async def receiver_select_callback(client: Client, callback: CallbackQuery):
     trade = active_trades[trade_id]
     
     if trade["receiver_id"] != user.id:
-        await callback.answer("❌ Not for you!", show_alert=True)
+        await callback.answer("❌ This trade isn't for you!", show_alert=True)
         return
     
     if trade["status"] != "waiting":
-        await callback.answer("❌ Invalid state!", show_alert=True)
+        await callback.answer("❌ Invalid trade state!", show_alert=True)
         return
     
     # Get collection
     try:
         collection = db.get_user_collection(user.id)
-    except:
+    except Exception as e:
+        debug(f"DB Error: {e}")
         await callback.answer("❌ DB Error!", show_alert=True)
         return
     
@@ -384,6 +446,7 @@ async def receiver_select_callback(client: Client, callback: CallbackQuery):
     # Get selected
     selected = collection[waifu_idx]
     trade["receiver_waifu"] = selected
+    trade["receiver_waifu_idx"] = waifu_idx  # Store index for removal
     trade["status"] = "confirm"
     
     debug(f"Receiver selected: {selected.get('waifu_name') or selected.get('name')}")
@@ -393,15 +456,21 @@ async def receiver_select_callback(client: Client, callback: CallbackQuery):
     recv_text = format_waifu(selected)
     
     confirm_text = f"""
-💘 **Confirm Trade**
+💘 **Trade Confirmation**
+
+━━━━━━━━━━━━━━━━━━━━━━━━
 
 **{trade['sender_name']}** offers:
 {sender_text}
 
+━━━━━━━━━━━━━━━━━━━━━━━━
+
 **{trade['receiver_name']}** offers:
 {recv_text}
 
-Both must click ✅ to complete!
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ **Both must click ✅ Confirm!**
 """
     
     confirm_buttons = InlineKeyboardMarkup([
@@ -412,19 +481,35 @@ Both must click ✅ to complete!
     ])
     
     # Update receiver's message
-    await callback.message.edit_text(confirm_text, reply_markup=confirm_buttons)
+    try:
+        await callback.message.edit_text(confirm_text, reply_markup=confirm_buttons)
+    except Exception as e:
+        debug(f"Error updating receiver msg: {e}")
     
-    # Notify sender
+    # Update sender's original message in group
+    try:
+        await client.edit_message_text(
+            chat_id=trade["chat_id"],
+            message_id=trade["msg_id"],
+            text=confirm_text,
+            reply_markup=confirm_buttons
+        )
+        debug("Updated sender's group message")
+    except Exception as e:
+        debug(f"Error updating sender group msg: {e}")
+    
+    # Also notify sender via DM
     try:
         await client.send_message(
             trade["sender_id"],
             confirm_text,
             reply_markup=confirm_buttons
         )
+        debug("Sent confirmation to sender via DM")
     except Exception as e:
-        debug(f"Can't notify sender: {e}")
+        debug(f"Can't DM sender: {e}")
     
-    await callback.answer("✅ Now both confirm!")
+    await callback.answer("✅ Now both parties need to confirm!")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -455,22 +540,22 @@ async def confirm_trade_callback(client: Client, callback: CallbackQuery):
         return
     
     if trade["status"] != "confirm":
-        await callback.answer("❌ Not ready!", show_alert=True)
+        await callback.answer("❌ Trade not ready for confirmation!", show_alert=True)
         return
     
     # Mark confirmed
     if user.id == trade["sender_id"]:
         if trade["sender_ok"]:
-            await callback.answer("Already confirmed!")
+            await callback.answer("✅ You already confirmed!", show_alert=True)
             return
         trade["sender_ok"] = True
-        debug(f"Sender confirmed")
+        debug(f"Sender {user.id} confirmed")
     else:
         if trade["receiver_ok"]:
-            await callback.answer("Already confirmed!")
+            await callback.answer("✅ You already confirmed!", show_alert=True)
             return
         trade["receiver_ok"] = True
-        debug(f"Receiver confirmed")
+        debug(f"Receiver {user.id} confirmed")
     
     await callback.answer("✅ Confirmed!")
     
@@ -479,85 +564,181 @@ async def confirm_trade_callback(client: Client, callback: CallbackQuery):
         debug("Both confirmed! Executing trade...")
         
         try:
-            # Get waifu IDs
+            # Get waifus
             sender_waifu = trade["sender_waifu"]
             recv_waifu = trade["receiver_waifu"]
+            
+            sender_id = trade["sender_id"]
+            receiver_id = trade["receiver_id"]
             
             sender_wid = get_waifu_id(sender_waifu)
             recv_wid = get_waifu_id(recv_waifu)
             
-            debug(f"Swapping: {sender_wid} <-> {recv_wid}")
+            debug(f"Executing trade:")
+            debug(f"  Sender {sender_id} gives waifu {sender_wid}")
+            debug(f"  Receiver {receiver_id} gives waifu {recv_wid}")
             
-            # Remove from original owners
-            db.remove_from_collection(trade["sender_id"], sender_wid)
-            db.remove_from_collection(trade["receiver_id"], recv_wid)
+            # Normalize waifus for new owners
+            waifu_for_sender = normalize_waifu_for_trade(recv_waifu, sender_id)
+            waifu_for_receiver = normalize_waifu_for_trade(sender_waifu, receiver_id)
             
-            # Add to new owners
-            db.add_to_collection(trade["sender_id"], recv_waifu)
-            db.add_to_collection(trade["receiver_id"], sender_waifu)
+            # STEP 1: Remove waifus from original owners
+            debug(f"Removing waifu {sender_wid} from sender {sender_id}")
+            remove_result_1 = db.remove_from_collection(sender_id, sender_wid)
+            debug(f"Remove result 1: {remove_result_1}")
+            
+            debug(f"Removing waifu {recv_wid} from receiver {receiver_id}")
+            remove_result_2 = db.remove_from_collection(receiver_id, recv_wid)
+            debug(f"Remove result 2: {remove_result_2}")
+            
+            # STEP 2: Add waifus to new owners
+            debug(f"Adding waifu to sender {sender_id}")
+            add_result_1 = db.add_to_collection(sender_id, waifu_for_sender)
+            debug(f"Add result 1: {add_result_1}")
+            
+            debug(f"Adding waifu to receiver {receiver_id}")
+            add_result_2 = db.add_to_collection(receiver_id, waifu_for_receiver)
+            debug(f"Add result 2: {add_result_2}")
             
             # Success message
             success_text = f"""
-🎉 **Trade Complete!** 🎉
+🎉 **Trade Completed!** 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━
 
 **{trade['sender_name']}** received:
-{format_waifu(recv_waifu)}
+{format_waifu(waifu_for_sender)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
 
 **{trade['receiver_name']}** received:
-{format_waifu(sender_waifu)}
+{format_waifu(waifu_for_receiver)}
 
-Enjoy your new waifus! 💖
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+💖 Enjoy your new waifus!
 """
             
-            # Update message
+            # Update current message
             try:
                 await callback.message.edit_text(success_text)
-            except:
-                pass
+                debug("Updated callback message")
+            except Exception as e:
+                debug(f"Error updating callback msg: {e}")
             
-            # Notify both
+            # Update original group message
+            try:
+                await client.edit_message_text(
+                    chat_id=trade["chat_id"],
+                    message_id=trade["msg_id"],
+                    text=success_text
+                )
+                debug("Updated group message")
+            except Exception as e:
+                debug(f"Error updating group msg: {e}")
+            
+            # Update receiver's message if different
+            if trade.get("recv_msg_id") and trade.get("recv_chat_id"):
+                try:
+                    if trade["recv_chat_id"] != callback.message.chat.id or trade["recv_msg_id"] != callback.message.id:
+                        await client.edit_message_text(
+                            chat_id=trade["recv_chat_id"],
+                            message_id=trade["recv_msg_id"],
+                            text=success_text
+                        )
+                        debug("Updated receiver's message")
+                except Exception as e:
+                    debug(f"Error updating recv msg: {e}")
+            
+            # Send DM notifications
             try:
                 await client.send_message(trade["sender_id"], success_text)
-            except:
-                pass
+                debug("Sent success DM to sender")
+            except Exception as e:
+                debug(f"Can't DM sender: {e}")
             
             try:
                 await client.send_message(trade["receiver_id"], success_text)
-            except:
-                pass
+                debug("Sent success DM to receiver")
+            except Exception as e:
+                debug(f"Can't DM receiver: {e}")
+            
+            # Also send to group chat as final notification
+            try:
+                await client.send_message(
+                    trade["chat_id"],
+                    f"✅ **Trade Completed!**\n\n"
+                    f"**{trade['sender_name']}** ↔️ **{trade['receiver_name']}**\n\n"
+                    f"Both parties have received their new waifus! 💖"
+                )
+                debug("Sent group notification")
+            except Exception as e:
+                debug(f"Error sending group notification: {e}")
             
             debug("Trade completed successfully!")
             
         except Exception as e:
             debug(f"Trade execution error: {e}")
-            await callback.message.edit_text(f"❌ Trade failed: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            error_text = f"❌ **Trade Failed!**\n\nError: {str(e)}"
+            try:
+                await callback.message.edit_text(error_text)
+            except:
+                pass
         
         # Cleanup
-        del active_trades[trade_id]
+        if trade_id in active_trades:
+            del active_trades[trade_id]
+            debug(f"Cleaned up trade {trade_id}")
     
     else:
-        # Update status
+        # Update status - show who has confirmed
         s_status = "✅" if trade["sender_ok"] else "⏳"
         r_status = "✅" if trade["receiver_ok"] else "⏳"
+        
+        sender_text = format_waifu(trade["sender_waifu"])
+        recv_text = format_waifu(trade["receiver_waifu"])
         
         status_text = f"""
 💘 **Trade Confirmation**
 
-**{trade['sender_name']}:** {s_status}
-**{trade['receiver_name']}:** {r_status}
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-Waiting for both to confirm...
+**{trade['sender_name']}** {s_status}
+{sender_text}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+**{trade['receiver_name']}** {r_status}
+{recv_text}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏳ Waiting for both to confirm...
 """
         
+        confirm_buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Confirm", callback_data=f"ty_{trade_id}"),
+                InlineKeyboardButton("❌ Cancel", callback_data=f"tc_{trade_id}")
+            ]
+        ])
+        
+        # Update current message
         try:
-            await callback.message.edit_text(
-                status_text,
-                reply_markup=InlineKeyboardMarkup([
-                    [
-                        InlineKeyboardButton("✅ Confirm", callback_data=f"ty_{trade_id}"),
-                        InlineKeyboardButton("❌ Cancel", callback_data=f"tc_{trade_id}")
-                    ]
-                ])
+            await callback.message.edit_text(status_text, reply_markup=confirm_buttons)
+        except:
+            pass
+        
+        # Update group message
+        try:
+            await client.edit_message_text(
+                chat_id=trade["chat_id"],
+                message_id=trade["msg_id"],
+                text=status_text,
+                reply_markup=confirm_buttons
             )
         except:
             pass
@@ -581,7 +762,7 @@ async def cancel_trade_callback(client: Client, callback: CallbackQuery):
         return
     
     if trade_id not in active_trades:
-        await callback.answer("❌ Already cancelled!", show_alert=True)
+        await callback.answer("❌ Trade already ended!", show_alert=True)
         return
     
     trade = active_trades[trade_id]
@@ -590,12 +771,47 @@ async def cancel_trade_callback(client: Client, callback: CallbackQuery):
         await callback.answer("❌ Not your trade!", show_alert=True)
         return
     
-    # Cancel
+    cancel_text = f"""
+❌ **Trade Cancelled**
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+Cancelled by **{user.first_name}**
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+No waifus were exchanged.
+"""
+    
+    # Update current message
     try:
-        await callback.message.edit_text(
-            f"❌ **Trade Cancelled**\n\n"
-            f"Cancelled by {user.first_name}"
+        await callback.message.edit_text(cancel_text)
+    except:
+        pass
+    
+    # Update group message
+    try:
+        await client.edit_message_text(
+            chat_id=trade["chat_id"],
+            message_id=trade["msg_id"],
+            text=cancel_text
         )
+    except:
+        pass
+    
+    # Update receiver's message if exists
+    if trade.get("recv_msg_id") and trade.get("recv_chat_id"):
+        try:
+            await client.edit_message_text(
+                chat_id=trade["recv_chat_id"],
+                message_id=trade["recv_msg_id"],
+                text=cancel_text
+            )
+        except:
+            pass
+    
+    # Notify other party via DM
+    other_id = trade["receiver_id"] if user.id == trade["sender_id"] else trade["sender_id"]
+    try:
+        await client.send_message(other_id, cancel_text)
     except:
         pass
     
@@ -618,16 +834,25 @@ async def mytrades_command(client: Client, message: Message):
     my_trades = []
     
     for tid, t in active_trades.items():
+        status_emoji = {"picking": "📝", "waiting": "⏳", "confirm": "✅"}.get(t["status"], "❓")
+        
         if t["sender_id"] == user.id:
-            my_trades.append(f"📤 To **{t['receiver_name']}** - {t['status']}")
+            my_trades.append(f"{status_emoji} **To:** {t['receiver_name']} ({t['status']})")
         elif t["receiver_id"] == user.id:
-            my_trades.append(f"📥 From **{t['sender_name']}** - {t['status']}")
+            my_trades.append(f"{status_emoji} **From:** {t['sender_name']} ({t['status']})")
     
     if not my_trades:
-        await message.reply_text("📭 You have no pending trades!")
+        await message.reply_text(
+            "📭 **No Pending Trades**\n\n"
+            "Use `/trade @username` to start a trade!"
+        )
         return
     
-    text = "📋 **Your Trades**\n\n" + "\n".join(my_trades)
+    text = "📋 **Your Active Trades**\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += "\n".join(my_trades)
+    text += "\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += "Use `/canceltrade` to cancel all trades."
+    
     await message.reply_text(text)
 
 
@@ -650,13 +875,13 @@ async def canceltrade_command(client: Client, message: Message):
             cancelled += 1
     
     if cancelled:
-        await message.reply_text(f"✅ Cancelled {cancelled} trade(s)!")
+        await message.reply_text(f"✅ Cancelled **{cancelled}** trade(s)!")
     else:
-        await message.reply_text("📭 No active trades to cancel.")
+        await message.reply_text("📭 You have no active trades to cancel.")
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Debug Command (optional)
+#  Debug Command
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_message(filters.command("debugtrade", config.COMMAND_PREFIX))
@@ -666,10 +891,30 @@ async def debug_trade_command(client: Client, message: Message):
         return
     
     text = f"🔧 **Trade Debug**\n\n"
-    text += f"Active: {len(active_trades)}\n"
-    text += f"Cooldowns: {len(trade_cooldowns)}\n\n"
+    text += f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"Active trades: **{len(active_trades)}**\n"
+    text += f"Cooldowns: **{len(trade_cooldowns)}**\n"
+    text += f"━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     
     for tid, t in active_trades.items():
-        text += f"• `{tid}`: {t['sender_name']} → {t['receiver_name']} ({t['status']})\n"
+        text += f"**Trade:** `{tid}`\n"
+        text += f"├ Status: {t['status']}\n"
+        text += f"├ Sender: {t['sender_name']} ({t['sender_id']})\n"
+        text += f"├ Receiver: {t['receiver_name']} ({t['receiver_id']})\n"
+        text += f"├ Sender OK: {t['sender_ok']}\n"
+        text += f"├ Receiver OK: {t['receiver_ok']}\n"
+        
+        if t.get('sender_waifu'):
+            sw = t['sender_waifu']
+            text += f"├ Sender Waifu: {sw.get('waifu_name') or sw.get('name', '?')}\n"
+        
+        if t.get('receiver_waifu'):
+            rw = t['receiver_waifu']
+            text += f"├ Receiver Waifu: {rw.get('waifu_name') or rw.get('name', '?')}\n"
+        
+        text += f"└ Chat: {t['chat_id']}\n\n"
     
-    await message.reply_text(text or "No data")
+    if not active_trades:
+        text += "No active trades.\n"
+    
+    await message.reply_text(text)
