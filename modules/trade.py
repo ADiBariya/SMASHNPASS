@@ -1,4 +1,4 @@
-# modules/trade.py - Trade System (LAYOUT SAFE)
+# modules/trade.py - Trade System (WORKS WITH YOUR DATABASE)
 
 from pyrogram import Client, filters
 from pyrogram.types import (
@@ -44,37 +44,37 @@ def get_rarity_emoji(rarity: str) -> str:
     }.get(str(rarity).lower(), "⚪")
 
 
-def get_waifu_field(waifu: dict, *fields):
-    """Get first available field from waifu"""
-    for field in fields:
-        if waifu.get(field) is not None:
-            return waifu.get(field)
-    return None
-
-
-def get_waifu_id(waifu: dict):
-    """Get waifu ID - keep original type"""
-    return get_waifu_field(waifu, "waifu_id", "id", "_id") or 0
+def get_waifu_id(waifu: dict) -> int:
+    """Get waifu ID as integer"""
+    wid = waifu.get("waifu_id") or waifu.get("id") or waifu.get("_id") or 0
+    try:
+        return int(wid)
+    except:
+        return 0
 
 
 def get_waifu_name(waifu: dict) -> str:
-    return get_waifu_field(waifu, "waifu_name", "name") or "Unknown"
+    return waifu.get("waifu_name") or waifu.get("name") or "Unknown"
 
 
 def get_waifu_anime(waifu: dict) -> str:
-    return get_waifu_field(waifu, "waifu_anime", "anime") or "Unknown"
+    return waifu.get("waifu_anime") or waifu.get("anime") or "Unknown"
 
 
 def get_waifu_rarity(waifu: dict) -> str:
-    return str(get_waifu_field(waifu, "waifu_rarity", "rarity") or "common").lower()
+    return str(waifu.get("waifu_rarity") or waifu.get("rarity") or "common").lower()
 
 
 def get_waifu_power(waifu: dict) -> int:
-    power = get_waifu_field(waifu, "waifu_power", "power") or 0
+    power = waifu.get("waifu_power") or waifu.get("power") or 0
     try:
         return int(power)
     except:
         return 0
+
+
+def get_waifu_image(waifu: dict) -> str:
+    return waifu.get("waifu_image") or waifu.get("image") or ""
 
 
 def format_waifu(waifu: dict) -> str:
@@ -169,8 +169,8 @@ async def trade_command(client: Client, message: Message):
             await message.reply_text("❌ You have an active trade!\nUse /canceltrade first.")
             return
     
-    # Get collection
-    collection = db.get_user_collection(user.id)
+    # Get collection using YOUR database method
+    collection = db.get_full_collection(user.id)
     debug(f"Collection: {len(collection) if collection else 0} waifus")
     
     if not collection:
@@ -197,10 +197,20 @@ async def trade_command(client: Client, message: Message):
         "recv_msg_id": None
     }
     
-    # Build buttons
+    # Build buttons - show first 10 unique waifus
+    seen_ids = set()
+    unique_waifus = []
+    for w in collection:
+        wid = get_waifu_id(w)
+        if wid not in seen_ids:
+            seen_ids.add(wid)
+            unique_waifus.append(w)
+        if len(unique_waifus) >= 10:
+            break
+    
     buttons = []
     row = []
-    for i, w in enumerate(collection[:10]):
+    for i, w in enumerate(unique_waifus):
         name = get_waifu_name(w)[:12]
         row.append(InlineKeyboardButton(name, callback_data=f"tw_{trade_id}_{i}"))
         if len(row) == 2:
@@ -209,6 +219,9 @@ async def trade_command(client: Client, message: Message):
     if row:
         buttons.append(row)
     buttons.append([InlineKeyboardButton("❌ Cancel", callback_data=f"tc_{trade_id}")])
+    
+    # Store unique waifus for selection
+    active_trades[trade_id]["sender_waifus"] = unique_waifus
     
     text = f"""
 💘 **New Trade**
@@ -258,17 +271,17 @@ async def sender_select_cb(client: Client, callback: CallbackQuery):
         await callback.answer("❌ Already selected!", show_alert=True)
         return
     
-    collection = db.get_user_collection(user.id)
-    if not collection or waifu_idx >= len(collection):
+    # Get from stored waifus
+    sender_waifus = trade.get("sender_waifus", [])
+    if waifu_idx >= len(sender_waifus):
         await callback.answer("❌ Waifu not found!", show_alert=True)
         return
     
-    # Store ORIGINAL waifu data
-    selected = collection[waifu_idx]
-    trade["sender_waifu"] = selected.copy()  # Copy to preserve
+    selected = sender_waifus[waifu_idx]
+    trade["sender_waifu"] = selected
     trade["status"] = "waiting"
     
-    debug(f"Sender selected: {get_waifu_name(selected)}")
+    debug(f"Sender selected: {get_waifu_name(selected)} (ID: {get_waifu_id(selected)})")
     
     waifu_text = format_waifu(selected)
     
@@ -286,16 +299,29 @@ async def sender_select_cb(client: Client, callback: CallbackQuery):
         pass
     
     # Get receiver collection
-    recv_collection = db.get_user_collection(trade["receiver_id"])
+    recv_collection = db.get_full_collection(trade["receiver_id"])
     if not recv_collection:
         await callback.message.edit_text(f"❌ {trade['receiver_name']} has no waifus!")
         del active_trades[trade_id]
         return
     
+    # Get unique waifus for receiver
+    seen_ids = set()
+    unique_recv = []
+    for w in recv_collection:
+        wid = get_waifu_id(w)
+        if wid not in seen_ids:
+            seen_ids.add(wid)
+            unique_recv.append(w)
+        if len(unique_recv) >= 10:
+            break
+    
+    trade["receiver_waifus"] = unique_recv
+    
     # Build receiver buttons
     recv_buttons = []
     row = []
-    for i, w in enumerate(recv_collection[:10]):
+    for i, w in enumerate(unique_recv):
         name = get_waifu_name(w)[:12]
         row.append(InlineKeyboardButton(name, callback_data=f"tr_{trade_id}_{i}"))
         if len(row) == 2:
@@ -316,7 +342,7 @@ async def sender_select_cb(client: Client, callback: CallbackQuery):
 📦 Select your waifu:
 """
     
-    # Send to receiver (DM first, then group)
+    # Send to receiver
     recv_msg = await safe_send(client, trade["receiver_id"], recv_text, InlineKeyboardMarkup(recv_buttons))
     if recv_msg:
         trade["recv_chat_id"] = trade["receiver_id"]
@@ -360,17 +386,16 @@ async def receiver_select_cb(client: Client, callback: CallbackQuery):
         await callback.answer("❌ Invalid state!", show_alert=True)
         return
     
-    collection = db.get_user_collection(user.id)
-    if not collection or waifu_idx >= len(collection):
+    receiver_waifus = trade.get("receiver_waifus", [])
+    if waifu_idx >= len(receiver_waifus):
         await callback.answer("❌ Waifu not found!", show_alert=True)
         return
     
-    # Store ORIGINAL waifu data
-    selected = collection[waifu_idx]
-    trade["receiver_waifu"] = selected.copy()  # Copy to preserve
+    selected = receiver_waifus[waifu_idx]
+    trade["receiver_waifu"] = selected
     trade["status"] = "confirm"
     
-    debug(f"Receiver selected: {get_waifu_name(selected)}")
+    debug(f"Receiver selected: {get_waifu_name(selected)} (ID: {get_waifu_id(selected)})")
     
     sender_text = format_waifu(trade["sender_waifu"])
     recv_text = format_waifu(selected)
@@ -407,7 +432,7 @@ async def receiver_select_cb(client: Client, callback: CallbackQuery):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Confirm Trade - THE IMPORTANT PART
+#  Confirm Trade - USES YOUR DATABASE METHODS
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex(r"^ty_(\d+)$"))
@@ -450,7 +475,7 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
     
     # Both confirmed?
     if trade["sender_ok"] and trade["receiver_ok"]:
-        debug("EXECUTING TRADE...")
+        debug("=== EXECUTING TRADE ===")
         
         try:
             sender_id = trade["sender_id"]
@@ -458,42 +483,65 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
             sender_waifu = trade["sender_waifu"]
             receiver_waifu = trade["receiver_waifu"]
             
-            # Get IDs for removal
             sender_wid = get_waifu_id(sender_waifu)
             receiver_wid = get_waifu_id(receiver_waifu)
             
-            debug(f"Sender waifu: {get_waifu_name(sender_waifu)} (ID: {sender_wid})")
-            debug(f"Receiver waifu: {get_waifu_name(receiver_waifu)} (ID: {receiver_wid})")
+            debug(f"Sender: {sender_id}, waifu ID: {sender_wid}")
+            debug(f"Receiver: {receiver_id}, waifu ID: {receiver_wid}")
             
-            # === CRITICAL: KEEP ORIGINAL FORMAT ===
-            # Just copy the waifus as-is, only add trade metadata
+            # === STEP 1: Remove from original owners ===
+            debug(f"Removing waifu {sender_wid} from sender {sender_id}")
+            remove1 = db.remove_from_collection(sender_id, sender_wid)
+            debug(f"Remove result 1: {remove1}")
             
-            waifu_for_sender = receiver_waifu.copy()
-            waifu_for_sender["obtained_via"] = "trade"
-            waifu_for_sender["trade_date"] = datetime.now().isoformat()
+            debug(f"Removing waifu {receiver_wid} from receiver {receiver_id}")
+            remove2 = db.remove_from_collection(receiver_id, receiver_wid)
+            debug(f"Remove result 2: {remove2}")
             
-            waifu_for_receiver = sender_waifu.copy()
-            waifu_for_receiver["obtained_via"] = "trade"
-            waifu_for_receiver["trade_date"] = datetime.now().isoformat()
+            # === STEP 2: Add to new owners (YOUR FORMAT) ===
+            # Waifu for sender (receiver's waifu)
+            waifu_for_sender = {
+                "id": receiver_wid,
+                "waifu_id": receiver_wid,
+                "name": get_waifu_name(receiver_waifu),
+                "waifu_name": get_waifu_name(receiver_waifu),
+                "anime": get_waifu_anime(receiver_waifu),
+                "waifu_anime": get_waifu_anime(receiver_waifu),
+                "rarity": get_waifu_rarity(receiver_waifu),
+                "waifu_rarity": get_waifu_rarity(receiver_waifu),
+                "power": get_waifu_power(receiver_waifu),
+                "waifu_power": get_waifu_power(receiver_waifu),
+                "image": get_waifu_image(receiver_waifu),
+                "waifu_image": get_waifu_image(receiver_waifu),
+                "obtained_method": "trade"
+            }
             
-            debug(f"Waifu for sender: {waifu_for_sender}")
-            debug(f"Waifu for receiver: {waifu_for_receiver}")
+            # Waifu for receiver (sender's waifu)
+            waifu_for_receiver = {
+                "id": sender_wid,
+                "waifu_id": sender_wid,
+                "name": get_waifu_name(sender_waifu),
+                "waifu_name": get_waifu_name(sender_waifu),
+                "anime": get_waifu_anime(sender_waifu),
+                "waifu_anime": get_waifu_anime(sender_waifu),
+                "rarity": get_waifu_rarity(sender_waifu),
+                "waifu_rarity": get_waifu_rarity(sender_waifu),
+                "power": get_waifu_power(sender_waifu),
+                "waifu_power": get_waifu_power(sender_waifu),
+                "image": get_waifu_image(sender_waifu),
+                "waifu_image": get_waifu_image(sender_waifu),
+                "obtained_method": "trade"
+            }
             
-            # STEP 1: Remove from original owners
-            debug(f"Removing {sender_wid} from {sender_id}")
-            db.remove_from_collection(sender_id, sender_wid)
+            debug(f"Adding to sender: {waifu_for_sender}")
+            add1 = db.add_to_collection(sender_id, waifu_for_sender)
+            debug(f"Add result 1: {add1}")
             
-            debug(f"Removing {receiver_wid} from {receiver_id}")
-            db.remove_from_collection(receiver_id, receiver_wid)
+            debug(f"Adding to receiver: {waifu_for_receiver}")
+            add2 = db.add_to_collection(receiver_id, waifu_for_receiver)
+            debug(f"Add result 2: {add2}")
             
-            # STEP 2: Add to new owners
-            debug(f"Adding to {sender_id}")
-            db.add_to_collection(sender_id, waifu_for_sender)
-            
-            debug(f"Adding to {receiver_id}")
-            db.add_to_collection(receiver_id, waifu_for_receiver)
-            
-            debug("Database updated!")
+            debug("=== DATABASE UPDATED ===")
             
             # Success message
             success_text = f"""
@@ -528,7 +576,7 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
                 f"✅ **Trade Done!** {trade['sender_name']} ↔️ {trade['receiver_name']} 💖"
             )
             
-            debug("Trade completed!")
+            debug("Trade completed successfully!")
             
         except Exception as e:
             debug(f"TRADE ERROR: {e}")
@@ -537,7 +585,8 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
             await callback.message.edit_text(f"❌ Trade failed: {e}")
         
         # Cleanup
-        del active_trades[trade_id]
+        if trade_id in active_trades:
+            del active_trades[trade_id]
     
     else:
         # Show status
