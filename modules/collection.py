@@ -123,10 +123,10 @@ def format_waifu_trade(waifu: Dict) -> str:
     emoji = get_rarity_emoji(get_waifu_rarity(waifu))
     name = get_waifu_name(waifu)
     anime = get_waifu_anime(waifu)
-    power = get_waifu_power(waifu)
     wid = get_waifu_id(waifu)
+    rarity = get_waifu_rarity(waifu).title()
     
-    return f"{emoji} **{name}**\n📺 {anime}\n⚔️ Power: {power}\n🆔 ID: `{wid}`"
+    return f"{emoji} **{name}**\n📺 {anime}\n💎 {rarity}\n🆔 `{wid}`"
 
 
 def group_waifus(waifus: List[Dict]) -> List[Dict]:
@@ -303,18 +303,20 @@ Use /smash to start collecting waifus!
     
     text += "\n"
     
+    # Display waifus with name (xCount) - ID format
     for w in page_waifus:
         wid = w.get("_display_id", 0)
         name = get_waifu_name(w)
-        anime = get_waifu_anime(w)
         rarity = get_waifu_rarity(w)
         count = w.get("count", 1)
         
         emoji = wm.get_rarity_emoji(rarity)
-        count_str = f" x{count}" if count > 1 else ""
         
-        text += f"{emoji} **{name}**{count_str}\n"
-        text += f"   └ {anime} • ID: `{wid}`\n"
+        # Format: emoji Name (xCount) - ID
+        if count > 1:
+            text += f"{emoji} **{name}** (x{count}) - `{wid}`\n"
+        else:
+            text += f"{emoji} **{name}** - `{wid}`\n"
     
     buttons = []
     
@@ -490,7 +492,7 @@ async def fav_command(client: Client, message: Message):
     )
     
     emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
-    text = f"⭐ **Favorite Set!**\n\n{emoji} **{waifu.get('name')}**"
+    text = f"⭐ **Favorite Set!**\n\n{emoji} **{waifu.get('name')}** - `{waifu.get('id')}`"
     
     if waifu.get("image"):
         try:
@@ -539,14 +541,20 @@ async def waifu_info_command(client: Client, message: Message):
     
     collection = db.get_full_collection(user.id)
     owned = sum(1 for w in collection if get_waifu_id(w) == waifu_id) if collection else 0
-    owned_str = f"✅ You own x{owned}" if owned > 0 else "❌ Not owned"
+    
+    if owned > 1:
+        owned_str = f"✅ You own (x{owned})"
+    elif owned == 1:
+        owned_str = "✅ You own this"
+    else:
+        owned_str = "❌ Not owned"
     
     text = f"""
 {emoji} **{waifu.get('name')}**
 
 📺 {waifu.get('anime')}
 💎 {waifu.get('rarity', 'common').title()}
-🆔 ID: `{waifu.get('id')}`
+🆔 `{waifu.get('id')}`
 
 {owned_str}
 """
@@ -993,15 +1001,18 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
             
             debug("=== DATABASE UPDATED ===")
             
-            # Success message
+            # Success message with new format
+            sender_w = format_waifu_trade(waifu_for_sender)
+            receiver_w = format_waifu_trade(waifu_for_receiver)
+            
             success_text = f"""
 🎉 **Trade Complete!** 🎉
 
 **{trade['sender_name']}** received:
-{format_waifu_trade(waifu_for_sender)}
+{sender_w}
 
 **{trade['receiver_name']}** received:
-{format_waifu_trade(waifu_for_receiver)}
+{receiver_w}
 
 💖 Enjoy your new waifus!
 """
