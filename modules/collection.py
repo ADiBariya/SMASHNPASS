@@ -1,4 +1,4 @@
-# modules/collection.py - Collection Module (Updated)
+# modules/collection.py - Collection Module (FIXED)
 
 from pyrogram import Client, filters
 from pyrogram.types import (
@@ -11,7 +11,7 @@ from pyrogram.errors import MessageNotModified
 from typing import List, Dict
 from collections import Counter
 from database import db
-from helpers import get_waifu_manager, Utils
+from helpers import get_waifu_manager
 import config
 
 __MODULE__ = "Collection"
@@ -19,13 +19,10 @@ __HELP__ = """
 📦 **Collection Commands**
 
 • `/collection` - View your waifu collection
-• `/col` - Short alias for collection
-• `/fav <waifu_id>` - Set favorite waifu (shows in collection)
-• `/unfav` - Remove favorite waifu
-• `/waifu <name>` - View specific waifu details
-• `/gift <waifu_id>` (reply) - Gift a waifu to someone
-
-Use the inline buttons to navigate pages and filter by rarity.
+• `/col` - Short alias
+• `/fav <id>` - Set favorite waifu
+• `/unfav` - Remove favorite
+• `/waifuinfo <id>` - View waifu details
 """
 
 ITEMS_PER_PAGE = 8
@@ -35,57 +32,87 @@ ITEMS_PER_PAGE = 8
 #  Helper Functions
 # ─────────────────────────────────────────────────────────────
 
-def get_user_collection(user_id: int) -> List[Dict]:
-    """Get user's collection from database"""
-    return db.get_full_collection(user_id)
+def get_waifu_id(waifu: Dict) -> int:
+    """Get waifu ID from any format"""
+    # Try all possible ID fields
+    wid = (
+        waifu.get("waifu_id") or 
+        waifu.get("id") or 
+        waifu.get("_id") or 
+        0
+    )
+    # Convert to int if string
+    try:
+        return int(wid)
+    except (ValueError, TypeError):
+        return 0
 
 
-def group_waifus_by_id(waifus: List[Dict]) -> List[Dict]:
-    """Group same waifus and add count (x2, x3, etc.)"""
-    # Count waifus by ID
-    waifu_counts = Counter()
-    waifu_data = {}
-    
-    for w in waifus:
-        waifu_id = w.get("waifu_id") or w.get("id") or 0
-        waifu_counts[waifu_id] += 1
-        
-        # Store waifu data (keep first occurrence)
-        if waifu_id not in waifu_data:
-            waifu_data[waifu_id] = w
-    
-    # Build grouped list
-    grouped = []
-    for waifu_id, count in waifu_counts.items():
-        if waifu_id in waifu_data:
-            waifu = waifu_data[waifu_id].copy()
-            waifu["count"] = count
-            grouped.append(waifu)
-    
-    # Sort by rarity (legendary first) then by count
-    rarity_order = {"legendary": 0, "epic": 1, "rare": 2, "common": 3}
-    grouped.sort(key=lambda x: (
-        rarity_order.get(x.get("waifu_rarity", "common").lower(), 4),
-        -x.get("count", 1)
-    ))
-    
-    return grouped
-
-
-def get_waifu_display_name(waifu: Dict) -> str:
-    """Get waifu name with proper fallback for traded waifus"""
-    # Try different name fields
-    name = (
+def get_waifu_name(waifu: Dict) -> str:
+    """Get waifu name from any format"""
+    return (
         waifu.get("waifu_name") or 
         waifu.get("name") or 
         "Unknown"
     )
-    return name
 
 
-def get_waifu_display_id(waifu: Dict) -> int:
-    """Get waifu ID"""
-    return waifu.get("waifu_id") or waifu.get("id") or 0
+def get_waifu_anime(waifu: Dict) -> str:
+    """Get waifu anime from any format"""
+    return (
+        waifu.get("waifu_anime") or 
+        waifu.get("anime") or 
+        "Unknown"
+    )
+
+
+def get_waifu_rarity(waifu: Dict) -> str:
+    """Get waifu rarity from any format"""
+    return (
+        waifu.get("waifu_rarity") or 
+        waifu.get("rarity") or 
+        "common"
+    ).lower()
+
+
+def group_waifus(waifus: List[Dict]) -> List[Dict]:
+    """Group same waifus and count them (x2, x3)"""
+    if not waifus:
+        return []
+    
+    # Count by waifu_id
+    counts = {}
+    data = {}
+    
+    for w in waifus:
+        wid = get_waifu_id(w)
+        
+        # Skip invalid entries
+        if wid == 0:
+            continue
+        
+        if wid not in counts:
+            counts[wid] = 0
+            data[wid] = w
+        
+        counts[wid] += 1
+    
+    # Build grouped list with counts
+    result = []
+    for wid, count in counts.items():
+        waifu = data[wid].copy()
+        waifu["count"] = count
+        waifu["_display_id"] = wid  # Store for display
+        result.append(waifu)
+    
+    # Sort: legendary first, then by count
+    rarity_order = {"legendary": 0, "epic": 1, "rare": 2, "common": 3}
+    result.sort(key=lambda x: (
+        rarity_order.get(get_waifu_rarity(x), 4),
+        -x.get("count", 1)
+    ))
+    
+    return result
 
 
 # ─────────────────────────────────────────────────────────────
@@ -95,16 +122,17 @@ def get_waifu_display_id(waifu: Dict) -> int:
 @Client.on_message(filters.command(["collection", "mycollection", "col"], prefixes=config.COMMAND_PREFIX))
 async def collection_command(client: Client, message: Message):
     user = message.from_user
-    await show_collection_message(message, user.id, page=1)
+    await show_collection(message, user.id, page=1, is_callback=False)
 
 
-async def show_collection_message(message: Message, user_id: int, page: int = 1):
+async def show_collection(target, user_id: int, page: int = 1, is_callback: bool = False):
+    """Show collection with proper grouping"""
     wm = get_waifu_manager()
     
-    # Get all waifus
-    all_waifus = get_user_collection(user_id)
+    # Get raw collection from DB
+    raw_collection = db.get_full_collection(user_id)
     
-    if not all_waifus:
+    if not raw_collection:
         text = """
 📦 **Your Collection**
 
@@ -115,258 +143,192 @@ Use /smash to start collecting waifus!
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🎮 Play Now", callback_data="play_smash")]
         ])
-        await message.reply_text(text, reply_markup=buttons)
+        
+        if is_callback:
+            try:
+                if target.message.photo:
+                    await target.message.edit_caption(caption=text, reply_markup=buttons)
+                else:
+                    await target.message.edit_text(text, reply_markup=buttons)
+            except MessageNotModified:
+                pass
+            await target.answer()
+        else:
+            await target.reply_text(text, reply_markup=buttons)
         return
     
-    # Group waifus (x2, x3 format)
-    grouped_waifus = group_waifus_by_id(all_waifus)
-    total_unique = len(grouped_waifus)
-    total_waifus = len(all_waifus)
+    # Group waifus (removes duplicates, adds count)
+    grouped = group_waifus(raw_collection)
+    
+    # Filter out invalid entries
+    grouped = [w for w in grouped if w.get("_display_id", 0) != 0]
+    
+    total_waifus = len(raw_collection)  # Total including duplicates
+    unique_waifus = len(grouped)  # Unique count
     
     # Pagination
-    total_pages = (total_unique + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+    total_pages = max(1, (unique_waifus + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
     page = max(1, min(page, total_pages))
     start = (page - 1) * ITEMS_PER_PAGE
-    end = min(start + ITEMS_PER_PAGE, total_unique)
-    page_waifus = grouped_waifus[start:end]
-    
-    # Build text
-    text = f"📦 **Your Collection**\n"
-    text += f"📊 {total_waifus} waifus ({total_unique} unique)\n"
-    text += f"📄 Page {page}/{total_pages}\n\n"
-    
-    for w in page_waifus:
-        name = get_waifu_display_name(w)
-        waifu_id = get_waifu_display_id(w)
-        rarity = w.get("waifu_rarity") or w.get("rarity", "common")
-        count = w.get("count", 1)
-        
-        rarity_emoji = wm.get_rarity_emoji(rarity)
-        
-        # Show count if more than 1
-        count_text = f" **x{count}**" if count > 1 else ""
-        
-        text += f"{rarity_emoji} **{name}**{count_text}\n"
-        text += f"   └ ID: `{waifu_id}`\n"
-    
-    # Get favorite waifu for image
-    user_data = db.get_user(user_id)
-    fav_waifu_id = user_data.get("favorite_waifu") if user_data else None
-    
-    buttons = build_collection_keyboard(page, total_pages)
-    
-    # Send with favorite waifu image or random waifu image
-    image_url = None
-    
-    if fav_waifu_id:
-        # Get favorite waifu image
-        fav_waifu = wm.get_waifu_by_id(fav_waifu_id)
-        if fav_waifu:
-            image_url = fav_waifu.get("image")
-            text = f"⭐ **Favorite:** {fav_waifu.get('name')}\n\n" + text
-    else:
-        # Get random waifu from collection for image
-        if grouped_waifus:
-            random_waifu_id = get_waifu_display_id(grouped_waifus[0])
-            random_waifu = wm.get_waifu_by_id(random_waifu_id)
-            if random_waifu:
-                image_url = random_waifu.get("image")
-    
-    # Send with image
-    if image_url:
-        try:
-            await message.reply_photo(
-                photo=image_url,
-                caption=text,
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-            return
-        except Exception as e:
-            print(f"⚠️ Collection image failed: {e}")
-    
-    # Fallback to text only
-    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
-
-
-# ─────────────────────────────────────────────────────────────
-#  Callback Handlers
-# ─────────────────────────────────────────────────────────────
-
-@Client.on_callback_query(filters.regex(r"^view_collection$"))
-async def view_collection_callback(client: Client, callback: CallbackQuery):
-    user = callback.from_user
-    await show_collection_callback(callback, user.id, page=1)
-
-
-@Client.on_callback_query(filters.regex(r"^col_page_(\d+)$"))
-async def collection_page_callback(client: Client, callback: CallbackQuery):
-    user = callback.from_user
-    page = int(callback.data.split("_")[2])
-    await show_collection_callback(callback, user.id, page)
-
-
-async def show_collection_callback(callback: CallbackQuery, user_id: int, page: int = 1):
-    wm = get_waifu_manager()
-    
-    all_waifus = get_user_collection(user_id)
-    
-    if not all_waifus:
-        text = """
-📦 **Your Collection**
-
-Your collection is empty! 😢
-
-Use /smash to start collecting waifus!
-"""
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🎮 Play Now", callback_data="play_smash")],
-            [InlineKeyboardButton("🔙 Back", callback_data="start_back")]
-        ])
-        
-        try:
-            if callback.message.photo:
-                await callback.message.edit_caption(caption=text, reply_markup=buttons)
-            else:
-                await callback.message.edit_text(text, reply_markup=buttons)
-        except MessageNotModified:
-            pass
-        
-        await callback.answer()
-        return
-    
-    # Group waifus
-    grouped_waifus = group_waifus_by_id(all_waifus)
-    total_unique = len(grouped_waifus)
-    total_waifus = len(all_waifus)
-    
-    # Pagination
-    total_pages = (total_unique + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
-    page = max(1, min(page, total_pages))
-    start = (page - 1) * ITEMS_PER_PAGE
-    end = min(start + ITEMS_PER_PAGE, total_unique)
-    page_waifus = grouped_waifus[start:end]
-    
-    # Build text
-    text = f"📦 **Your Collection**\n"
-    text += f"📊 {total_waifus} waifus ({total_unique} unique)\n"
-    text += f"📄 Page {page}/{total_pages}\n\n"
-    
-    for w in page_waifus:
-        name = get_waifu_display_name(w)
-        waifu_id = get_waifu_display_id(w)
-        rarity = w.get("waifu_rarity") or w.get("rarity", "common")
-        count = w.get("count", 1)
-        
-        rarity_emoji = wm.get_rarity_emoji(rarity)
-        count_text = f" **x{count}**" if count > 1 else ""
-        
-        text += f"{rarity_emoji} **{name}**{count_text}\n"
-        text += f"   └ ID: `{waifu_id}`\n"
+    end = min(start + ITEMS_PER_PAGE, unique_waifus)
+    page_waifus = grouped[start:end]
     
     # Get favorite waifu
     user_data = db.get_user(user_id)
-    fav_waifu_id = user_data.get("favorite_waifu") if user_data else None
+    fav_id = user_data.get("favorite_waifu") if user_data else None
     
-    if fav_waifu_id:
-        fav_waifu = wm.get_waifu_by_id(fav_waifu_id)
+    # Build text
+    text = f"📦 **Your Collection**\n"
+    text += f"📊 {total_waifus} total ({unique_waifus} unique)\n"
+    text += f"📄 Page {page}/{total_pages}\n"
+    
+    # Show favorite at top
+    if fav_id:
+        fav_waifu = wm.get_waifu_by_id(fav_id)
         if fav_waifu:
-            text = f"⭐ **Favorite:** {fav_waifu.get('name')}\n\n" + text
+            text += f"⭐ Favorite: **{fav_waifu.get('name')}**\n"
     
-    buttons = build_collection_keyboard(page, total_pages)
+    text += "\n"
     
-    try:
-        if callback.message.photo:
-            await callback.message.edit_caption(
-                caption=text, 
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-        else:
-            await callback.message.edit_text(
-                text, 
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-    except MessageNotModified:
-        pass
-    except Exception as e:
-        print(f"⚠️ Collection edit error: {e}")
+    # List waifus
+    for w in page_waifus:
+        wid = w.get("_display_id", 0)
+        name = get_waifu_name(w)
+        anime = get_waifu_anime(w)
+        rarity = get_waifu_rarity(w)
+        count = w.get("count", 1)
+        
+        emoji = wm.get_rarity_emoji(rarity)
+        
+        # Format: 🔵 Marin x2 (ID: 1)
+        count_str = f" x{count}" if count > 1 else ""
+        text += f"{emoji} **{name}**{count_str}\n"
+        text += f"   └ {anime} • ID: `{wid}`\n"
     
-    await callback.answer()
-
-
-def build_collection_keyboard(page: int, total_pages: int):
+    # Build keyboard
     buttons = []
+    
+    # Navigation row
     nav_row = []
-    
     if page > 1:
-        nav_row.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"col_page_{page-1}"))
-    
-    nav_row.append(InlineKeyboardButton(f"📄 {page}/{total_pages}", callback_data="col_info"))
-    
+        nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"col_p_{page-1}"))
+    nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
     if page < total_pages:
-        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"col_page_{page+1}"))
-    
+        nav_row.append(InlineKeyboardButton("➡️", callback_data=f"col_p_{page+1}"))
     buttons.append(nav_row)
     
-    # Rarity filters
+    # Filter row
     buttons.append([
-        InlineKeyboardButton("🟡 Legendary", callback_data="col_filter_legendary"),
-        InlineKeyboardButton("🟣 Epic", callback_data="col_filter_epic")
+        InlineKeyboardButton("🟡 Legendary", callback_data="col_f_legendary"),
+        InlineKeyboardButton("🟣 Epic", callback_data="col_f_epic")
     ])
     buttons.append([
-        InlineKeyboardButton("🔵 Rare", callback_data="col_filter_rare"),
-        InlineKeyboardButton("⚪ Common", callback_data="col_filter_common")
+        InlineKeyboardButton("🔵 Rare", callback_data="col_f_rare"),
+        InlineKeyboardButton("⚪ Common", callback_data="col_f_common")
     ])
     buttons.append([
         InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
         InlineKeyboardButton("🔙 Back", callback_data="start_back")
     ])
     
-    return buttons
+    # Get image (favorite or first waifu)
+    image_url = None
+    if fav_id:
+        fav_waifu = wm.get_waifu_by_id(fav_id)
+        if fav_waifu:
+            image_url = fav_waifu.get("image")
+    
+    if not image_url and page_waifus:
+        first_id = page_waifus[0].get("_display_id", 0)
+        first_waifu = wm.get_waifu_by_id(first_id)
+        if first_waifu:
+            image_url = first_waifu.get("image")
+    
+    # Send/Edit message
+    if is_callback:
+        try:
+            if target.message.photo:
+                await target.message.edit_caption(
+                    caption=text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+            else:
+                await target.message.edit_text(
+                    text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+        except MessageNotModified:
+            pass
+        await target.answer()
+    else:
+        # Try with image
+        if image_url:
+            try:
+                await target.reply_photo(
+                    photo=image_url,
+                    caption=text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
+                return
+            except:
+                pass
+        
+        await target.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 
 # ─────────────────────────────────────────────────────────────
-#  Filter Callback
+#  Callbacks
 # ─────────────────────────────────────────────────────────────
 
-@Client.on_callback_query(filters.regex(r"^col_filter_(\w+)$"))
-async def collection_filter_callback(client: Client, callback: CallbackQuery):
+@Client.on_callback_query(filters.regex(r"^view_collection$"))
+async def view_collection_cb(client: Client, callback: CallbackQuery):
+    await show_collection(callback, callback.from_user.id, 1, is_callback=True)
+
+
+@Client.on_callback_query(filters.regex(r"^col_p_(\d+)$"))
+async def collection_page_cb(client: Client, callback: CallbackQuery):
+    page = int(callback.data.split("_")[2])
+    await show_collection(callback, callback.from_user.id, page, is_callback=True)
+
+
+@Client.on_callback_query(filters.regex(r"^col_f_(\w+)$"))
+async def collection_filter_cb(client: Client, callback: CallbackQuery):
+    """Filter by rarity"""
     rarity = callback.data.split("_")[2]
     user = callback.from_user
     wm = get_waifu_manager()
     
-    all_waifus = get_user_collection(user.id)
+    raw_collection = db.get_full_collection(user.id)
     
-    if not all_waifus:
-        await callback.answer("Your collection is empty!", show_alert=True)
+    if not raw_collection:
+        await callback.answer("Collection empty!", show_alert=True)
         return
     
     # Filter by rarity
-    filtered = [w for w in all_waifus 
-                if (w.get("waifu_rarity") or w.get("rarity", "common")).lower() == rarity.lower()]
+    filtered = [w for w in raw_collection if get_waifu_rarity(w) == rarity]
     
     if not filtered:
-        await callback.answer(f"No {rarity} waifus in your collection!", show_alert=True)
+        await callback.answer(f"No {rarity} waifus!", show_alert=True)
         return
     
-    # Group filtered waifus
-    grouped = group_waifus_by_id(filtered)
+    # Group filtered
+    grouped = group_waifus(filtered)
     
-    rarity_emoji = wm.get_rarity_emoji(rarity)
-    text = f"{rarity_emoji} **Your {rarity.title()} Waifus** ({len(filtered)} total)\n\n"
+    emoji = wm.get_rarity_emoji(rarity)
+    text = f"{emoji} **{rarity.title()} Waifus** ({len(filtered)} total)\n\n"
     
     for w in grouped[:10]:
-        name = get_waifu_display_name(w)
-        waifu_id = get_waifu_display_id(w)
+        name = get_waifu_name(w)
+        wid = w.get("_display_id", 0)
         count = w.get("count", 1)
-        count_text = f" **x{count}**" if count > 1 else ""
-        
-        text += f"• **{name}**{count_text} (ID: `{waifu_id}`)\n"
+        count_str = f" x{count}" if count > 1 else ""
+        text += f"• **{name}**{count_str} (ID: `{wid}`)\n"
     
     if len(grouped) > 10:
-        text += f"\n_...and {len(grouped) - 10} more unique waifus_"
+        text += f"\n_...and {len(grouped) - 10} more_"
     
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 Back to Collection", callback_data="view_collection")]
+        [InlineKeyboardButton("🔙 Back", callback_data="view_collection")]
     ])
     
     try:
@@ -381,43 +343,39 @@ async def collection_filter_callback(client: Client, callback: CallbackQuery):
 
 
 @Client.on_callback_query(filters.regex(r"^col_info$"))
-async def collection_info_callback(client: Client, callback: CallbackQuery):
-    await callback.answer("Use arrows to navigate pages! ⬅️ ➡️")
+async def collection_info_cb(client: Client, callback: CallbackQuery):
+    await callback.answer("Use arrows to navigate! ⬅️➡️")
 
 
 # ─────────────────────────────────────────────────────────────
-#  /fav Command - Set Favorite Waifu
+#  /fav Command
 # ─────────────────────────────────────────────────────────────
 
-@Client.on_message(filters.command(["fav", "favorite", "setfav"], prefixes=config.COMMAND_PREFIX))
-async def set_favorite_command(client: Client, message: Message):
+@Client.on_message(filters.command(["fav", "favorite"], prefixes=config.COMMAND_PREFIX))
+async def fav_command(client: Client, message: Message):
     user = message.from_user
     wm = get_waifu_manager()
     
     if len(message.command) < 2:
         await message.reply_text(
-            "❌ **Usage:** `/fav <waifu_id>`\n\n"
-            "Example: `/fav 5`\n\n"
-            "Use `/collection` to see waifu IDs."
+            "❌ **Usage:** `/fav <waifu_id>`\n"
+            "Example: `/fav 1`"
         )
         return
     
     try:
         waifu_id = int(message.command[1])
     except ValueError:
-        await message.reply_text("❌ Invalid waifu ID! Must be a number.")
+        await message.reply_text("❌ ID must be a number!")
         return
     
-    # Check if user owns this waifu
-    owned = db.check_waifu_owned(user.id, waifu_id)
-    
-    if not owned:
+    # Check ownership
+    if not db.check_waifu_owned(user.id, waifu_id):
         await message.reply_text("❌ You don't own this waifu!")
         return
     
     # Get waifu info
     waifu = wm.get_waifu_by_id(waifu_id)
-    
     if not waifu:
         await message.reply_text("❌ Waifu not found!")
         return
@@ -425,25 +383,16 @@ async def set_favorite_command(client: Client, message: Message):
     # Set favorite
     db.users.update_one(
         {"user_id": user.id},
-        {"$set": {"favorite_waifu": waifu_id}}
+        {"$set": {"favorite_waifu": waifu_id}},
+        upsert=True
     )
     
-    rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
+    emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
+    text = f"⭐ **Favorite Set!**\n\n{emoji} **{waifu.get('name')}**"
     
-    text = f"""
-⭐ **Favorite Waifu Set!**
-
-{rarity_emoji} **{waifu.get('name')}**
-📺 {waifu.get('anime')}
-
-Your favorite waifu will now appear in your collection!
-"""
-    
-    image_url = waifu.get("image")
-    
-    if image_url:
+    if waifu.get("image"):
         try:
-            await message.reply_photo(photo=image_url, caption=text)
+            await message.reply_photo(photo=waifu["image"], caption=text)
             return
         except:
             pass
@@ -451,21 +400,17 @@ Your favorite waifu will now appear in your collection!
     await message.reply_text(text)
 
 
-@Client.on_message(filters.command(["unfav", "removefav"], prefixes=config.COMMAND_PREFIX))
-async def remove_favorite_command(client: Client, message: Message):
-    user = message.from_user
-    
-    # Remove favorite
+@Client.on_message(filters.command(["unfav"], prefixes=config.COMMAND_PREFIX))
+async def unfav_command(client: Client, message: Message):
     db.users.update_one(
-        {"user_id": user.id},
+        {"user_id": message.from_user.id},
         {"$unset": {"favorite_waifu": ""}}
     )
-    
-    await message.reply_text("✅ Favorite waifu removed!")
+    await message.reply_text("✅ Favorite removed!")
 
 
 # ─────────────────────────────────────────────────────────────
-#  /waifu Info
+#  /waifuinfo Command
 # ─────────────────────────────────────────────────────────────
 
 @Client.on_message(filters.command(["waifuinfo", "wi"], prefixes=config.COMMAND_PREFIX))
@@ -474,69 +419,47 @@ async def waifu_info_command(client: Client, message: Message):
     user = message.from_user
     
     if len(message.command) < 2:
-        await message.reply_text(
-            "❌ **Usage:** `/waifuinfo <name or id>`\n\n"
-            "Example: `/waifuinfo Hinata` or `/waifuinfo 5`"
-        )
+        await message.reply_text("❌ **Usage:** `/waifuinfo <id>`")
         return
     
-    query = " ".join(message.command[1:])
-    
-    # Try to find by ID first
-    waifu = None
     try:
-        waifu_id = int(query)
-        waifu = wm.get_waifu_by_id(waifu_id)
+        waifu_id = int(message.command[1])
     except ValueError:
-        # Not a number, search by name
-        waifu = wm.get_waifu_by_name(query)
-    
-    if not waifu:
-        results = wm.search_waifus(query)
-        if results:
-            text = f"🔍 **Search Results for '{query}':**\n\n"
-            for w in results[:5]:
-                rarity_emoji = wm.get_rarity_emoji(w.get("rarity", "common"))
-                text += f"{rarity_emoji} {w.get('name')} (ID: {w.get('id')}) - {w.get('anime')}\n"
-            await message.reply_text(text)
-        else:
-            await message.reply_text(f"❌ Waifu '{query}' not found!")
+        await message.reply_text("❌ ID must be a number!")
         return
     
-    rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
+    waifu = wm.get_waifu_by_id(waifu_id)
+    if not waifu:
+        await message.reply_text("❌ Waifu not found!")
+        return
     
-    # Check ownership
-    owned = db.check_waifu_owned(user.id, waifu.get("id"))
+    emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
     
-    # Count how many user owns
-    user_collection = get_user_collection(user.id)
-    owned_count = sum(1 for w in user_collection 
-                      if (w.get("waifu_id") or w.get("id")) == waifu.get("id"))
-    
-    owned_text = f"✅ You own **x{owned_count}**" if owned_count > 0 else "❌ Not in your collection"
+    # Count owned
+    collection = db.get_full_collection(user.id)
+    owned = sum(1 for w in collection if get_waifu_id(w) == waifu_id)
+    owned_str = f"✅ You own x{owned}" if owned > 0 else "❌ Not owned"
     
     text = f"""
-{rarity_emoji} **{waifu.get('name')}**
+{emoji} **{waifu.get('name')}**
 
-📺 **Anime:** {waifu.get('anime')}
-💎 **Rarity:** {waifu.get('rarity', 'common').title()}
-🆔 **ID:** {waifu.get('id')}
+📺 {waifu.get('anime')}
+💎 {waifu.get('rarity', 'common').title()}
+🆔 ID: `{waifu.get('id')}`
 
-{owned_text}
+{owned_str}
 """
-    
-    image_url = waifu.get("image")
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("⭐ Set Favorite", callback_data=f"setfav_{waifu.get('id')}"),
+            InlineKeyboardButton("⭐ Favorite", callback_data=f"setfav_{waifu_id}"),
             InlineKeyboardButton("📦 Collection", callback_data="view_collection")
         ]
     ])
     
-    if image_url:
+    if waifu.get("image"):
         try:
-            await message.reply_photo(photo=image_url, caption=text, reply_markup=buttons)
+            await message.reply_photo(photo=waifu["image"], caption=text, reply_markup=buttons)
             return
         except:
             pass
@@ -544,96 +467,19 @@ async def waifu_info_command(client: Client, message: Message):
     await message.reply_text(text, reply_markup=buttons)
 
 
-# ─────────────────────────────────────────────────────────────
-#  Set Favorite Callback
-# ─────────────────────────────────────────────────────────────
-
 @Client.on_callback_query(filters.regex(r"^setfav_(\d+)$"))
-async def set_favorite_callback(client: Client, callback: CallbackQuery):
-    user = callback.from_user
+async def setfav_callback(client: Client, callback: CallbackQuery):
     waifu_id = int(callback.data.split("_")[1])
+    user = callback.from_user
     
-    # Check ownership
-    owned = db.check_waifu_owned(user.id, waifu_id)
-    
-    if not owned:
-        await callback.answer("❌ You don't own this waifu!", show_alert=True)
+    if not db.check_waifu_owned(user.id, waifu_id):
+        await callback.answer("❌ You don't own this!", show_alert=True)
         return
     
-    # Set favorite
     db.users.update_one(
         {"user_id": user.id},
-        {"$set": {"favorite_waifu": waifu_id}}
+        {"$set": {"favorite_waifu": waifu_id}},
+        upsert=True
     )
     
     await callback.answer("⭐ Set as favorite!", show_alert=True)
-
-
-# ─────────────────────────────────────────────────────────────
-#  /gift Command
-# ─────────────────────────────────────────────────────────────
-
-@Client.on_message(filters.command(["gift", "give"], prefixes=config.COMMAND_PREFIX))
-async def gift_waifu_command(client: Client, message: Message):
-    user = message.from_user
-    wm = get_waifu_manager()
-    
-    if not message.reply_to_message:
-        await message.reply_text(
-            "❌ **Usage:** Reply to someone's message with:\n"
-            "`/gift <waifu_id>`\n\n"
-            "Example: Reply to a user and type `/gift 5`"
-        )
-        return
-    
-    if len(message.command) < 2:
-        await message.reply_text("❌ Please specify the waifu ID!\n`/gift <waifu_id>`")
-        return
-    
-    try:
-        waifu_id = int(message.command[1])
-    except ValueError:
-        await message.reply_text("❌ Invalid waifu ID!")
-        return
-    
-    target_user = message.reply_to_message.from_user
-    
-    if target_user.id == user.id:
-        await message.reply_text("❌ You can't gift to yourself!")
-        return
-    
-    if target_user.is_bot:
-        await message.reply_text("❌ You can't gift to a bot!")
-        return
-    
-    # Check ownership
-    waifu_in_collection = db.get_waifu_from_collection(user.id, waifu_id)
-    
-    if not waifu_in_collection:
-        await message.reply_text("❌ You don't own this waifu!")
-        return
-    
-    # Get full waifu info for proper transfer
-    full_waifu = wm.get_waifu_by_id(waifu_id)
-    
-    if not full_waifu:
-        await message.reply_text("❌ Waifu data not found!")
-        return
-    
-    # Ensure target exists
-    db.get_or_create_user(target_user.id, target_user.username, target_user.first_name)
-    
-    # Remove from sender
-    db.remove_from_collection(user.id, waifu_id)
-    
-    # Add to receiver with FULL data (not Unknown)
-    db.add_to_collection(target_user.id, full_waifu)
-    
-    waifu_name = full_waifu.get("name", "Unknown")
-    rarity_emoji = wm.get_rarity_emoji(full_waifu.get("rarity", "common"))
-    
-    await message.reply_text(
-        f"🎁 **Gift Successful!**\n\n"
-        f"{rarity_emoji} **{waifu_name}** has been gifted to "
-        f"{Utils.mention_user(target_user.id, target_user.first_name)}!"
-    )
