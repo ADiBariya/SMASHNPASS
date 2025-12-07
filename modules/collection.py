@@ -227,7 +227,7 @@ async def collection_command(client: Client, message: Message):
     await show_collection(message, user.id, page=1, is_callback=False)
 
 
-async def show_collection(target, user_id: int, page: int = 1, is_callback: bool = False):
+async def show_collection(target, user_id: int, page: int = 1, is_callback: bool = False, rarity_filter: str = None):
     """Show collection with proper grouping"""
     wm = get_waifu_manager()
     
@@ -258,10 +258,21 @@ Use /smash to start collecting waifus!
             await target.reply_text(text, reply_markup=buttons)
         return
     
-    grouped = group_waifus(raw_collection)
+    # Apply rarity filter if specified
+    if rarity_filter:
+        filtered_collection = [w for w in raw_collection if get_waifu_rarity(w) == rarity_filter]
+        if not filtered_collection:
+            if is_callback:
+                await target.answer(f"No {rarity_filter} waifus!", show_alert=True)
+            return
+        working_collection = filtered_collection
+    else:
+        working_collection = raw_collection
+    
+    grouped = group_waifus(working_collection)
     grouped = [w for w in grouped if w.get("_display_id", 0) != 0]
     
-    total_waifus = len(raw_collection)
+    total_waifus = len(working_collection)
     unique_waifus = len(grouped)
     
     total_pages = max(1, (unique_waifus + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
@@ -273,14 +284,22 @@ Use /smash to start collecting waifus!
     user_data = db.get_user(user_id)
     fav_id = user_data.get("favorite_waifu") if user_data else None
     
-    text = f"📦 **Your Collection**\n"
+    # Build header
+    if rarity_filter:
+        emoji = wm.get_rarity_emoji(rarity_filter)
+        text = f"{emoji} **{rarity_filter.title()} Collection**\n"
+    else:
+        text = f"📦 **Your Collection**\n"
+    
     text += f"📊 {total_waifus} total ({unique_waifus} unique)\n"
     text += f"📄 Page {page}/{total_pages}\n"
     
     if fav_id:
         fav_waifu = wm.get_waifu_by_id(fav_id)
         if fav_waifu:
-            text += f"⭐ Favorite: **{fav_waifu.get('name')}**\n"
+            # Only show favorite if it matches filter or no filter
+            if not rarity_filter or get_waifu_rarity(fav_waifu) == rarity_filter:
+                text += f"⭐ Favorite: **{fav_waifu.get('name')}**\n"
     
     text += "\n"
     
@@ -299,26 +318,57 @@ Use /smash to start collecting waifus!
     
     buttons = []
     
+    # Navigation row
     nav_row = []
-    if page > 1:
-        nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"col_p_{page-1}"))
-    nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
-    if page < total_pages:
-        nav_row.append(InlineKeyboardButton("➡️", callback_data=f"col_p_{page+1}"))
+    if rarity_filter:
+        # For filtered view
+        if page > 1:
+            nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"colf_{rarity_filter}_{page-1}"))
+        nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
+        if page < total_pages:
+            nav_row.append(InlineKeyboardButton("➡️", callback_data=f"colf_{rarity_filter}_{page+1}"))
+    else:
+        # For main view
+        if page > 1:
+            nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"col_p_{page-1}"))
+        nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
+        if page < total_pages:
+            nav_row.append(InlineKeyboardButton("➡️", callback_data=f"col_p_{page+1}"))
     buttons.append(nav_row)
     
+    # Rarity filter buttons with checkmark on active
     buttons.append([
-        InlineKeyboardButton("🟡 Legendary", callback_data="col_f_legendary"),
-        InlineKeyboardButton("🟣 Epic", callback_data="col_f_epic")
+        InlineKeyboardButton(
+            "🟡 Legendary ✓" if rarity_filter == "legendary" else "🟡 Legendary",
+            callback_data="col_f_legendary"
+        ),
+        InlineKeyboardButton(
+            "🟣 Epic ✓" if rarity_filter == "epic" else "🟣 Epic",
+            callback_data="col_f_epic"
+        )
     ])
     buttons.append([
-        InlineKeyboardButton("🔵 Rare", callback_data="col_f_rare"),
-        InlineKeyboardButton("⚪ Common", callback_data="col_f_common")
+        InlineKeyboardButton(
+            "🔵 Rare ✓" if rarity_filter == "rare" else "🔵 Rare",
+            callback_data="col_f_rare"
+        ),
+        InlineKeyboardButton(
+            "⚪ Common ✓" if rarity_filter == "common" else "⚪ Common",
+            callback_data="col_f_common"
+        )
     ])
-    buttons.append([
-        InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
-        InlineKeyboardButton("🔙 Back", callback_data="start_back")
-    ])
+    
+    # Bottom row
+    if rarity_filter:
+        buttons.append([
+            InlineKeyboardButton("📦 All Waifus", callback_data="view_collection"),
+            InlineKeyboardButton("🎮 Play", callback_data="play_smash")
+        ])
+    else:
+        buttons.append([
+            InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
+            InlineKeyboardButton("🔙 Back", callback_data="start_back")
+        ])
     
     image_url = None
     if fav_id:
@@ -381,53 +431,20 @@ async def collection_page_cb(client: Client, callback: CallbackQuery):
 
 @Client.on_callback_query(filters.regex(r"^col_f_(\w+)$"))
 async def collection_filter_cb(client: Client, callback: CallbackQuery):
-    """Filter by rarity"""
+    """Filter by rarity - uses same show_collection function"""
     rarity = callback.data.split("_")[2]
-    user = callback.from_user
-    wm = get_waifu_manager()
-    
-    debug(f"Filter {rarity} for {user.id}")
-    
-    raw_collection = db.get_full_collection(user.id)
-    
-    if not raw_collection:
-        await callback.answer("Collection empty!", show_alert=True)
-        return
-    
-    filtered = [w for w in raw_collection if get_waifu_rarity(w) == rarity]
-    
-    if not filtered:
-        await callback.answer(f"No {rarity} waifus!", show_alert=True)
-        return
-    
-    grouped = group_waifus(filtered)
-    
-    emoji = wm.get_rarity_emoji(rarity)
-    text = f"{emoji} **{rarity.title()} Waifus** ({len(filtered)} total)\n\n"
-    
-    for w in grouped[:10]:
-        name = get_waifu_name(w)
-        wid = w.get("_display_id", 0)
-        count = w.get("count", 1)
-        count_str = f" x{count}" if count > 1 else ""
-        text += f"• **{name}**{count_str} (ID: `{wid}`)\n"
-    
-    if len(grouped) > 10:
-        text += f"\n_...and {len(grouped) - 10} more_"
-    
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 Back", callback_data="view_collection")]
-    ])
-    
-    try:
-        if callback.message.photo:
-            await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            await callback.message.edit_text(text, reply_markup=buttons)
-    except MessageNotModified:
-        pass
-    
-    await callback.answer()
+    debug(f"Filter {rarity} for {callback.from_user.id}")
+    await show_collection(callback, callback.from_user.id, 1, is_callback=True, rarity_filter=rarity)
+
+
+@Client.on_callback_query(filters.regex(r"^colf_(\w+)_(\d+)$"))
+async def collection_filter_page_cb(client: Client, callback: CallbackQuery):
+    """Paginate filtered collection"""
+    parts = callback.data.split("_")
+    rarity = parts[1]
+    page = int(parts[2])
+    debug(f"Filter {rarity} page {page}")
+    await show_collection(callback, callback.from_user.id, page, is_callback=True, rarity_filter=rarity)
 
 
 @Client.on_callback_query(filters.regex(r"^col_info$"))
