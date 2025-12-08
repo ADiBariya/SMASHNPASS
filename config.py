@@ -28,6 +28,7 @@ COMMAND_PREFIX = ["!", "/", "."]
 # Bot Settings
 BOT_NAME = "Horikita"
 BOT_USERNAME = "Horikita_Robot"
+OWNER_USERNAME = "EminenceCurse"
 
 # Game Settings
 WIN_CHANCE = 50  # 50% chance to win waifu on smash
