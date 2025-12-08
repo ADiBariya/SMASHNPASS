@@ -307,7 +307,379 @@
             "anime": "Demon Slayer",
             "rarity": "legendary",
             "image": "https://files.catbox.moe/xki9o1.jpg"
+        },
+        {
+            "id": 45,
+            "name": "Nezuko",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/n1p6ro.jpg"
+        },
+        {
+            "id": 46,
+            "name": "Nezuko",
+            "anime": "Demon Slayer",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/fy52q1.jpg"
+        },
+        {
+            "id": 47,
+            "name": "Himiko Toga",
+            "anime": "My Hero Academia",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/ow9ysq.jpg"
+        },
+        {
+            "id": 48,
+            "name": "Himiko Toga",
+            "anime": "My Hero Academia",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/6o4fxb.jpg"
+        },
+        {
+            "id": 49,
+            "name": "Himiko Toga & Uraraka",
+            "anime": "My Hero Academia",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/yfsom5.jpg"
+        },
+        {
+            "id": 50,
+            "name": "Horikita",
+            "anime": "Classroom of the Elite",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/ozox9f.jpg"
+        },
+        {
+            "id": 51,
+            "name": "Horikita",
+            "anime": "Classroom of the Elite",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/pmg7zy.jpg"
+        },
+        {
+            "id": 52,
+            "name": "Mitsuri",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/z8iegl.jpg"
+        },
+        {
+            "id": 53,
+            "name": "Mitsuri",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/ed91ev.jpg"
+        },
+        {
+            "id": 54,
+            "name": "Nelliel",
+            "anime": "Bleach",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/fo2zha.jpg"
+        },
+        {
+            "id": 55,
+            "name": "Raiden",
+            "anime": "Genshin Impact",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/py8pdr.jpg"
+        },
+        {
+            "id": 56,
+            "name": "Soifon & Yoruichi",
+            "anime": "Bleach",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/o53jff.jpg"
+        },
+        {
+            "id": 57,
+            "name": "Mitsuri & Shinobu",
+            "anime": "Demon Slayer",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/2f6tmi.jpg"
+        },
+        {
+            "id": 58,
+            "name": "Akeno",
+            "anime": "High School DxD",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/o7odtv.jpg"
+        },
+        {
+            "id": 59,
+            "name": "Miyako",
+            "anime": "Oshi no Ko",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/26nkc6.jpg"
+        },
+        {
+            "id": 60,
+            "name": "Horikita",
+            "anime": "Classroom of the Elite",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/3ewrhs.jpg"
+        },
+        {
+            "id": 61,
+            "name": "Kei",
+            "anime": "Classroom of the Elite",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/6zat86.jpg"
+        },
+        {
+            "id": 62,
+            "name": "Kei",
+            "anime": "Classroom of the Elite",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/xvd9rp.jpg"
+        },
+        {
+            "id": 63,
+            "name": "Android 18",
+            "anime": "Dragon Ball",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/dgrg2x.jpg"
+        },
+        {
+            "id": 64,
+            "name": "Nobara",
+            "anime": "Jujutsu Kaisen",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/icb6hh.jpg"
+        },
+        {
+            "id": 65,
+            "name": "Yor",
+            "anime": "Spy x Family",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/3i1vxr.jpg"
+        },
+        {
+            "id": 66,
+            "name": "Yor",
+            "anime": "Spy x Family",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/xckpmm.jpg"
+        },
+        {
+            "id": 67,
+            "name": "Tatsumaki",
+            "anime": "One Punch Man",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/5r3rt6.jpg"
+        },
+        {
+            "id": 68,
+            "name": "Tatsumaki",
+            "anime": "One Punch Man",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/aw06j3.jpg"
+        },
+        {
+            "id": 69,
+            "name": "Matsumoto & Orihime",
+            "anime": "Bleach",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/19toc7.jpg"
+        },
+        {
+            "id": 70,
+            "name": "Yae Miko",
+            "anime": "Genshin Impact",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/y6i0t3.jpg"
+        },
+        {
+            "id": 71,
+            "name": "Yae Miko",
+            "anime": "Genshin Impact",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/bysy9r.jpg"
+        },
+        {
+            "id": 72,
+            "name": "Power",
+            "anime": "Chainsaw Man",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/vgyrpp.jpg"
+        },
+        {
+            "id": 73,
+            "name": "Power",
+            "anime": "Chainsaw Man",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/gofcrp.jpg"
+        },
+        {
+            "id": 74,
+            "name": "Power",
+            "anime": "Chainsaw Man",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/2h3t97.jpg"
+        },
+        {
+            "id": 75,
+            "name": "Nezuko",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/ve9p89.jpg"
+        },
+        {
+            "id": 76,
+            "name": "Shinobu",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/0whp5w.jpg"
+        },
+        {
+            "id": 77,
+            "name": "Hinatsuru",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/hqrupi.jpg"
+        },
+        {
+            "id": 78,
+            "name": "Suma",
+            "anime": "Demon Slayer",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/hx0s68.jpg"
+        },
+        {
+            "id": 79,
+            "name": "Hinatsuru",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/2pu0pr.jpg"
+        },
+        {
+            "id": 80,
+            "name": "Mount Lady",
+            "anime": "My Hero Academia",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/baqvcf.jpg"
+        },
+        {
+            "id": 81,
+            "name": "Midnight",
+            "anime": "My Hero Academia",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/g5p79c.jpg"
+        },
+        {
+            "id": 82,
+            "name": "2B",
+            "anime": "Nier: Automata",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/9r0k2x.jpg"
+        },
+        {
+            "id": 83,
+            "name": "02 (Zero Two)",
+            "anime": "Darling in the Franxx",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/a2746n.jpg"
+        },
+        {
+            "id": 84,
+            "name": "Hinata",
+            "anime": "Naruto",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/hpmj2h.jpg"
+        },
+        {
+            "id": 85,
+            "name": "Asuna",
+            "anime": "Sword Art Online",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/qufdun.jpg"
+        },
+        {
+            "id": 86,
+            "name": "Marin",
+            "anime": "My Dress Up Darling",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/rivaxr.jpg"
+        },
+        {
+            "id": 87,
+            "name": "Mount Lady",
+            "anime": "My Hero Academia",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/nfrlbq.jpg"
+        },
+        {
+            "id": 88,
+            "name": "Gwen",
+            "anime": "Ben 10",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/n6k36z.jpg"
+        },
+        {
+            "id": 89,
+            "name": "Nami",
+            "anime": "One Piece",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/upt0co.jpg"
+        },
+        {
+            "id": 90,
+            "name": "Mikasa",
+            "anime": "Attack on Titan",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/x8i5dc.jpg"
+        },
+        {
+            "id": 91,
+            "name": "Mikasa",
+            "anime": "Attack on Titan",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/639gmk.jpg"
+        },
+        {
+            "id": 92,
+            "name": "Chizuru",
+            "anime": "Rent a Girlfriend",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/znb8bh.jpg"
+        },
+        {
+            "id": 93,
+            "name": "Mikasa",
+            "anime": "Attack on Titan",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/umyb4v.jpg"
+        },
+         {
+            "id": 94,
+            "name": "Gwen",
+            "anime": "Ben 10",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/fmjlqd.jpg"
+        },
+        {
+            "id": 95,
+            "name": "Yor",
+            "anime": "Spy x Family",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/synkok.jpg"
+        },
+        {
+            "id": 96,
+            "name": "Komi",
+            "anime": "Komi can't Communicate",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/vcoret.jpg"
+        },
+        {
+            "id": 97,
+            "name": "Mitsuha",
+            "anime": "Your Name",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/v9xk91.jpg"
         }
+        
     ],
     "rarity_colors": {
         "common": "⚪",
