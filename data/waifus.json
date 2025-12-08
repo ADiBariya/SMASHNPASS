@@ -1,56 +1,261 @@
 {
     "waifus": [
         {
-    "id": "W-0001",
-    "name": "Asuna Yuuki",
-    "series": "Sword Art Online",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://files.catbox.moe/4sqd6r.jpg"
+            "id": 1,
+            "name": "Hanabi",
+            "anime": "Boruto",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/8u7im0.jpg"
+        },
+        {
+            "id": 2,
+            "name": "Fubuki",
+            "anime": "One Punch Man",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/v9k7tg.jpg"
+        },
+        {
+            "id": 3,
+            "name": "Yor Forger",
+            "anime": "Spy X Family",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/81oj9p.jpg"
+        },
+        {
+            "id": 4,
+            "name": "Fubuki",
+            "anime": "One Punch Man",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/3z3xl1.jpg"
+        },
+        {
+            "id": 5,
+            "name": "Maki",
+            "anime": "Jujutsu Kaisen",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/18dty6.jpg"
+        },
+        {
+            "id": 6,
+            "name": "Hanabi",
+            "anime": "Boruto",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/md0sox.jpg"
+        },
+        {
+            "id": 7,
+            "name": "Hanabi",
+            "anime": "Boruto",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/qwxvnh.jpg"
+        },
+        {
+            "id": 8,
+            "name": "Raiden",
+            "anime": "Genshin Impact",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/h1kwnw.jpg"
+        },
+        {
+            "id": 9,
+            "name": "Utahime",
+            "anime": "Jujutsu Kaisen",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/4pw452.jpg"
+        },
+        {
+            "id": 10,
+            "name": "Kaguya",
+            "anime": "Naruto",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/02yfmy.jpg"
+        },
+        {
+            "id": 11,
+            "name": "Tsunade",
+            "anime": "Naruto",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/74zf1z.jpg"
+        },
+        {
+            "id": 12,
+            "name": "2B",
+            "anime": "Nier: Automata",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/qk323p.jpg"
+        },
+        {
+            "id": 13,
+            "name": "2B",
+            "anime": "Nier: Automata",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/st8mv5.jpg"
+        },
+        {
+            "id": 14,
+            "name": "Sakura",
+            "anime": "Naruto",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/6b8eo8.jpg"
+        },
+        {
+            "id": 15,
+            "name": "Hinata",
+            "anime": "Naruto",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/kbk3lh.jpg"
+        },
+        {
+            "id": 16,
+            "name": "Yoruichi",
+            "anime": "Bleach",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/4cqhvk.jpg"
+        },
+        {
+            "id": 17,
+            "name": "Komi",
+            "anime": "Komi Can't Communicate",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/poeaaj.jpg"
+        },
+        {
+            "id": 18,
+            "name": "Raiden",
+            "anime": "Genshin Impact",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/zyhyuc.jpg"
+        },
+        {
+            "id": 19,
+            "name": "Hinata",
+            "anime": "Naruto",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/o6ozyn.jpg"
+        },
+        {
+            "id": 20,
+            "name": "Robin",
+            "anime": "One Piece",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/iflgdd.jpg"
+        },
+        {
+            "id": 21,
+            "name": "Boa Hancock",
+            "anime": "One Piece",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/em226t.jpg"
+        },
+        {
+            "id": 22,
+            "name": "Yoruichi",
+            "anime": "Bleach",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/hde0t8.jpg"
+        },
+        {
+            "id": 23,
+            "name": "Marin",
+            "anime": "My Dress Up Darling",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/u2t1u5.jpg"
+        },
+        {
+            "id": 24,
+            "name": "Makima",
+            "anime": "Chainsaw Man",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/19lz83.jpg"
+        },
+        {
+            "id": 25,
+            "name": "Kobeni",
+            "anime": "Chainsaw Man",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/x7ttrx.jpg"
+        },
+        {
+            "id": 26,
+            "name": "Ino",
+            "anime": "Naruto",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/277x5o.jpg"
+        },
+        {
+            "id": 27,
+            "name": "Mei Mei",
+            "anime": "Jujutsu Kaisen",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/1recva.jpg"
+        },
+        {
+            "id": 28,
+            "name": "Momo",
+            "anime": "My Hero Academia",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/37h2qn.jpg"
+        },
+        {
+            "id": 29,
+            "name": "Yumeko",
+            "anime": "Kakegurui",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/qtqing.jpg"
+        },
+        {
+            "id": 30,
+            "name": "Shinobu",
+            "anime": "Demon Slayer",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/kmivs8.jpg"
+        },
+        {
+            "id": 31,
+            "name": "Kushina",
+            "anime": "Naruto",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/t9choj.jpg"
+        },
+        {
+            "id": 32,
+            "name": "Nobara",
+            "anime": "Jujutsu Kaisen",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/wit954.jpg"
+        },
+        {
+            "id": 33,
+            "name": "Nobara",
+            "anime": "Jujutsu Kaisen",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/ohr0e5.jpg"
+        },
+        {
+            "id": 34,
+            "name": "Matsumoto",
+            "anime": "Bleach",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/6e7c0l.jpg"
+        },
+        {
+            "id": 35,
+            "name": "Matsumoto",
+            "anime": "Bleach",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/1nunf8.jpg"
+        }
+    ],
+    "rarity_colors": {
+        "common": "⚪",
+        "rare": "🔵",
+        "epic": "🟣",
+        "legendary": "🟡"
+    },
+    "rarity_weights": {
+        "common": 50,
+        "rare": 30,
+        "epic": 15,
+        "legendary": 5
     }
-  },
-  {
-    "id": "W-0002",
-    "name": "Rem",
-    "series": "Re:Zero",
-    "rarity": "Legendary",
-    "image": {
-      "endpoint": "https://files.catbox.moe/ohoyrg.jpg"
-    }
-  },
-  {
-    "id": "W-0003",
-    "name": "Emilia",
-    "series": "Re:Zero",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://files.catbox.moe/u39vwk.jpg"
-    }
-  },
-  {
-    "id": "W-0004",
-    "name": "Hinata Hyuga",
-    "series": "Naruto",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://files.catbox.moe/kvo699.jpg"
-    }
-  },
-  {
-    "id": "W-0005",
-    "name": "Sakura Haruno",
-    "series": "Naruto",
-    "rarity": "Common",
-    "image": {
-      "endpoint": "https://files.catbox.moe/9j0zjq.jpg"
-    }
-  },
-  {
-    "id": "W-0006",
-    "name": "Tsunade",
-    "series": "Naruto",
-    "rarity": "Legendary",
-    "image": {
-      "endpoint": "https://files.catbox.moe/f0fgwd.jpg"
-    }
-  }
+}
