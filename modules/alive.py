@@ -1,4 +1,4 @@
-# modules/alive.py - Sexy Alive Module
+# modules/alive.py - Sexy Alive Module (Clean Version)
 
 from pyrogram import Client, filters
 from pyrogram.types import (
@@ -25,7 +25,7 @@ __HELP__ = """
 # Use the same START_IMAGE
 ALIVE_IMAGE = "https://files.catbox.moe/jcy3qf.jpg"
 
-# Bot start time (import from start module or define here)
+# Bot start time
 BOT_START_TIME = datetime.now()
 
 # Debug
@@ -115,7 +115,6 @@ async def alive_command(client: Client, message: Message):
     
     # Get stats
     uptime = get_uptime()
-    uptime_detailed = get_uptime_detailed()
     sys_stats = get_system_stats()
     
     # Get bot stats from database
@@ -180,19 +179,15 @@ async def alive_command(client: Client, message: Message):
 💖 **Thanks for using me!** 💖
 """
 
-    # Buttons
+    # Clean Buttons
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection")
+            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_alive")
         ],
         [
-            InlineKeyboardButton("📊 My Stats", callback_data="view_stats"),
-            InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb")
-        ],
-        [
-            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_alive"),
-            InlineKeyboardButton("📖 Help", callback_data="show_help")
+            InlineKeyboardButton("🆕 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
+            InlineKeyboardButton("💬 Support", url=f"https://t.me/{config.SUPPORT_GROUP}")
         ],
         [
             InlineKeyboardButton("➕ Add to Group", 
@@ -246,7 +241,7 @@ async def status_command(client: Client, message: Message):
 """
     
     if sys_stats:
-        # CPU bar
+        # Progress bars
         cpu_bar = "█" * int(sys_stats['cpu'] / 10) + "░" * (10 - int(sys_stats['cpu'] / 10))
         ram_bar = "█" * int(sys_stats['ram_percent'] / 10) + "░" * (10 - int(sys_stats['ram_percent'] / 10))
         disk_bar = "█" * int(sys_stats['disk_percent'] / 10) + "░" * (10 - int(sys_stats['disk_percent'] / 10))
@@ -271,12 +266,10 @@ async def status_command(client: Client, message: Message):
     
     text += "\n✅ **All systems operational!**"
     
+    # Only Refresh and Back buttons
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🔄 Refresh", callback_data="refresh_status"),
-            InlineKeyboardButton("💗 Alive", callback_data="show_alive")
-        ],
-        [
             InlineKeyboardButton("🔙 Back", callback_data="back_start")
         ]
     ])
@@ -285,12 +278,12 @@ async def status_command(client: Client, message: Message):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  /uptime Command - Simple Uptime
+#  /uptime Command - Simple Uptime (No Buttons)
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_message(filters.command(["uptime", "up"], config.COMMAND_PREFIX))
 async def uptime_command(client: Client, message: Message):
-    """Simple uptime command"""
+    """Simple uptime command - No buttons"""
     uptime = get_uptime_detailed()
     
     text = f"""
@@ -309,14 +302,8 @@ async def uptime_command(client: Client, message: Message):
 ✅ Status: **ONLINE**
 """
     
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("💗 Full Alive", callback_data="show_alive"),
-            InlineKeyboardButton("📊 Status", callback_data="show_status")
-        ]
-    ])
-    
-    await message.reply_text(text, reply_markup=buttons)
+    # No buttons
+    await message.reply_text(text)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -395,15 +382,11 @@ async def refresh_alive_callback(client: Client, callback: CallbackQuery):
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection")
+            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_alive")
         ],
         [
-            InlineKeyboardButton("📊 My Stats", callback_data="view_stats"),
-            InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb")
-        ],
-        [
-            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_alive"),
-            InlineKeyboardButton("📖 Help", callback_data="show_help")
+            InlineKeyboardButton("🆕 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
+            InlineKeyboardButton("💬 Support", url=f"https://t.me/{config.SUPPORT_GROUP}")
         ],
         [
             InlineKeyboardButton("➕ Add to Group", 
@@ -450,27 +433,56 @@ async def show_alive_callback(client: Client, callback: CallbackQuery):
 ✨ **{config.BOT_NAME}** is online and ready!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏰ **UPTIME:** `{uptime}`
+⏰ **UPTIME**
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ 🕐 Running for: `{uptime}`
+┃ 📅 Since: `{BOT_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 **BOT STATISTICS**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 👥 Users: `{total_users:,}` 
-┃ 📦 Waifus: `{total_waifus:,}`
-┃ 💥 Smashes: `{total_smashes:,}`
+┃ 👥 Total Users: `{total_users:,}` 
+┃ 📦 Waifus Collected: `{total_waifus:,}`
+┃ 💥 Total Smashes: `{total_smashes:,}`
+┃ 👋 Total Passes: `{total_passes:,}`
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+
+    if sys_stats:
+        text += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+💻 **SYSTEM STATUS**
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ 🖥️ CPU: `{sys_stats['cpu']}%`
+┃ 💾 RAM: `{sys_stats['ram_used']}/{sys_stats['ram_total']}` ({sys_stats['ram_percent']}%)
+┃ 🐍 Python: `{platform.python_version()}`
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
+
+    text += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔗 **QUICK LINKS**
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ 👨‍💻 Owner: @{config.OWNER_USERNAME}
+┃ 🤖 Bot: @{config.BOT_USERNAME}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-💖 **I'm alive and kicking!** 💖
+💖 **Thanks for using me!** 💖
 """
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
+            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
             InlineKeyboardButton("🔄 Refresh", callback_data="refresh_alive")
         ],
         [
-            InlineKeyboardButton("🔙 Back", callback_data="back_start")
+            InlineKeyboardButton("🆕 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
+            InlineKeyboardButton("💬 Support", url=f"https://t.me/{config.SUPPORT_GROUP}")
+        ],
+        [
+            InlineKeyboardButton("➕ Add to Group", 
+                url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
         ]
     ])
     
@@ -534,12 +546,10 @@ async def refresh_status_callback(client: Client, callback: CallbackQuery):
     
     text += f"\n✅ All systems operational!\n\n🔄 _Refreshed: {datetime.now().strftime('%H:%M:%S')}_"
     
+    # Only Refresh and Back buttons
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🔄 Refresh", callback_data="refresh_status"),
-            InlineKeyboardButton("💗 Alive", callback_data="show_alive")
-        ],
-        [
             InlineKeyboardButton("🔙 Back", callback_data="back_start")
         ]
     ])
@@ -550,57 +560,3 @@ async def refresh_status_callback(client: Client, callback: CallbackQuery):
     except Exception as e:
         debug(f"Status refresh error: {e}")
         await callback.answer("❌ Error", show_alert=True)
-
-
-@Client.on_callback_query(filters.regex("^show_status$"))
-async def show_status_callback(client: Client, callback: CallbackQuery):
-    """Show status from callback"""
-    debug(f"Show status from {callback.from_user.first_name}")
-    
-    sys_stats = get_system_stats()
-    uptime = get_uptime()
-    
-    if sys_stats:
-        cpu_bar = "█" * int(sys_stats['cpu'] / 10) + "░" * (10 - int(sys_stats['cpu'] / 10))
-        ram_bar = "█" * int(sys_stats['ram_percent'] / 10) + "░" * (10 - int(sys_stats['ram_percent'] / 10))
-        
-        text = f"""
-🖥️ **QUICK STATUS**
-
-⏰ Uptime: `{uptime}`
-🐍 Python: `{platform.python_version()}`
-
-🖥️ CPU: [{cpu_bar}] {sys_stats['cpu']}%
-💾 RAM: [{ram_bar}] {sys_stats['ram_percent']}%
-
-✅ All systems GO!
-"""
-    else:
-        text = f"""
-🖥️ **QUICK STATUS**
-
-⏰ Uptime: `{uptime}`
-🐍 Python: `{platform.python_version()}`
-
-✅ Bot is running!
-"""
-    
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_status"),
-            InlineKeyboardButton("💗 Alive", callback_data="show_alive")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back", callback_data="back_start")
-        ]
-    ])
-    
-    try:
-        if callback.message.photo:
-            await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            await callback.message.edit_text(text, reply_markup=buttons)
-    except Exception as e:
-        debug(f"Show status error: {e}")
-    
-    await callback.answer()
