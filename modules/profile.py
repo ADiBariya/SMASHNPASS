@@ -37,7 +37,6 @@ def get_rarity_emoji(rarity: str) -> str:
     """Get emoji for rarity"""
     return {
         "common": "⚪",
-        "uncommon": "🟢",
         "rare": "🔵",
         "epic": "🟣",
         "legendary": "🟡"
@@ -181,7 +180,6 @@ async def profile_command(client: Client, message: Message):
 ┣ 🟡 Legendary: {rarity_count['legendary']}
 ┣ 🟣 Epic: {rarity_count['epic']}
 ┣ 🔵 Rare: {rarity_count['rare']}
-┣ 🟢 Uncommon: {rarity_count['uncommon']}
 ┗ ⚪ Common: {rarity_count['common']}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
