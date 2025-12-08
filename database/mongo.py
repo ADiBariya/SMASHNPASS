@@ -27,6 +27,8 @@ class Database:
             self.users.create_index("user_id", unique=True)
             self.collections.create_index("user_id")
             self.collections.create_index([("user_id", 1), ("waifu_id", 1)])
+            # NEW: Index for image-based queries
+            self.collections.create_index([("user_id", 1), ("waifu_id", 1), ("waifu_image", 1)])
             self.cooldowns.create_index("user_id")
         except Exception as e:
             print(f"Index creation warning: {e}")
@@ -181,7 +183,6 @@ class Database:
         waifu_anime = self._get_waifu_field(waifu_data, "anime", "Unknown")
         waifu_rarity = self._get_waifu_field(waifu_data, "rarity", "common")
         waifu_image = self._get_waifu_field(waifu_data, "image", "")
-        waifu_power = self._get_waifu_field(waifu_data, "power", 0)
         obtained_method = waifu_data.get("obtained_method") or waifu_data.get("obtained_from", "smash")
         
         # Validate name
@@ -195,7 +196,6 @@ class Database:
             "waifu_anime": waifu_anime,
             "waifu_rarity": str(waifu_rarity).lower(),
             "waifu_image": waifu_image,
-            "waifu_power": waifu_power,
             "obtained_at": datetime.now(),
             "obtained_method": obtained_method
         }
@@ -230,6 +230,29 @@ class Database:
             print(f"✅ [DB] Removed waifu ID:{waifu_id} from user {user_id}")
             return True
         return False
+    
+    def remove_from_collection_by_image(self, user_id: int, waifu_id: int, image: str) -> bool:
+        """Remove ONE waifu matching ID + image combination (for different variants)"""
+        try:
+            waifu_id = int(waifu_id)
+        except (ValueError, TypeError):
+            print(f"⚠️ [DB] Invalid waifu_id for removal: {waifu_id}")
+            return False
+        
+        # Delete only ONE instance matching both waifu_id AND image
+        result = self.collections.delete_one({
+            "user_id": user_id,
+            "waifu_id": waifu_id,
+            "waifu_image": image
+        })
+        
+        if result.deleted_count > 0:
+            print(f"✅ [DB] Removed waifu ID:{waifu_id} with specific image from user {user_id}")
+            return True
+        
+        # Fallback: Try without image match (for older entries without image stored)
+        print(f"⚠️ [DB] No exact image match, trying ID only fallback...")
+        return self.remove_from_collection(user_id, waifu_id)
     
     def remove_waifu_from_collection(self, user_id: int, waifu_id) -> bool:
         """Alias for remove_from_collection"""
@@ -292,6 +315,19 @@ class Database:
             "waifu_id": waifu_id
         })
     
+    def count_waifu_variant_owned(self, user_id: int, waifu_id: int, image: str) -> int:
+        """Count how many of a specific waifu variant (same image) user owns"""
+        try:
+            waifu_id = int(waifu_id)
+        except (ValueError, TypeError):
+            return 0
+        
+        return self.collections.count_documents({
+            "user_id": user_id,
+            "waifu_id": waifu_id,
+            "waifu_image": image
+        })
+    
     def get_user_collection_by_rarity(self, user_id: int, rarity: str) -> List[Dict]:
         """Get user waifus filtered by rarity"""
         return list(self.collections.find({
@@ -300,11 +336,25 @@ class Database:
         }))
     
     def get_duplicate_waifus(self, user_id: int) -> List[Dict]:
-        """Get duplicate waifus in collection"""
+        """Get duplicate waifus in collection (by ID only)"""
         pipeline = [
             {"$match": {"user_id": user_id}},
             {"$group": {
                 "_id": "$waifu_id",
+                "count": {"$sum": 1},
+                "waifu_name": {"$first": "$waifu_name"},
+                "waifu_rarity": {"$first": "$waifu_rarity"}
+            }},
+            {"$match": {"count": {"$gt": 1}}}
+        ]
+        return list(self.collections.aggregate(pipeline))
+    
+    def get_duplicate_variants(self, user_id: int) -> List[Dict]:
+        """Get duplicate waifu variants (same ID + same image)"""
+        pipeline = [
+            {"$match": {"user_id": user_id}},
+            {"$group": {
+                "_id": {"waifu_id": "$waifu_id", "waifu_image": "$waifu_image"},
                 "count": {"$sum": 1},
                 "waifu_name": {"$first": "$waifu_name"},
                 "waifu_rarity": {"$first": "$waifu_rarity"}
@@ -559,7 +609,6 @@ class Database:
                 "anime": waifu.get("waifu_anime"),
                 "rarity": waifu.get("waifu_rarity"),
                 "image": waifu.get("waifu_image"),
-                "power": waifu.get("waifu_power"),
                 "obtained_method": "trade"
             }
             self.add_to_collection(trade["to_user"], new_waifu)
