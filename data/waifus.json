@@ -11,7 +11,7 @@
             "id": 2,
             "name": "Fubuki",
             "anime": "One Punch Man",
-            "rarity": "common",
+                       "rarity": "common",
             "image": "https://files.catbox.moe/v9k7tg.jpg"
         },
         {
@@ -244,6 +244,69 @@
             "anime": "Bleach",
             "rarity": "legendary",
             "image": "https://files.catbox.moe/1nunf8.jpg"
+        },
+        {
+            "id": 36,
+            "name": "Android 18",
+            "anime": "Dragon Ball",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/9zhbvf.jpg"
+        },
+        {
+            "id": 37,
+            "name": "Temari",
+            "anime": "Naruto",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/lbhtg0.jpg"
+        },
+        {
+            "id": 38,
+            "name": "Sakura",
+            "anime": "Naruto",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/fsosfr.jpg"
+        },
+        {
+            "id": 39,
+            "name": "Karin",
+            "anime": "Naruto",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/au1qx5.jpg"
+        },
+        {
+            "id": 40,
+            "name": "Camie",
+            "anime": "My Hero Academia",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/tupush.jpg"
+        },
+        {
+            "id": 41,
+            "name": "Kanao",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/hy721v.jpg"
+        },
+        {
+            "id": 42,
+            "name": "Kanao",
+            "anime": "Demon Slayer",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/ny250a.jpg"
+        },
+        {
+            "id": 43,
+            "name": "Kanao",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/2uqt4d.jpg"
+        },
+        {
+            "id": 44,
+            "name": "Nezuko",
+            "anime": "Demon Slayer",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/xki9o1.jpg"
         }
     ],
     "rarity_colors": {
