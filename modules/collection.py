@@ -1,4 +1,4 @@
-# modules/collection.py - Collection & Trade Module (COMBINED)
+# modules/collection.py - Collection & Trade Module (FIXED FORMAT)
 
 from pyrogram import Client, filters
 from pyrogram.types import (
@@ -120,65 +120,71 @@ def format_waifu_trade(waifu: Dict) -> str:
     return f"{emoji} **{name}**\n📺 {anime}\n💎 {rarity}\n🆔 `{wid}`"
 
 
-def group_waifus(waifus: List[Dict]) -> List[Dict]:
+def group_waifus_by_variant(waifus: List[Dict]) -> List[Dict]:
     """
     Group waifus by ID + IMAGE combination
-    Same ID but different image = shown separately
-    Same ID and same image = grouped with x2, x3
+    - Same ID + Same Image = grouped with x2, x3
+    - Same ID + Different Image = shown separately
     """
     if not waifus:
         return []
     
-    counts = {}
-    data = {}
+    # Use waifu_id + image as unique key
+    variant_counts = {}
+    variant_data = {}
     
     for w in waifus:
         wid = get_waifu_id(w)
-        
         if wid == 0:
             continue
         
-        # Create unique key: waifu_id + image_url
         image = get_waifu_image(w)
-        unique_key = f"{wid}_{image}"
+        # Create unique key combining ID and image
+        variant_key = f"{wid}||{image}"
         
-        if unique_key not in counts:
-            counts[unique_key] = 0
-            data[unique_key] = w
+        if variant_key not in variant_counts:
+            variant_counts[variant_key] = 0
+            variant_data[variant_key] = w.copy()
         
-        counts[unique_key] += 1
+        variant_counts[variant_key] += 1
     
+    # Build result list
     result = []
-    for unique_key, count in counts.items():
-        waifu = data[unique_key].copy()
+    for variant_key, count in variant_counts.items():
+        waifu = variant_data[variant_key].copy()
         waifu["count"] = count
         waifu["_display_id"] = get_waifu_id(waifu)
-        waifu["_unique_key"] = unique_key  # Store for reference
+        waifu["_variant_key"] = variant_key
         result.append(waifu)
     
+    # Sort by rarity (legendary first), then by count (more first), then by name
     rarity_order = {"legendary": 0, "epic": 1, "rare": 2, "common": 3}
     result.sort(key=lambda x: (
         rarity_order.get(get_waifu_rarity(x), 4),
         -x.get("count", 1),
-        get_waifu_name(x)  # Secondary sort by name
+        get_waifu_name(x).lower()
     ))
     
     return result
 
 
-def get_unique_waifus(collection: List[Dict], limit: int = 10) -> List[Dict]:
-    """Get unique waifus from collection (by ID + image combination)"""
+def get_unique_variants(collection: List[Dict], limit: int = 10) -> List[Dict]:
+    """Get unique waifu variants from collection (by ID + image)"""
     seen_keys = set()
     unique = []
     
     for w in collection:
         wid = get_waifu_id(w)
-        image = get_waifu_image(w)
-        unique_key = f"{wid}_{image}"
+        if wid == 0:
+            continue
         
-        if wid != 0 and unique_key not in seen_keys:
-            seen_keys.add(unique_key)
+        image = get_waifu_image(w)
+        variant_key = f"{wid}||{image}"
+        
+        if variant_key not in seen_keys:
+            seen_keys.add(variant_key)
             unique.append(w)
+        
         if len(unique) >= limit:
             break
     
@@ -220,10 +226,6 @@ async def safe_send(client, chat_id, text, buttons=None):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-# ─────────────────────────────────────────────────────────────
-#  /collection Command
-# ─────────────────────────────────────────────────────────────
-
 @Client.on_message(filters.command(["collection", "mycollection", "col"], prefixes=config.COMMAND_PREFIX))
 async def collection_command(client: Client, message: Message):
     user = message.from_user
@@ -232,9 +234,10 @@ async def collection_command(client: Client, message: Message):
 
 
 async def show_collection(target, user_id: int, page: int = 1, is_callback: bool = False, rarity_filter: str = None):
-    """Show collection with proper grouping by ID + Image"""
+    """Show collection with variant-based grouping"""
     wm = get_waifu_manager()
     
+    # Get raw collection
     raw_collection = db.get_full_collection(user_id)
     
     if not raw_collection:
@@ -264,111 +267,110 @@ Use /smash to start collecting waifus!
     
     # Apply rarity filter if specified
     if rarity_filter:
-        filtered_collection = [w for w in raw_collection if get_waifu_rarity(w) == rarity_filter]
-        if not filtered_collection:
+        filtered = [w for w in raw_collection if get_waifu_rarity(w) == rarity_filter]
+        if not filtered:
             if is_callback:
                 await target.answer(f"No {rarity_filter} waifus!", show_alert=True)
             return
-        working_collection = filtered_collection
+        working_collection = filtered
     else:
         working_collection = raw_collection
     
-    # Group by ID + Image (different images shown separately)
-    grouped = group_waifus(working_collection)
+    # Group by variant (ID + Image)
+    grouped = group_waifus_by_variant(working_collection)
     grouped = [w for w in grouped if w.get("_display_id", 0) != 0]
     
     total_waifus = len(working_collection)
-    unique_variants = len(grouped)  # This counts unique ID+Image combinations
+    unique_variants = len(grouped)
     
+    # Pagination
     total_pages = max(1, (unique_variants + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
     page = max(1, min(page, total_pages))
     start = (page - 1) * ITEMS_PER_PAGE
     end = min(start + ITEMS_PER_PAGE, unique_variants)
     page_waifus = grouped[start:end]
     
+    # Get favorite
     user_data = db.get_user(user_id)
     fav_id = user_data.get("favorite_waifu") if user_data else None
     
-    # Build header
+    # Build text
     if rarity_filter:
-        emoji = wm.get_rarity_emoji(rarity_filter)
-        text = f"{emoji} **{rarity_filter.title()} Collection**\n"
+        emoji = get_rarity_emoji(rarity_filter)
+        text = f"{emoji} **{rarity_filter.title()} Collection**\n\n"
     else:
-        text = f"📦 **Your Collection**\n"
+        text = "📦 **Waifu Collection**\n\n"
     
-    text += f"📊 {total_waifus} total ({unique_variants} variants)\n"
-    text += f"📄 Page {page}/{total_pages}\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    text += f"📊 Total: {total_waifus} | Page {page}/{total_pages}\n"
+    text += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     
-    if fav_id:
-        fav_waifu = wm.get_waifu_by_id(fav_id)
-        if fav_waifu:
-            # Only show favorite if it matches filter or no filter
-            if not rarity_filter or get_waifu_rarity(fav_waifu) == rarity_filter:
-                text += f"⭐ Favorite: **{fav_waifu.get('name')}**\n"
-    
-    text += "\n"
-    
-    # Display waifus with name (xCount) - ID format
+    # Display waifus
     for w in page_waifus:
         wid = w.get("_display_id", 0)
         name = get_waifu_name(w)
+        anime = get_waifu_anime(w)
         rarity = get_waifu_rarity(w)
         count = w.get("count", 1)
         
-        emoji = wm.get_rarity_emoji(rarity)
+        emoji = get_rarity_emoji(rarity)
         
-        # Format: emoji Name (xCount) - ID
+        # Check if favorite
+        is_fav = "⭐ " if fav_id and fav_id == wid else ""
+        
+        # Format with count if more than 1
         if count > 1:
-            text += f"{emoji} **{name}** (x{count}) - `{wid}`\n"
+            text += f"{emoji} {is_fav}**{name}** (x{count})\n"
         else:
-            text += f"{emoji} **{name}** - `{wid}`\n"
+            text += f"{emoji} {is_fav}**{name}**\n"
+        
+        text += f"   ┗ 📺 {anime} | 🆔 `{wid}`\n\n"
     
+    # Buttons
     buttons = []
     
-    # Navigation row
+    # Navigation
     nav_row = []
     if rarity_filter:
-        # For filtered view
         if page > 1:
             nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"colf_{rarity_filter}_{page-1}"))
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
         if page < total_pages:
             nav_row.append(InlineKeyboardButton("➡️", callback_data=f"colf_{rarity_filter}_{page+1}"))
     else:
-        # For main view
         if page > 1:
             nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"col_p_{page-1}"))
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
         if page < total_pages:
             nav_row.append(InlineKeyboardButton("➡️", callback_data=f"col_p_{page+1}"))
-    buttons.append(nav_row)
     
-    # Rarity filter buttons with checkmark on active
+    if nav_row:
+        buttons.append(nav_row)
+    
+    # Rarity filters
     buttons.append([
         InlineKeyboardButton(
-            "🟡 Legendary ✓" if rarity_filter == "legendary" else "🟡 Legendary",
+            "🟡✓" if rarity_filter == "legendary" else "🟡",
             callback_data="col_f_legendary"
         ),
         InlineKeyboardButton(
-            "🟣 Epic ✓" if rarity_filter == "epic" else "🟣 Epic",
+            "🟣✓" if rarity_filter == "epic" else "🟣",
             callback_data="col_f_epic"
-        )
-    ])
-    buttons.append([
+        ),
         InlineKeyboardButton(
-            "🔵 Rare ✓" if rarity_filter == "rare" else "🔵 Rare",
+            "🔵✓" if rarity_filter == "rare" else "🔵",
             callback_data="col_f_rare"
         ),
         InlineKeyboardButton(
-            "⚪ Common ✓" if rarity_filter == "common" else "⚪ Common",
+            "⚪✓" if rarity_filter == "common" else "⚪",
             callback_data="col_f_common"
         )
     ])
     
-    # Bottom row
+    # Bottom buttons
     if rarity_filter:
         buttons.append([
-            InlineKeyboardButton("📦 All Waifus", callback_data="view_collection"),
+            InlineKeyboardButton("📦 All", callback_data="view_collection"),
             InlineKeyboardButton("🎮 Play", callback_data="play_smash")
         ])
     else:
@@ -377,6 +379,7 @@ Use /smash to start collecting waifus!
             InlineKeyboardButton("🔙 Back", callback_data="start_back")
         ])
     
+    # Get image for display
     image_url = None
     if fav_id:
         fav_waifu = wm.get_waifu_by_id(fav_id)
@@ -384,9 +387,9 @@ Use /smash to start collecting waifus!
             image_url = fav_waifu.get("image")
     
     if not image_url and page_waifus:
-        # Use the image from the first waifu in the page (already stored in grouped waifu)
         image_url = get_waifu_image(page_waifus[0])
     
+    # Send/Edit
     if is_callback:
         try:
             if target.message.photo:
@@ -436,7 +439,7 @@ async def collection_page_cb(client: Client, callback: CallbackQuery):
 
 @Client.on_callback_query(filters.regex(r"^col_f_(\w+)$"))
 async def collection_filter_cb(client: Client, callback: CallbackQuery):
-    """Filter by rarity - uses same show_collection function"""
+    """Filter by rarity"""
     rarity = callback.data.split("_")[2]
     debug(f"Filter {rarity} for {callback.from_user.id}")
     await show_collection(callback, callback.from_user.id, 1, is_callback=True, rarity_filter=rarity)
@@ -494,7 +497,7 @@ async def fav_command(client: Client, message: Message):
         upsert=True
     )
     
-    emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
+    emoji = get_rarity_emoji(waifu.get("rarity", "common"))
     text = f"⭐ **Favorite Set!**\n\n{emoji} **{waifu.get('name')}** - `{waifu.get('id')}`"
     
     if waifu.get("image"):
@@ -540,7 +543,7 @@ async def waifu_info_command(client: Client, message: Message):
         await message.reply_text("❌ Waifu not found!")
         return
     
-    emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
+    emoji = get_rarity_emoji(waifu.get("rarity", "common"))
     
     collection = db.get_full_collection(user.id)
     owned = sum(1 for w in collection if get_waifu_id(w) == waifu_id) if collection else 0
@@ -602,10 +605,6 @@ async def setfav_callback(client: Client, callback: CallbackQuery):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-# ─────────────────────────────────────────────────────────────
-#  /trade Command
-# ─────────────────────────────────────────────────────────────
-
 @Client.on_message(filters.command(["trade", "tr"], prefixes=config.COMMAND_PREFIX))
 async def trade_command(client: Client, message: Message):
     """Start a trade with another user"""
@@ -666,8 +665,8 @@ async def trade_command(client: Client, message: Message):
     trade_id = f"{user.id % 100000}{int(datetime.now().timestamp()) % 100000}"
     debug(f"Trade ID: {trade_id}")
     
-    # Get unique waifus (by ID + image)
-    unique_waifus = get_unique_waifus(collection, 10)
+    # Get unique variants (by ID + image)
+    unique_waifus = get_unique_variants(collection, 10)
     
     active_trades[trade_id] = {
         "sender_id": user.id,
@@ -719,10 +718,6 @@ async def trade_command(client: Client, message: Message):
     
     trade_cooldowns[user.id] = datetime.now() + timedelta(seconds=30)
 
-
-# ─────────────────────────────────────────────────────────────
-#  Sender Selects Waifu
-# ─────────────────────────────────────────────────────────────
 
 @Client.on_callback_query(filters.regex(r"^tw_(\d+)_(\d+)$"))
 async def sender_select_cb(client: Client, callback: CallbackQuery):
@@ -781,8 +776,8 @@ async def sender_select_cb(client: Client, callback: CallbackQuery):
         del active_trades[trade_id]
         return
     
-    # Get unique waifus for receiver (by ID + image)
-    unique_recv = get_unique_waifus(recv_collection, 10)
+    # Get unique variants for receiver
+    unique_recv = get_unique_variants(recv_collection, 10)
     trade["receiver_waifus"] = unique_recv
     
     # Build receiver buttons
@@ -809,7 +804,7 @@ async def sender_select_cb(client: Client, callback: CallbackQuery):
 📦 Select your waifu:
 """
     
-    # Send to receiver (DM first, then group)
+    # Send to receiver
     recv_msg = await safe_send(client, trade["receiver_id"], recv_text, InlineKeyboardMarkup(recv_buttons))
     if recv_msg:
         trade["recv_chat_id"] = trade["receiver_id"]
@@ -824,10 +819,6 @@ async def sender_select_cb(client: Client, callback: CallbackQuery):
     
     await callback.answer("✅ Waifu selected!")
 
-
-# ─────────────────────────────────────────────────────────────
-#  Receiver Selects Waifu
-# ─────────────────────────────────────────────────────────────
 
 @Client.on_callback_query(filters.regex(r"^tr_(\d+)_(\d+)$"))
 async def receiver_select_cb(client: Client, callback: CallbackQuery):
@@ -898,10 +889,6 @@ async def receiver_select_cb(client: Client, callback: CallbackQuery):
     await callback.answer("✅ Now both confirm!")
 
 
-# ─────────────────────────────────────────────────────────────
-#  Confirm Trade
-# ─────────────────────────────────────────────────────────────
-
 @Client.on_callback_query(filters.regex(r"^ty_(\d+)$"))
 async def confirm_trade_cb(client: Client, callback: CallbackQuery):
     """Confirm trade"""
@@ -955,17 +942,14 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
             sender_img = get_waifu_image(sender_waifu)
             receiver_img = get_waifu_image(receiver_waifu)
             
-            debug(f"Sender: {sender_id}, waifu ID: {sender_wid}, img: {sender_img[:50]}...")
-            debug(f"Receiver: {receiver_id}, waifu ID: {receiver_wid}, img: {receiver_img[:50]}...")
+            debug(f"Sender gives: ID={sender_wid}")
+            debug(f"Receiver gives: ID={receiver_wid}")
             
-            # STEP 1: Remove from original owners (match by ID + image)
-            debug(f"Removing waifu {sender_wid} with specific image from sender {sender_id}")
+            # Remove with image match
             db.remove_from_collection_by_image(sender_id, sender_wid, sender_img)
-            
-            debug(f"Removing waifu {receiver_wid} with specific image from receiver {receiver_id}")
             db.remove_from_collection_by_image(receiver_id, receiver_wid, receiver_img)
             
-            # STEP 2: Add to new owners (BOTH FORMATS for compatibility)
+            # Add to new owners
             waifu_for_sender = {
                 "id": receiver_wid,
                 "waifu_id": receiver_wid,
@@ -994,15 +978,12 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
                 "obtained_method": "trade"
             }
             
-            debug(f"Adding to sender: {get_waifu_name(waifu_for_sender)}")
             db.add_to_collection(sender_id, waifu_for_sender)
-            
-            debug(f"Adding to receiver: {get_waifu_name(waifu_for_receiver)}")
             db.add_to_collection(receiver_id, waifu_for_receiver)
             
-            debug("=== DATABASE UPDATED ===")
+            debug("=== TRADE COMPLETE ===")
             
-            # Success message with new format
+            # Success message
             sender_w = format_waifu_trade(waifu_for_sender)
             receiver_w = format_waifu_trade(waifu_for_receiver)
             
@@ -1018,7 +999,6 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
 💖 Enjoy your new waifus!
 """
             
-            # Update ALL messages
             try:
                 await callback.message.edit_text(success_text)
             except:
@@ -1032,26 +1012,16 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
             await safe_send(client, trade["sender_id"], success_text)
             await safe_send(client, trade["receiver_id"], success_text)
             
-            # Group notification
-            await safe_send(
-                client, trade["chat_id"],
-                f"✅ **Trade Done!** {trade['sender_name']} ↔️ {trade['receiver_name']} 💖"
-            )
-            
-            debug("Trade completed!")
-            
         except Exception as e:
             debug(f"TRADE ERROR: {e}")
             import traceback
             traceback.print_exc()
             await callback.message.edit_text(f"❌ Trade failed: {e}")
         
-        # Cleanup
         if trade_id in active_trades:
             del active_trades[trade_id]
     
     else:
-        # Show status
         s = "✅" if trade["sender_ok"] else "⏳"
         r = "✅" if trade["receiver_ok"] else "⏳"
         
@@ -1078,10 +1048,6 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
         
         await safe_edit(client, trade["chat_id"], trade["msg_id"], status_text, buttons)
 
-
-# ─────────────────────────────────────────────────────────────
-#  Cancel Trade
-# ─────────────────────────────────────────────────────────────
 
 @Client.on_callback_query(filters.regex(r"^tc_(\d+)$"))
 async def cancel_trade_cb(client: Client, callback: CallbackQuery):
@@ -1122,15 +1088,10 @@ async def cancel_trade_cb(client: Client, callback: CallbackQuery):
     await callback.answer("Cancelled!", show_alert=True)
 
 
-# ─────────────────────────────────────────────────────────────
-#  /mytrades Command
-# ─────────────────────────────────────────────────────────────
-
 @Client.on_message(filters.command(["mytrades", "trades"], prefixes=config.COMMAND_PREFIX))
 async def mytrades_command(client: Client, message: Message):
     """View pending trades"""
     user = message.from_user
-    debug(f"mytrades from {user.id}")
     
     my_trades = []
     for t in active_trades.values():
@@ -1145,15 +1106,10 @@ async def mytrades_command(client: Client, message: Message):
         await message.reply_text("📋 **Your Trades**\n\n" + "\n".join(my_trades))
 
 
-# ─────────────────────────────────────────────────────────────
-#  /canceltrade Command
-# ─────────────────────────────────────────────────────────────
-
 @Client.on_message(filters.command(["canceltrade", "ctrade"], prefixes=config.COMMAND_PREFIX))
 async def canceltrade_command(client: Client, message: Message):
     """Cancel all your trades"""
     user = message.from_user
-    debug(f"canceltrade from {user.id}")
     
     count = 0
     for tid in list(active_trades.keys()):
@@ -1166,24 +1122,3 @@ async def canceltrade_command(client: Client, message: Message):
         await message.reply_text(f"✅ Cancelled {count} trade(s)!")
     else:
         await message.reply_text("📭 No trades to cancel.")
-
-
-# ─────────────────────────────────────────────────────────────
-#  Debug Command
-# ─────────────────────────────────────────────────────────────
-
-@Client.on_message(filters.command("debugtrade", prefixes=config.COMMAND_PREFIX))
-async def debugtrade_command(client: Client, message: Message):
-    """Debug trade system"""
-    if not DEBUG:
-        return
-    
-    text = f"🔧 **Trade Debug**\n\nActive: {len(active_trades)}\n\n"
-    
-    for tid, t in active_trades.items():
-        text += f"`{tid}`\n"
-        text += f"├ {t['sender_name']} → {t['receiver_name']}\n"
-        text += f"├ Status: {t['status']}\n"
-        text += f"└ OK: S={t['sender_ok']} R={t['receiver_ok']}\n\n"
-    
-    await message.reply_text(text or "No trades")
