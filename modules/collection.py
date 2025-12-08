@@ -87,15 +87,6 @@ def get_waifu_rarity(waifu: Dict) -> str:
     ).lower()
 
 
-def get_waifu_power(waifu: Dict) -> int:
-    """Get waifu power from any format"""
-    power = waifu.get("waifu_power") or waifu.get("power") or 0
-    try:
-        return int(power)
-    except:
-        return 0
-
-
 def get_waifu_image(waifu: Dict) -> str:
     """Get waifu image from any format"""
     return (
@@ -130,7 +121,11 @@ def format_waifu_trade(waifu: Dict) -> str:
 
 
 def group_waifus(waifus: List[Dict]) -> List[Dict]:
-    """Group same waifus and count them (x2, x3)"""
+    """
+    Group waifus by ID + IMAGE combination
+    Same ID but different image = shown separately
+    Same ID and same image = grouped with x2, x3
+    """
     if not waifus:
         return []
     
@@ -143,37 +138,46 @@ def group_waifus(waifus: List[Dict]) -> List[Dict]:
         if wid == 0:
             continue
         
-        if wid not in counts:
-            counts[wid] = 0
-            data[wid] = w
+        # Create unique key: waifu_id + image_url
+        image = get_waifu_image(w)
+        unique_key = f"{wid}_{image}"
         
-        counts[wid] += 1
+        if unique_key not in counts:
+            counts[unique_key] = 0
+            data[unique_key] = w
+        
+        counts[unique_key] += 1
     
     result = []
-    for wid, count in counts.items():
-        waifu = data[wid].copy()
+    for unique_key, count in counts.items():
+        waifu = data[unique_key].copy()
         waifu["count"] = count
-        waifu["_display_id"] = wid
+        waifu["_display_id"] = get_waifu_id(waifu)
+        waifu["_unique_key"] = unique_key  # Store for reference
         result.append(waifu)
     
     rarity_order = {"legendary": 0, "epic": 1, "rare": 2, "common": 3}
     result.sort(key=lambda x: (
         rarity_order.get(get_waifu_rarity(x), 4),
-        -x.get("count", 1)
+        -x.get("count", 1),
+        get_waifu_name(x)  # Secondary sort by name
     ))
     
     return result
 
 
 def get_unique_waifus(collection: List[Dict], limit: int = 10) -> List[Dict]:
-    """Get unique waifus from collection (no duplicates)"""
-    seen_ids = set()
+    """Get unique waifus from collection (by ID + image combination)"""
+    seen_keys = set()
     unique = []
     
     for w in collection:
         wid = get_waifu_id(w)
-        if wid != 0 and wid not in seen_ids:
-            seen_ids.add(wid)
+        image = get_waifu_image(w)
+        unique_key = f"{wid}_{image}"
+        
+        if wid != 0 and unique_key not in seen_keys:
+            seen_keys.add(unique_key)
             unique.append(w)
         if len(unique) >= limit:
             break
@@ -228,7 +232,7 @@ async def collection_command(client: Client, message: Message):
 
 
 async def show_collection(target, user_id: int, page: int = 1, is_callback: bool = False, rarity_filter: str = None):
-    """Show collection with proper grouping"""
+    """Show collection with proper grouping by ID + Image"""
     wm = get_waifu_manager()
     
     raw_collection = db.get_full_collection(user_id)
@@ -269,16 +273,17 @@ Use /smash to start collecting waifus!
     else:
         working_collection = raw_collection
     
+    # Group by ID + Image (different images shown separately)
     grouped = group_waifus(working_collection)
     grouped = [w for w in grouped if w.get("_display_id", 0) != 0]
     
     total_waifus = len(working_collection)
-    unique_waifus = len(grouped)
+    unique_variants = len(grouped)  # This counts unique ID+Image combinations
     
-    total_pages = max(1, (unique_waifus + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+    total_pages = max(1, (unique_variants + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
     page = max(1, min(page, total_pages))
     start = (page - 1) * ITEMS_PER_PAGE
-    end = min(start + ITEMS_PER_PAGE, unique_waifus)
+    end = min(start + ITEMS_PER_PAGE, unique_variants)
     page_waifus = grouped[start:end]
     
     user_data = db.get_user(user_id)
@@ -291,7 +296,7 @@ Use /smash to start collecting waifus!
     else:
         text = f"📦 **Your Collection**\n"
     
-    text += f"📊 {total_waifus} total ({unique_waifus} unique)\n"
+    text += f"📊 {total_waifus} total ({unique_variants} variants)\n"
     text += f"📄 Page {page}/{total_pages}\n"
     
     if fav_id:
@@ -379,10 +384,8 @@ Use /smash to start collecting waifus!
             image_url = fav_waifu.get("image")
     
     if not image_url and page_waifus:
-        first_id = page_waifus[0].get("_display_id", 0)
-        first_waifu = wm.get_waifu_by_id(first_id)
-        if first_waifu:
-            image_url = first_waifu.get("image")
+        # Use the image from the first waifu in the page (already stored in grouped waifu)
+        image_url = get_waifu_image(page_waifus[0])
     
     if is_callback:
         try:
@@ -663,7 +666,7 @@ async def trade_command(client: Client, message: Message):
     trade_id = f"{user.id % 100000}{int(datetime.now().timestamp()) % 100000}"
     debug(f"Trade ID: {trade_id}")
     
-    # Get unique waifus
+    # Get unique waifus (by ID + image)
     unique_waifus = get_unique_waifus(collection, 10)
     
     active_trades[trade_id] = {
@@ -778,7 +781,7 @@ async def sender_select_cb(client: Client, callback: CallbackQuery):
         del active_trades[trade_id]
         return
     
-    # Get unique waifus for receiver
+    # Get unique waifus for receiver (by ID + image)
     unique_recv = get_unique_waifus(recv_collection, 10)
     trade["receiver_waifus"] = unique_recv
     
@@ -949,16 +952,18 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
             
             sender_wid = get_waifu_id(sender_waifu)
             receiver_wid = get_waifu_id(receiver_waifu)
+            sender_img = get_waifu_image(sender_waifu)
+            receiver_img = get_waifu_image(receiver_waifu)
             
-            debug(f"Sender: {sender_id}, waifu ID: {sender_wid}")
-            debug(f"Receiver: {receiver_id}, waifu ID: {receiver_wid}")
+            debug(f"Sender: {sender_id}, waifu ID: {sender_wid}, img: {sender_img[:50]}...")
+            debug(f"Receiver: {receiver_id}, waifu ID: {receiver_wid}, img: {receiver_img[:50]}...")
             
-            # STEP 1: Remove from original owners
-            debug(f"Removing waifu {sender_wid} from sender {sender_id}")
-            db.remove_from_collection(sender_id, sender_wid)
+            # STEP 1: Remove from original owners (match by ID + image)
+            debug(f"Removing waifu {sender_wid} with specific image from sender {sender_id}")
+            db.remove_from_collection_by_image(sender_id, sender_wid, sender_img)
             
-            debug(f"Removing waifu {receiver_wid} from receiver {receiver_id}")
-            db.remove_from_collection(receiver_id, receiver_wid)
+            debug(f"Removing waifu {receiver_wid} with specific image from receiver {receiver_id}")
+            db.remove_from_collection_by_image(receiver_id, receiver_wid, receiver_img)
             
             # STEP 2: Add to new owners (BOTH FORMATS for compatibility)
             waifu_for_sender = {
@@ -970,10 +975,8 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
                 "waifu_anime": get_waifu_anime(receiver_waifu),
                 "rarity": get_waifu_rarity(receiver_waifu),
                 "waifu_rarity": get_waifu_rarity(receiver_waifu),
-                "power": get_waifu_power(receiver_waifu),
-                "waifu_power": get_waifu_power(receiver_waifu),
-                "image": get_waifu_image(receiver_waifu),
-                "waifu_image": get_waifu_image(receiver_waifu),
+                "image": receiver_img,
+                "waifu_image": receiver_img,
                 "obtained_method": "trade"
             }
             
@@ -986,10 +989,8 @@ async def confirm_trade_cb(client: Client, callback: CallbackQuery):
                 "waifu_anime": get_waifu_anime(sender_waifu),
                 "rarity": get_waifu_rarity(sender_waifu),
                 "waifu_rarity": get_waifu_rarity(sender_waifu),
-                "power": get_waifu_power(sender_waifu),
-                "waifu_power": get_waifu_power(sender_waifu),
-                "image": get_waifu_image(sender_waifu),
-                "waifu_image": get_waifu_image(sender_waifu),
+                "image": sender_img,
+                "waifu_image": sender_img,
                 "obtained_method": "trade"
             }
             
