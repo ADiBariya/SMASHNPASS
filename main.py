@@ -49,7 +49,7 @@ app = Client(
 LOADED_MODULES = {}
 BOT_START_TIME = datetime.now()
 STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"
-HELP_IMAGE_URL = "https://i.ibb.co/QjvLFwrP/nari-1.jpg"
+HELP_IMAGE_URL = "https://files.catbox.moe/9lkbyr.jpg"
 
 try:
     from config import LOG_GROUP_ID
