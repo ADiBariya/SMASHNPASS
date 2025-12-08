@@ -43,9 +43,9 @@ SUPPORT_GROUP = "WaifusmashSupport"  # Without @
 
 RARITY_POINTS = {
     "common": 10,
-    "rare": 25,
+    "epic": 25,
     "legendary": 50,
-    "epic": 100
+    "rare": 100
 }
 
 # Plugins Path
