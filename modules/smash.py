@@ -215,7 +215,7 @@ Use /collection to see your waifus!
         
         buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("���� Play Again", callback_data="play_smash"),
+                InlineKeyboardButton("🔄 Play Again", callback_data="play_smash"),
                 InlineKeyboardButton("📦 Collection", callback_data="view_collection")
             ]
         ])
