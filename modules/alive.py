@@ -23,7 +23,7 @@ __HELP__ = """
 """
 
 # Use the same START_IMAGE
-ALIVE_IMAGE = "https://files.catbox.moe/jcy3qf.jpg"
+ALIVE_IMAGE = "https://files.catbox.moe/zm8c7y.jpg"
 
 # Bot start time
 BOT_START_TIME = datetime.now()
