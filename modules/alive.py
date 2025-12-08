@@ -172,7 +172,7 @@ async def alive_command(client: Client, message: Message):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔗 **QUICK LINKS**
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 👨‍💻 Owner: @{config.OWNER_USERNAME}
+┃ 👨‍💻 Owner:{config.OWNER_USERNAME}
 ┃ 🤖 Bot: @{config.BOT_USERNAME}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
