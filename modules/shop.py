@@ -1,7 +1,9 @@
+# modules/shop.py - Shop System (FIXED with Custom Rarity Points)
+
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from database import db
-from helpers.utils import load_waifus, get_rarity_emoji, get_rarity_value
+from helpers.utils import load_waifus, get_rarity_emoji
 from config import COMMAND_PREFIX
 from datetime import datetime
 import random
@@ -18,54 +20,58 @@ __HELP__ = """
 `.sell <waifu_id>` - Sell a waifu
 `.inventory` - View your items
 
-**Available Items:**
-📦 Common Box - 100 coins
-💎 Rare Box - 500 coins
-🎁 Epic Box - 1500 coins
-👑 Legendary Box - 5000 coins
+**Available Boxes:**
+📦 Common Box - 50 coins (Common waifu)
+🟣 Epic Box - 150 coins (Epic waifu)
+🟡 Legendary Box - 300 coins (Legendary waifu)
+💎 Rare Box - 500 coins (Rare waifu - Best!)
+🌟 Premium Box - 750 coins (Guaranteed Rare!)
 """
 
-# Shop items configuration
+# Rarity points system (for sell value)
+RARITY_POINTS = {
+    "common": 10,
+    "epic": 25,
+    "legendary": 50,
+    "rare": 100
+}
+
+# Shop items configuration - Based on your rarity points
 SHOP_ITEMS = {
     "common_box": {
         "name": "Common Box",
-        "price": 100,
+        "price": 50,
         "emoji": "📦",
-        "description": "Contains Common/Uncommon waifus",
-        "rarities": ["Common", "Uncommon"],
-        "weights": [70, 30]
+        "description": "Contains Common waifu (Value: 10)",
+        "rarity": "common"
+    },
+    "epic_box": {
+        "name": "Epic Box",
+        "price": 150,
+        "emoji": "🟣",
+        "description": "Contains Epic waifu (Value: 25)",
+        "rarity": "epic"
+    },
+    "legendary_box": {
+        "name": "Legendary Box",
+        "price": 300,
+        "emoji": "🟡",
+        "description": "Contains Legendary waifu (Value: 50)",
+        "rarity": "legendary"
     },
     "rare_box": {
         "name": "Rare Box",
         "price": 500,
         "emoji": "💎",
-        "description": "Contains Uncommon/Rare waifus",
-        "rarities": ["Uncommon", "Rare"],
-        "weights": [40, 60]
-    },
-    "epic_box": {
-        "name": "Epic Box",
-        "price": 1500,
-        "emoji": "🎁",
-        "description": "Contains Rare/Epic waifus",
-        "rarities": ["Rare", "Epic"],
-        "weights": [50, 50]
-    },
-    "legendary_box": {
-        "name": "Legendary Box",
-        "price": 5000,
-        "emoji": "👑",
-        "description": "Contains Epic/Legendary waifus",
-        "rarities": ["Epic", "Legendary"],
-        "weights": [60, 40]
+        "description": "Contains Rare waifu (Value: 100) - Best!",
+        "rarity": "rare"
     },
     "premium_box": {
         "name": "Premium Box",
-        "price": 10000,
+        "price": 750,
         "emoji": "🌟",
-        "description": "Guaranteed Legendary waifu!",
-        "rarities": ["Legendary"],
-        "weights": [100]
+        "description": "Guaranteed Rare waifu! (Best Value!)",
+        "rarity": "rare"
     }
 }
 
@@ -73,14 +79,14 @@ SHOP_ITEMS = {
 SPECIAL_ITEMS = {
     "coin_boost": {
         "name": "Coin Boost",
-        "price": 2000,
+        "price": 200,
         "emoji": "💰",
         "description": "2x coins for 1 hour",
         "duration": 3600
     },
     "luck_charm": {
         "name": "Luck Charm",
-        "price": 3000,
+        "price": 300,
         "emoji": "🍀",
         "description": "+20% win chance for 1 hour",
         "duration": 3600
@@ -88,12 +94,16 @@ SPECIAL_ITEMS = {
 }
 
 
+def get_rarity_value(rarity: str) -> int:
+    """Get coin value for rarity"""
+    return RARITY_POINTS.get(rarity.lower(), 10)
+
+
 # ---------- Helper to safely await sync or async DB calls ----------
 async def maybe_await(value):
     """
     If `value` is awaitable/coroutine, await and return it.
     Otherwise, return value directly.
-    This lets the same code work whether db methods are sync or async.
     """
     if inspect.isawaitable(value):
         return await value
@@ -107,7 +117,6 @@ async def shop_cmd(client: Client, message: Message):
     user_id = message.from_user.id
     user_data = await maybe_await(db.get_user(user_id))
     if not user_data:
-        # Create or fallback if DB returned None
         user_data = await maybe_await(db.get_or_create_user(user_id, message.from_user.username, message.from_user.first_name))
     coins = user_data.get("coins", 0)
 
@@ -119,6 +128,8 @@ async def shop_cmd(client: Client, message: Message):
 ━━━━━━━━━━━━━━━━━━━━
 📦 **LOOT BOXES**
 ━━━━━━━━━━━━━━━━━━━━
+
+**Rarity Order:** Common < Epic < Legendary < Rare
 """
 
     for item_id, item in SHOP_ITEMS.items():
@@ -135,18 +146,18 @@ async def shop_cmd(client: Client, message: Message):
         text += f"\n{item['emoji']} **{item['name']}** - {item['price']:,} coins {can_afford}"
         text += f"\n   └ {item['description']}"
 
-    # Create buttons
+    # Create buttons - ordered by rarity value (low to high)
     buttons = [
         [
-            InlineKeyboardButton("📦 Common (100)", callback_data="shop_buy_common_box"),
+            InlineKeyboardButton("📦 Common (50)", callback_data="shop_buy_common_box"),
+            InlineKeyboardButton("🟣 Epic (150)", callback_data="shop_buy_epic_box")
+        ],
+        [
+            InlineKeyboardButton("🟡 Legendary (300)", callback_data="shop_buy_legendary_box"),
             InlineKeyboardButton("💎 Rare (500)", callback_data="shop_buy_rare_box")
         ],
         [
-            InlineKeyboardButton("🎁 Epic (1.5k)", callback_data="shop_buy_epic_box"),
-            InlineKeyboardButton("👑 Legend (5k)", callback_data="shop_buy_legendary_box")
-        ],
-        [
-            InlineKeyboardButton("🌟 Premium (10k)", callback_data="shop_buy_premium_box")
+            InlineKeyboardButton("🌟 Premium (750)", callback_data="shop_buy_premium_box")
         ],
         [
             InlineKeyboardButton("💰 Coin Boost", callback_data="shop_buy_coin_boost"),
@@ -190,18 +201,16 @@ async def shop_buy_callback(client: Client, callback: CallbackQuery):
         )
 
     if is_box:
-        # Open loot box
         await open_loot_box(callback, item_id, item)
     else:
-        # Buy special item
         await buy_special_item(callback, item_id, item)
 
 
 async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
-    """Open a loot box and give waifu"""
+    """Open a loot box and give waifu of EXACT rarity"""
     user_id = callback.from_user.id
 
-    # Deduct coins (works for sync or async implementations)
+    # Deduct coins
     await maybe_await(db.update_coins(user_id, -item["price"]))
 
     # Show opening animation
@@ -211,24 +220,41 @@ async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
             f"🎰 Rolling..."
         )
     except Exception:
-        # fallback if edit fails (e.g., message gone)
         pass
 
     await asyncio.sleep(1)
 
-    # Select rarity
-    selected_rarity = random.choices(
-        item["rarities"],
-        weights=item["weights"]
-    )[0]
+    # Get the EXACT rarity from box config
+    target_rarity = item.get("rarity", "common").lower()
 
-    # Get waifu of that rarity
+    # Load waifus and filter by EXACT rarity
     waifus = load_waifus()
-    rarity_waifus = [w for w in waifus if w.get("rarity") == selected_rarity]
+    
+    # Filter waifus by exact rarity (case-insensitive match)
+    rarity_waifus = [
+        w for w in waifus 
+        if w.get("rarity", "common").lower() == target_rarity
+    ]
 
+    print(f"🎁 [SHOP] Box: {item_id}, Target Rarity: {target_rarity}, Found: {len(rarity_waifus)} waifus")
+
+    # If no waifus of that rarity, show error and refund
     if not rarity_waifus:
-        rarity_waifus = waifus
+        # Refund coins
+        await maybe_await(db.update_coins(user_id, item["price"]))
+        
+        try:
+            await callback.message.edit_text(
+                f"❌ **No {target_rarity.title()} waifus available!**\n\n"
+                f"💰 Your coins have been refunded."
+            )
+        except:
+            pass
+        
+        await callback.answer("❌ No waifus of this rarity!", show_alert=True)
+        return
 
+    # Select random waifu of that rarity
     waifu = random.choice(rarity_waifus)
 
     # Add to collection
@@ -238,8 +264,8 @@ async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
 
     await maybe_await(db.add_to_collection(user_id, waifu_copy))
 
-    emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
-    value = get_rarity_value(waifu.get("rarity", "Common"))
+    emoji = get_rarity_emoji(waifu.get("rarity", "common"))
+    value = get_rarity_value(waifu.get("rarity", "common"))
 
     text = f"""
 🎉 **{item['name']} OPENED!**
@@ -249,8 +275,8 @@ async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
 ━━━━━━━━━━━━━━━━━━━━
 
 📺 **Anime:** {waifu.get('anime', 'Unknown')}
-⭐ **Rarity:** {waifu.get('rarity', 'Common')}
-💰 **Value:** {value:,} coins
+⭐ **Rarity:** {waifu.get('rarity', 'common').title()}
+💰 **Sell Value:** {value} coins
 
 ✅ Added to your collection!
 """
@@ -263,22 +289,26 @@ async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
     ]
 
     if waifu.get("image"):
-        # try to delete the old message if possible, then send photo
         try:
             await callback.message.delete()
         except Exception:
             pass
 
         try:
-            await callback.message.answer_photo(
+            await callback.message._client.send_photo(
+                chat_id=callback.message.chat.id,
                 photo=waifu["image"],
                 caption=text,
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
-        except Exception:
-            # fallback to text if photo send fails
+        except Exception as e:
+            print(f"⚠️ [SHOP] Image error: {e}")
             try:
-                await callback.message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+                await callback.message._client.send_message(
+                    chat_id=callback.message.chat.id,
+                    text=text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
             except Exception:
                 pass
     else:
@@ -289,7 +319,11 @@ async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
             )
         except Exception:
             try:
-                await callback.message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+                await callback.message._client.send_message(
+                    chat_id=callback.message.chat.id,
+                    text=text,
+                    reply_markup=InlineKeyboardMarkup(buttons)
+                )
             except Exception:
                 pass
 
@@ -303,7 +337,7 @@ async def buy_special_item(callback: CallbackQuery, item_id: str, item: dict):
     # Deduct coins
     await maybe_await(db.update_coins(user_id, -item["price"]))
 
-    # Add item to inventory (works whether db.users is motor collection or pymongo)
+    # Add item to inventory
     await maybe_await(db.users.update_one(
         {"user_id": user_id},
         {
@@ -365,23 +399,30 @@ async def shop_refresh_callback(client: Client, callback: CallbackQuery):
 ━━━━━━━━━━━━━━━━━━━━
 📦 **LOOT BOXES**
 ━━━━━━━━━━━━━━━━━━━━
+
+**Rarity Order:** Common < Epic < Legendary < Rare
 """
 
     for item_id, item in SHOP_ITEMS.items():
         can_afford = "✅" if coins >= item["price"] else "❌"
         text += f"\n{item['emoji']} **{item['name']}** - {item['price']:,} coins {can_afford}"
+        text += f"\n   └ {item['description']}"
 
     buttons = [
         [
-            InlineKeyboardButton("📦 Common (100)", callback_data="shop_buy_common_box"),
+            InlineKeyboardButton("📦 Common (50)", callback_data="shop_buy_common_box"),
+            InlineKeyboardButton("🟣 Epic (150)", callback_data="shop_buy_epic_box")
+        ],
+        [
+            InlineKeyboardButton("🟡 Legendary (300)", callback_data="shop_buy_legendary_box"),
             InlineKeyboardButton("💎 Rare (500)", callback_data="shop_buy_rare_box")
         ],
         [
-            InlineKeyboardButton("🎁 Epic (1.5k)", callback_data="shop_buy_epic_box"),
-            InlineKeyboardButton("👑 Legend (5k)", callback_data="shop_buy_legendary_box")
+            InlineKeyboardButton("🌟 Premium (750)", callback_data="shop_buy_premium_box")
         ],
         [
-            InlineKeyboardButton("🌟 Premium (10k)", callback_data="shop_buy_premium_box")
+            InlineKeyboardButton("🔄 Refresh", callback_data="shop_refresh"),
+            InlineKeyboardButton("📦 Inventory", callback_data="shop_inventory")
         ]
     ]
 
@@ -466,12 +507,12 @@ async def buy_cmd(client: Client, message: Message):
     if len(message.command) < 2:
         return await message.reply_text(
             "❌ **Usage:** `.buy <item_name>`\n\n"
-            "**Available items:**\n"
-            "• `common_box` - 100 coins\n"
-            "• `rare_box` - 500 coins\n"
-            "• `epic_box` - 1500 coins\n"
-            "• `legendary_box` - 5000 coins\n"
-            "• `premium_box` - 10000 coins"
+            "**Available Boxes (Low to High):**\n"
+            "• `common` - 50 coins (⚪ Common - 10 pts)\n"
+            "• `epic` - 150 coins (🟣 Epic - 25 pts)\n"
+            "• `legendary` - 300 coins (🟡 Legendary - 50 pts)\n"
+            "• `rare` - 500 coins (🔵 Rare - 100 pts)\n"
+            "• `premium` - 750 coins (💎 Guaranteed Rare!)"
         )
 
     item_id = message.command[1].lower().replace(" ", "_")
@@ -479,10 +520,10 @@ async def buy_cmd(client: Client, message: Message):
     # Normalize item names
     item_aliases = {
         "common": "common_box",
-        "rare": "rare_box",
         "epic": "epic_box",
         "legendary": "legendary_box",
         "legend": "legendary_box",
+        "rare": "rare_box",
         "premium": "premium_box"
     }
 
@@ -559,7 +600,14 @@ async def inventory_cmd(client: Client, message: Message):
 async def sell_cmd(client: Client, message: Message):
     """Sell a waifu"""
     if len(message.command) < 2:
-        return await message.reply_text("❌ **Usage:** `.sell <waifu_id>`")
+        return await message.reply_text(
+            "❌ **Usage:** `.sell <waifu_id>`\n\n"
+            "**Sell Values:**\n"
+            "• ⚪ Common - 5 coins (50%)\n"
+            "• 🟣 Epic - 12 coins (50%)\n"
+            "• 🟡 Legendary - 25 coins (50%)\n"
+            "• 🔵 Rare - 50 coins (50%)"
+        )
 
     try:
         waifu_id = int(message.command[1])
@@ -567,23 +615,30 @@ async def sell_cmd(client: Client, message: Message):
         return await message.reply_text("❌ Invalid waifu ID!")
 
     user_id = message.from_user.id
-    user_data = await maybe_await(db.get_user(user_id))
-    if not user_data:
-        user_data = await maybe_await(db.get_or_create_user(user_id, message.from_user.username, message.from_user.first_name))
-    collection = user_data.get("collection", [])
+    
+    # Get collection from collections table
+    collection = await maybe_await(db.get_full_collection(user_id))
+    
+    if not collection:
+        return await message.reply_text("❌ Your collection is empty!")
 
     # Find waifu
     waifu = None
     for w in collection:
-        if w.get("id") == waifu_id:
-            waifu = w
-            break
+        w_id = w.get("waifu_id") or w.get("id")
+        try:
+            if int(w_id) == waifu_id:
+                waifu = w
+                break
+        except:
+            continue
 
     if not waifu:
         return await message.reply_text("❌ You don't own this waifu!")
 
     # Calculate sell price (50% of value)
-    value = get_rarity_value(waifu.get("rarity", "Common"))
+    rarity = (waifu.get("waifu_rarity") or waifu.get("rarity", "common")).lower()
+    value = get_rarity_value(rarity)
     sell_price = value // 2
 
     buttons = [
@@ -593,15 +648,17 @@ async def sell_cmd(client: Client, message: Message):
         ]
     ]
 
-    emoji = get_rarity_emoji(waifu.get("rarity", "Common"))
+    emoji = get_rarity_emoji(rarity)
+    name = waifu.get("waifu_name") or waifu.get("name", "Unknown")
+    anime = waifu.get("waifu_anime") or waifu.get("anime", "Unknown")
 
     await message.reply_text(
         f"💰 **Sell Waifu?**\n\n"
-        f"{emoji} **{waifu['name']}**\n"
-        f"📺 {waifu.get('anime', 'Unknown')}\n"
-        f"⭐ {waifu.get('rarity', 'Common')}\n\n"
-        f"💵 **Value:** {value:,} coins\n"
-        f"💰 **Sell Price:** {sell_price:,} coins (50%)\n\n"
+        f"{emoji} **{name}**\n"
+        f"📺 {anime}\n"
+        f"⭐ {rarity.title()}\n\n"
+        f"💵 **Value:** {value} coins\n"
+        f"💰 **Sell Price:** {sell_price} coins (50%)\n\n"
         f"⚠️ This cannot be undone!",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
@@ -614,46 +671,45 @@ async def confirm_sell_callback(client: Client, callback: CallbackQuery):
     waifu_id = int(callback.matches[0].group(1))
     sell_price = int(callback.matches[0].group(2))
 
-    # Check ownership
-    user_data = await maybe_await(db.get_user(user_id))
-    if not user_data:
-        return await callback.answer("❌ User not found!", show_alert=True)
-    collection = user_data.get("collection", [])
+    # Get collection
+    collection = await maybe_await(db.get_full_collection(user_id))
+    
+    if not collection:
+        return await callback.answer("❌ Collection empty!", show_alert=True)
 
+    # Find waifu
     waifu = None
     for w in collection:
-        if w.get("id") == waifu_id:
-            waifu = w
-            break
+        w_id = w.get("waifu_id") or w.get("id")
+        try:
+            if int(w_id) == waifu_id:
+                waifu = w
+                break
+        except:
+            continue
 
     if not waifu:
         return await callback.answer("❌ Waifu not found!", show_alert=True)
 
-    # Remove and add coins
-    await maybe_await(db.remove_from_collection(user_id, waifu_id))
-    await maybe_await(db.update_coins(user_id, sell_price))
+    name = waifu.get("waifu_name") or waifu.get("name", "Unknown")
 
-    # Track spending (use maybe_await for sync/async)
-    await maybe_await(db.users.update_one(
-        {"user_id": user_id},
-        {"$inc": {"total_earned": sell_price}},
-        upsert=True
-    ))
+    # Remove from collection and add coins
+    await maybe_await(db.remove_from_collection(user_id, waifu_id))
+    await maybe_await(db.add_coins(user_id, sell_price))
 
     try:
         await callback.message.edit_text(
             f"✅ **Waifu Sold!**\n\n"
-            f"**Sold:** {waifu['name']}\n"
-            f"**Received:** {sell_price:,} coins\n\n"
+            f"**Sold:** {name}\n"
+            f"**Received:** {sell_price} coins\n\n"
             f"💰 Coins added to your balance!"
         )
     except Exception:
         try:
             await callback.message.reply_text(
                 f"✅ **Waifu Sold!**\n\n"
-                f"**Sold:** {waifu['name']}\n"
-                f"**Received:** {sell_price:,} coins\n\n"
-                f"💰 Coins added to your balance!"
+                f"**Sold:** {name}\n"
+                f"**Received:** {sell_price} coins"
             )
         except Exception:
             pass
