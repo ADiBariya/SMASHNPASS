@@ -26,9 +26,9 @@ DB_NAME = os.environ.get("DB_NAME", "smashpassbot")
 COMMAND_PREFIX = ["!", "/", "."]
 
 # Bot Settings
-BOT_NAME = "Horikita"
-BOT_USERNAME = "Horikita_Robot"
-OWNER_USERNAME = "EminenceCurse"
+BOT_NAME = "WaifuSmash"
+BOT_USERNAME = "Waifusmashbot"
+OWNER_USERNAME = "https://files.catbox.moe/k23nnw.jpg"
 
 # Game Settings
 WIN_CHANCE = 50  # 50% chance to win waifu on smash
@@ -36,17 +36,16 @@ DAILY_COINS = 100
 SMASH_COST = 10
 
 # Channels/Groups
-UPDATES_CHANNEL = "EminenceCurse"  # Without @
-SUPPORT_GROUP = "EminenceCurse"  # Without @
+UPDATES_CHANNEL = "WaifusmashUpdates"  # Without @
+SUPPORT_GROUP = "WaifusmashSupport"  # Without @
 # Rarity Multipliers
 
 
 RARITY_POINTS = {
     "common": 10,
     "rare": 25,
-    "epic": 50,
-    "legendary": 100,
-    "mythic": 250
+    "legendary": 50,
+    "epic": 100
 }
 
 # Plugins Path
