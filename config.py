@@ -35,7 +35,12 @@ WIN_CHANCE = 50  # 50% chance to win waifu on smash
 DAILY_COINS = 100
 SMASH_COST = 10
 
+# Channels/Groups
+UPDATES_CHANNEL = "EminenceCurse"  # Without @
+SUPPORT_GROUP = "EminenceCurse"  # Without @
 # Rarity Multipliers
+
+
 RARITY_POINTS = {
     "common": 10,
     "rare": 25,
