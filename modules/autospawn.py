@@ -1,4 +1,4 @@
-# modules/auto_spawn.py - Auto Spawn System with Single Attempt
+# modules/auto_spawn.py - Auto Spawn System with Sexy Captions
 
 import random
 import time
@@ -19,13 +19,13 @@ __MODULE__ = "AutoSpawn"
 __HELP__ = """
 🎲 **Auto Spawn System**
 
-Waifus automatically spawn in group chats based on activity!
+Waifus automatically spawn in group chats!
 
 **How it works:**
-• Waifus spawn based on chat activity
+• Baddies spawn based on chat activity
 • First person to click SMASH gets to try
 • You either WIN or LOSE - no second chances!
-• Rarer waifus are harder to catch
+• Rarer baddies are harder to catch
 • Spawns expire in 40 seconds
 
 **Admin Commands:**
@@ -36,7 +36,7 @@ Waifus automatically spawn in group chats based on activity!
 """
 
 # ═══════════════════════════════════════════════════════════════════
-#  Default Configuration
+#  Configuration
 # ═══════════════════════════════════════════════════════════════════
 
 DEFAULT_SETTINGS = {
@@ -45,7 +45,7 @@ DEFAULT_SETTINGS = {
     "max_messages": 50,
     "min_users": 2,
     "cooldown": 120,
-    "expiry": 40  # Fixed 40 seconds expiry
+    "expiry": 40
 }
 
 SETTING_LIMITS = {
@@ -62,12 +62,11 @@ RARITY_THRESHOLDS = {
     "common": 0
 }
 
-# Win chances by rarity (lower = harder to catch)
 WIN_CHANCES = {
     "common": 70,
+    "rare": 25,
     "epic": 55,
-    "legendary": 40,
-    "rare": 25
+    "legendary": 40
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -76,11 +75,233 @@ WIN_CHANCES = {
 
 group_settings = {}
 group_activity = {}
-active_spawns = {}
+active_spawns = {}  # {chat_id: spawn_data}
 
-# Track who already tried (to prevent multiple attempts)
-# {chat_id: {spawn_id: user_id}}
-spawn_claims = {}
+
+# ═══════════════════════════════════════════════════════════════════
+#  🔥 SEXY CAPTION GENERATORS
+# ═══════════════════════════════════════════════════════════════════
+
+def get_spawn_caption(waifu: dict, activity_level: str, win_chance: int) -> str:
+    """Get sexy spawn caption"""
+    
+    name = waifu.get('name', 'Unknown')
+    anime = waifu.get('anime', 'Unknown')
+    rarity = waifu.get('rarity', 'common').title()
+    power = waifu.get('power', 0)
+    
+    rarity_emojis = {
+        "common": "⚪",
+        "rare": "🔵",
+        "epic": "🟣",
+        "legendary": "🟡"
+    }
+    rarity_emoji = rarity_emojis.get(waifu.get('rarity', 'common'), "⚪")
+    
+    # Activity headers
+    activity_headers = {
+        "legendary": [
+            "🔥 **LEGENDARY BADDIE ALERT!**",
+            "💎 **ULTRA RARE SPAWN!**",
+            "👑 **A QUEEN HAS ARRIVED!**",
+            "⚡ **MAXIMUM ACTIVITY REWARD!**"
+        ],
+        "epic": [
+            "✨ **EPIC BADDIE SPOTTED!**",
+            "🌟 **HIGH TIER WAIFU APPEARED!**",
+            "💫 **RARE CATCH OPPORTUNITY!**",
+            "🔥 **HOT SPAWN ALERT!**"
+        ],
+        "rare": [
+            "💎 **A CUTIE APPEARED!**",
+            "✨ **SOMEONE'S LOOKING AT YOU!**",
+            "🌸 **NEW CHALLENGER!**",
+            "💕 **BADDIE IN THE BUILDING!**"
+        ],
+        "common": [
+            "👀 **A WILD BADDIE APPEARED!**",
+            "💋 **LOOK WHO SHOWED UP!**",
+            "😏 **SHE'S WAITING FOR YOU...**",
+            "🎯 **TARGET ACQUIRED!**"
+        ]
+    }
+    
+    header = random.choice(activity_headers.get(activity_level, activity_headers["common"]))
+    
+    # Flirty descriptions
+    flirt_lines = [
+        f"**{name}** is looking for someone brave enough... 👀",
+        f"**{name}** wants to know if you got rizz 😏",
+        f"Do you have what it takes to catch **{name}**? 🔥",
+        f"**{name}** is judging your vibe rn... 💅",
+        f"She's kinda bad tho... will you shoot your shot? 💘",
+        f"**{name}** appeared! Make your move! ⚡",
+        f"First one to smash gets a chance with **{name}**! 🎯",
+        f"**{name}** is waiting... don't be shy! 💋"
+    ]
+    
+    return f"""
+{header}
+
+{rarity_emoji} **{name}**
+
+┏━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 📺 **Anime:** {anime}
+┃ 💎 **Rarity:** {rarity}
+┃ ⚔️ **Power:** {power}
+┃ 🎯 **Catch Rate:** {win_chance}%
+┗━━━━━━━━━━━━━━━━━━━━━━┛
+
+{random.choice(flirt_lines)}
+
+⚡ **First click = First try!**
+⚠️ No guarantee - she might reject you!
+⏰ _Disappears in 40 seconds..._
+"""
+
+
+def get_catching_caption(waifu_name: str, user_name: str) -> str:
+    """Get sexy catching animation caption"""
+    
+    captions = [
+        f"💥 **{user_name}** is shooting their shot...\n\n"
+        f"Making moves on **{waifu_name}**... 😏🔥",
+        
+        f"🔥 **{user_name}** slides into position...\n\n"
+        f"Going for **{waifu_name}**... 💋",
+        
+        f"💋 **{user_name}** activates rizz mode...\n\n"
+        f"Charming **{waifu_name}**... ✨",
+        
+        f"😈 **{user_name}** makes their move...\n\n"
+        f"Will **{waifu_name}** accept? 💕",
+        
+        f"⚡ **{user_name}** goes for it...\n\n"
+        f"**{waifu_name}** is deciding... 🎲",
+    ]
+    return random.choice(captions)
+
+
+def get_win_spawn_caption(waifu: dict, user_name: str, coins: int) -> str:
+    """Get sexy win caption for spawn"""
+    
+    name = waifu.get('name', 'Unknown')
+    anime = waifu.get('anime', 'Unknown')
+    rarity = waifu.get('rarity', 'common').title()
+    power = waifu.get('power', 0)
+    
+    rarity_emojis = {
+        "common": "⚪",
+        "rare": "🔵",
+        "epic": "🟣",
+        "legendary": "🟡"
+    }
+    rarity_emoji = rarity_emojis.get(waifu.get('rarity', 'common'), "⚪")
+    
+    win_headers = [
+        f"🔥 **BADDIE SECURED!**",
+        f"💋 **{user_name.upper()} GOT RIZZ!**",
+        f"😈 **CAUGHT IN 4K!**",
+        f"💕 **SHE SAID YES!**",
+        f"🎉 **SMASH SUCCESSFUL!**",
+        f"✨ **WHAT A CATCH!**",
+        f"👑 **RIZZ GOD MOMENT!**",
+        f"🏆 **CHAMPION MOVE!**"
+    ]
+    
+    win_messages = [
+        f"**{name}** fell for **{user_name}**'s charm! 😏",
+        f"**{user_name}** really said \"she's mine\" and meant it! 💪",
+        f"**{name}** is now down bad for **{user_name}**! 💘",
+        f"**{user_name}** pulled **{name}** with that W rizz! 🔥",
+        f"**{name}** couldn't resist **{user_name}**! ✨",
+        f"**{user_name}** added **{name}** to the collection! 📦",
+    ]
+    
+    return f"""
+{random.choice(win_headers)}
+
+{random.choice(win_messages)}
+
+{rarity_emoji} **{name}**
+┏━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 📺 {anime}
+┃ 💎 {rarity}
+┃ ⚔️ Power: {power}
+┃ 💰 +{coins} coins
+┗━━━━━━━━━━━━━━━━━━━━━━┛
+
+GG **{user_name}**! Check /collection 🎊
+"""
+
+
+def get_lose_spawn_caption(waifu: dict, user_name: str, win_chance: int) -> str:
+    """Get rejection caption for spawn"""
+    
+    name = waifu.get('name', 'Unknown')
+    anime = waifu.get('anime', 'Unknown')
+    rarity = waifu.get('rarity', 'common').title()
+    
+    rarity_emojis = {
+        "common": "⚪",
+        "rare": "🔵",
+        "epic": "🟣",
+        "legendary": "🟡"
+    }
+    rarity_emoji = rarity_emojis.get(waifu.get('rarity', 'common'), "⚪")
+    
+    lose_headers = [
+        f"💔 **REJECTED HARD!**",
+        f"💀 **{user_name.upper()} GOT CURVED!**",
+        f"😭 **NO RIZZ DETECTED!**",
+        f"🚫 **SHE SAID NOPE!**",
+        f"😬 **FRIENDZONED!**",
+        f"📉 **RIZZ FAILED!**",
+        f"🥶 **COLD SHOULDER!**",
+        f"💨 **SHE RAN AWAY!**"
+    ]
+    
+    lose_messages = [
+        f"**{name}** looked at **{user_name}** and said \"ew\" 💀",
+        f"**{user_name}** tried but **{name}** wasn't having it 🙅‍♀️",
+        f"**{name}** ghosted **{user_name}** in real time 👻",
+        f"**{user_name}**'s rizz wasn't strong enough 📉",
+        f"**{name}** said \"I have a boyfriend\" and left 🏃‍♀️",
+        f"**{name}** pretended not to see **{user_name}** 👀",
+        f"**{user_name}** got left on read IRL 📱",
+    ]
+    
+    return f"""
+{random.choice(lose_headers)}
+
+{random.choice(lose_messages)}
+
+{rarity_emoji} **{name}** escaped!
+
+📺 Anime: {anime}
+💎 Rarity: {rarity}
+🎯 Catch Rate was: {win_chance}%
+
+Better luck next time **{user_name}**! 😢
+The grind continues... 💪
+"""
+
+
+def get_expired_caption(waifu: dict) -> str:
+    """Get expired spawn caption"""
+    
+    name = waifu.get('name', 'Unknown')
+    
+    expired_msgs = [
+        f"💨 **{name}** got bored and left...",
+        f"⏰ **{name}** said \"y'all too slow\" and dipped",
+        f"🏃‍♀️ **{name}** ran away! No one was brave enough...",
+        f"😴 **{name}** fell asleep waiting for someone...",
+        f"👋 **{name}** left the chat. Too many cowards here!",
+        f"💅 **{name}** said \"not worth my time\" and vanished",
+    ]
+    
+    return random.choice(expired_msgs)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -126,12 +347,22 @@ def get_rarity_by_activity(message_count: int) -> str:
     return random.choices(rarities, weights=weight_values, k=1)[0]
 
 
+def get_activity_level(message_count: int) -> str:
+    """Get activity level string"""
+    if message_count >= RARITY_THRESHOLDS["legendary"]:
+        return "legendary"
+    elif message_count >= RARITY_THRESHOLDS["epic"]:
+        return "epic"
+    elif message_count >= RARITY_THRESHOLDS["rare"]:
+        return "rare"
+    return "common"
+
+
 def calculate_win(win_chance: int) -> bool:
-    """Calculate if user wins based on percentage"""
     return random.randint(1, 100) <= win_chance
 
 
-def should_spawn(chat_id: int) -> tuple[bool, str]:
+def should_spawn(chat_id: int) -> tuple:
     settings = get_group_settings(chat_id)
     
     if not settings.get("enabled", True):
@@ -193,21 +424,21 @@ async def set_spawn_command(client: Client, message: Message):
     owner_id = getattr(config, 'OWNER_ID', 0)
     
     if not is_admin and user.id != owner_id:
-        await message.reply_text("❌ Only admins can change spawn settings!")
+        await message.reply_text("❌ Only admins can change this!")
         return
     
     args = message.text.split()[1:]
     
     if len(args) < 2:
         await message.reply_text(
+            "**⚙️ Spawn Settings**\n\n"
             "**Usage:** `/setspawn <setting> <value>`\n\n"
             "**Settings:**\n"
             "• `messages` - Min messages (5-100)\n"
             "• `maxmessages` - Force spawn (20-200)\n"
             "• `cooldown` - Seconds between spawns (30-600)\n"
             "• `users` - Min unique users (1-10)\n\n"
-            "**Example:** `/setspawn cooldown 60`\n\n"
-            "⚠️ **Note:** Expiry is fixed at 40 seconds"
+            "**Example:** `/setspawn cooldown 60`"
         )
         return
     
@@ -242,17 +473,7 @@ async def set_spawn_command(client: Client, message: Message):
     
     update_group_setting(chat_id, actual_setting, value)
     
-    display_names = {
-        "min_messages": "Minimum Messages",
-        "max_messages": "Maximum Messages",
-        "cooldown": "Spawn Cooldown",
-        "min_users": "Minimum Users"
-    }
-    
-    await message.reply_text(
-        f"✅ **Setting Updated!**\n\n"
-        f"**{display_names.get(actual_setting)}:** `{value}`"
-    )
+    await message.reply_text(f"✅ **{actual_setting}** set to `{value}`!")
 
 
 @Client.on_message(filters.command(["spawnsettings", "spawnconfig"]) & filters.group)
@@ -274,7 +495,7 @@ async def spawn_settings_command(client: Client, message: Message):
 
 ⏰ **Timings:**
 • Cooldown: `{settings['cooldown']}s`
-• Expiry: `40s` (Fixed)
+• Expiry: `40s`
 
 🎯 **Win Chances:**
 • Common: `{WIN_CHANCES['common']}%`
@@ -282,7 +503,7 @@ async def spawn_settings_command(client: Client, message: Message):
 • Epic: `{WIN_CHANCES['epic']}%`
 • Legendary: `{WIN_CHANCES['legendary']}%`
 
-⚡ **First come, first serve!**
+⚡ First come, first serve!
 """
     
     await message.reply_text(text)
@@ -305,7 +526,7 @@ async def toggle_spawn_command(client: Client, message: Message):
     update_group_setting(chat_id, "enabled", new_status)
     
     if new_status:
-        await message.reply_text("✅ **Auto Spawn Enabled!**")
+        await message.reply_text("✅ **Auto Spawn Enabled!** 🔥")
     else:
         await message.reply_text("❌ **Auto Spawn Disabled!**")
 
@@ -314,9 +535,13 @@ async def toggle_spawn_command(client: Client, message: Message):
 #  Message Tracker
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.group & ~filters.bot & ~filters.service & ~filters.command(["smash", "waifu", "sp"]), group=5)
+@Client.on_message(filters.group & ~filters.bot & ~filters.service, group=5)
 async def track_group_messages(client: Client, message: Message):
     if not message.from_user:
+        return
+    
+    # Skip commands
+    if message.text and message.text.startswith(("/", "!", ".")):
         return
     
     chat_id = message.chat.id
@@ -335,11 +560,6 @@ async def track_group_messages(client: Client, message: Message):
     
     group_activity[chat_id]["messages"] += 1
     group_activity[chat_id]["users"].add(user_id)
-    
-    msg_count = group_activity[chat_id]["messages"]
-    if msg_count % 10 == 0:
-        user_count = len(group_activity[chat_id]["users"])
-        print(f"📊 [AUTO-SPAWN] Chat {chat_id}: {msg_count} msgs, {user_count} users")
     
     spawn, reason = should_spawn(chat_id)
     
@@ -377,24 +597,20 @@ async def spawn_waifu_in_group(client: Client, chat):
     
     rarity = waifu.get("rarity", "common")
     win_chance = WIN_CHANCES.get(rarity, 50)
+    activity_level = get_activity_level(message_count)
     
-    # Generate unique spawn ID
-    spawn_id = f"{chat_id}_{int(time.time())}"
+    # Create unique spawn ID using timestamp
+    spawn_time = int(time.time())
     
-    # Store spawn data
+    # Store spawn data - use simple structure
     active_spawns[chat_id] = {
-        "spawn_id": spawn_id,
         "waifu": waifu,
-        "spawned_at": time.time(),
-        "message_count": message_count,
+        "waifu_id": waifu.get("id"),
+        "spawned_at": spawn_time,
         "message_id": None,
-        "claimed": False
+        "claimed_by": None,  # Track who clicked
+        "processed": False   # Track if already processed
     }
-    
-    # Initialize spawn claim tracker
-    if chat_id not in spawn_claims:
-        spawn_claims[chat_id] = {}
-    spawn_claims[chat_id][spawn_id] = None  # No one claimed yet
     
     # Reset activity
     group_activity[chat_id] = {
@@ -403,42 +619,20 @@ async def spawn_waifu_in_group(client: Client, chat):
         "last_spawn": time.time()
     }
     
-    rarity_emoji = wm.get_rarity_emoji(rarity)
+    # Get sexy caption
+    text = get_spawn_caption(waifu, activity_level, win_chance)
     
-    if message_count >= RARITY_THRESHOLDS["legendary"]:
-        activity_msg = "🔥 **LEGENDARY ACTIVITY!**"
-    elif message_count >= RARITY_THRESHOLDS["epic"]:
-        activity_msg = "⚡ **HIGH ACTIVITY!**"
-    elif message_count >= RARITY_THRESHOLDS["rare"]:
-        activity_msg = "✨ **GOOD ACTIVITY!**"
-    else:
-        activity_msg = "💫 **A wild waifu appeared!**"
-    
-    text = f"""
-{activity_msg}
-
-{rarity_emoji} **{waifu.get('name', 'Unknown')}**
-
-📺 **Anime:** {waifu.get('anime', 'Unknown')}
-💎 **Rarity:** {rarity.title()}
-⚔️ **Power:** {waifu.get('power', 0)}
-🎯 **Catch Rate:** {win_chance}%
-
-⚡ **First to click SMASH gets to try!**
-⚠️ Not guaranteed - you might get rejected!
-⏰ Expires in 40 seconds!
-"""
-    
+    # Simple callback data - just chat_id and waifu_id
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
-                "💥 SMASH!", 
-                callback_data=f"gcatch_{chat_id}_{waifu['id']}_{spawn_id}"
+                "💥 SMASH HER!", 
+                callback_data=f"gsmash:{chat_id}:{waifu.get('id')}"
             )
         ]
     ])
     
-    image_url = waifu.get("image")
+    image_url = waifu.get("image") or waifu.get("file_id")
     
     try:
         if image_url:
@@ -457,12 +651,10 @@ async def spawn_waifu_in_group(client: Client, chat):
         
         active_spawns[chat_id]["message_id"] = sent_msg.id
         
-        print(f"✅ [AUTO-SPAWN] Spawned: {waifu.get('name')} ({rarity}) - {win_chance}% catch rate")
+        print(f"✅ [AUTO-SPAWN] Spawned: {waifu.get('name')} ({rarity}) - {win_chance}%")
         
-        # Fixed 40 second expiry
-        asyncio.create_task(
-            check_spawn_expiry(client, chat_id, sent_msg.id, spawn_id, 40)
-        )
+        # 40 second expiry
+        asyncio.create_task(check_spawn_expiry(client, chat_id, spawn_time))
         
     except Exception as e:
         print(f"❌ [AUTO-SPAWN] Send error: {e}")
@@ -471,228 +663,248 @@ async def spawn_waifu_in_group(client: Client, chat):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Expiry Handler - Delete after 40 seconds
+#  Expiry Handler
 # ═══════════════════════════════════════════════════════════════════
 
-async def check_spawn_expiry(client: Client, chat_id: int, message_id: int, spawn_id: str, expiry_time: int):
-    await asyncio.sleep(expiry_time)
+async def check_spawn_expiry(client: Client, chat_id: int, spawn_time: int):
+    """Check and handle spawn expiry after 40 seconds"""
+    await asyncio.sleep(40)
     
+    # Check if spawn still exists and wasn't claimed
     if chat_id not in active_spawns:
         return
     
     spawn_data = active_spawns.get(chat_id, {})
     
-    # Check if it's the same spawn
-    if spawn_data.get("spawn_id") != spawn_id:
+    # Check if it's the same spawn (using spawn time)
+    if spawn_data.get("spawned_at") != spawn_time:
         return
     
-    # Check if already claimed
-    if spawn_data.get("claimed", False):
+    # Check if already processed
+    if spawn_data.get("processed", False):
         return
     
     waifu = spawn_data.get("waifu", {})
+    message_id = spawn_data.get("message_id")
     
     # Clean up
     del active_spawns[chat_id]
     
-    if chat_id in spawn_claims and spawn_id in spawn_claims[chat_id]:
-        del spawn_claims[chat_id][spawn_id]
-    
     print(f"⏰ [AUTO-SPAWN] Expired: {waifu.get('name')} in {chat_id}")
     
-    # Delete the message
+    # Try to edit message with expired text, then delete
     try:
+        expired_text = get_expired_caption(waifu)
+        
+        await client.edit_message_caption(
+            chat_id=chat_id,
+            message_id=message_id,
+            caption=expired_text,
+            reply_markup=None
+        )
+        
+        # Delete after 3 seconds
+        await asyncio.sleep(3)
         await client.delete_messages(chat_id, message_id)
-        print(f"🗑️ [AUTO-SPAWN] Deleted expired spawn message")
+        
     except Exception as e:
-        print(f"⚠️ [AUTO-SPAWN] Could not delete message: {e}")
+        print(f"⚠️ [AUTO-SPAWN] Expiry handling error: {e}")
+        try:
+            await client.delete_messages(chat_id, message_id)
+        except:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Catch Callback - Single Attempt Only
+#  🔥 CATCH CALLBACK - FIXED!
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_callback_query(filters.regex(r"^gcatch_(-?\d+)_(\d+)_(.+)$"))
+@Client.on_callback_query(filters.regex(r"^gsmash:"))
 async def group_catch_callback(client: Client, callback: CallbackQuery):
     """Handle group catch - ONE attempt only!"""
     
-    data = callback.data.split("_")
-    chat_id = int(data[1])
-    waifu_id = int(data[2])
-    spawn_id = data[3]
+    print(f"💥 [GSMASH] Callback received: {callback.data}")
+    
+    try:
+        # Parse callback data: gsmash:chat_id:waifu_id
+        parts = callback.data.split(":")
+        if len(parts) != 3:
+            await callback.answer("❌ Invalid data!", show_alert=True)
+            return
+        
+        chat_id = int(parts[1])
+        waifu_id = int(parts[2])
+        
+    except (ValueError, IndexError) as e:
+        print(f"❌ [GSMASH] Parse error: {e}")
+        await callback.answer("❌ Error processing!", show_alert=True)
+        return
     
     user = callback.from_user
+    
+    print(f"🎯 [GSMASH] User {user.first_name} trying for waifu {waifu_id} in chat {chat_id}")
     
     # Check if spawn still active
     if chat_id not in active_spawns:
         await callback.answer(
-            "❌ Too late! This waifu is gone!", 
+            "❌ Too late! This baddie already left! 💨", 
             show_alert=True
         )
         return
     
     spawn_data = active_spawns[chat_id]
     
-    # Verify spawn ID
-    if spawn_data.get("spawn_id") != spawn_id:
-        await callback.answer("❌ Invalid spawn!", show_alert=True)
+    # Verify waifu ID matches
+    if spawn_data.get("waifu_id") != waifu_id:
+        await callback.answer("❌ Wrong waifu! Try again!", show_alert=True)
         return
     
-    waifu = spawn_data["waifu"]
-    
-    if waifu.get("id") != waifu_id:
-        await callback.answer("❌ Invalid waifu!", show_alert=True)
-        return
-    
-    # Check if already claimed
-    if spawn_data.get("claimed", False):
+    # Check if already claimed by someone
+    if spawn_data.get("claimed_by") is not None:
         await callback.answer(
-            "❌ Too late! Someone already tried!", 
+            "❌ Someone already clicked! Wait for next spawn! 😤", 
             show_alert=True
         )
         return
     
-    # Check if someone already clicked
-    if chat_id in spawn_claims and spawn_id in spawn_claims[chat_id]:
-        if spawn_claims[chat_id][spawn_id] is not None:
-            await callback.answer(
-                "❌ Someone already clicked! Wait for next spawn!", 
-                show_alert=True
-            )
-            return
+    # Check if already processed
+    if spawn_data.get("processed", False):
+        await callback.answer(
+            "❌ This spawn already ended!", 
+            show_alert=True
+        )
+        return
     
-    # Mark as claimed by this user
-    spawn_data["claimed"] = True
-    spawn_claims[chat_id][spawn_id] = user.id
+    # CLAIM IT! Mark as claimed
+    spawn_data["claimed_by"] = user.id
+    spawn_data["processed"] = True
     
-    wm = get_waifu_manager()
+    waifu = spawn_data["waifu"]
+    
+    print(f"✅ [GSMASH] Claimed by {user.first_name}!")
+    
+    # Get waifu manager for rarity emoji
+    try:
+        wm = get_waifu_manager()
+    except:
+        wm = None
+    
     rarity = waifu.get("rarity", "common")
     win_chance = WIN_CHANCES.get(rarity, 50)
+    
+    # Show catching animation
+    catching_text = get_catching_caption(waifu.get('name', 'Unknown'), user.first_name)
+    
+    try:
+        if callback.message.photo:
+            await callback.message.edit_caption(caption=catching_text, reply_markup=None)
+        else:
+            await callback.message.edit_text(text=catching_text, reply_markup=None)
+    except Exception as e:
+        print(f"⚠️ [GSMASH] Edit error: {e}")
+    
+    # Quick answer to show progress
+    await callback.answer("💥 Shooting your shot... 😏", show_alert=False)
+    
+    # Dramatic pause
+    await asyncio.sleep(2)
     
     # Calculate win/lose
     is_win = calculate_win(win_chance)
     
-    print(f"🎲 [GCATCH] {user.first_name} tried for {waifu.get('name')} - {win_chance}% - {'WIN' if is_win else 'LOSE'}")
+    print(f"🎲 [GSMASH] {user.first_name} - {win_chance}% chance - {'WIN' if is_win else 'LOSE'}")
     
     # Remove from active spawns
-    del active_spawns[chat_id]
+    if chat_id in active_spawns:
+        del active_spawns[chat_id]
     
     if is_win:
         # ═══════════════════════════════════════════
-        #  USER WINS!
+        #  USER WINS! 🎉
         # ═══════════════════════════════════════════
         
-        # Add to database
+        # Database operations
         try:
             db.get_or_create_user(user.id, user.username, user.first_name)
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ [GSMASH] User create error: {e}")
         
         try:
             db.add_waifu_to_collection(user.id, waifu)
-        except:
-            pass
+            print(f"✅ [GSMASH] Added {waifu.get('name')} to {user.first_name}'s collection")
+        except Exception as e:
+            print(f"⚠️ [GSMASH] Collection error: {e}")
         
+        # Coins based on rarity
         coins_reward = {
             "common": 15,
-            "rare": 35,
-            "epic": 75,
-            "legendary": 150
+            "rare": 50,
+            "epic": 100,
+            "legendary": 200
         }.get(rarity, 15)
         
         try:
             db.add_coins(user.id, coins_reward)
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ [GSMASH] Coins error: {e}")
         
         try:
             db.increment_user_stats(user.id, "total_wins")
             db.increment_user_stats(user.id, "total_smash")
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ [GSMASH] Stats error: {e}")
         
-        rarity_emoji = wm.get_rarity_emoji(rarity)
-        
-        text = f"""
-🎉 **CAUGHT!**
-
-{rarity_emoji} **{waifu.get('name')}** was caught by **{user.first_name}**! 🏆
-
-📺 Anime: {waifu.get('anime')}
-💎 Rarity: {rarity.title()}
-⚔️ Power: {waifu.get('power')}
-💰 Coins: +{coins_reward}
-
-Congratulations! 🎊
-"""
+        # Get sexy win caption
+        text = get_win_spawn_caption(waifu, user.first_name, coins_reward)
         
         try:
             if callback.message.photo:
                 await callback.message.edit_caption(caption=text, reply_markup=None)
             else:
                 await callback.message.edit_text(text=text, reply_markup=None)
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ [GSMASH] Final edit error: {e}")
         
-        await callback.answer(
-            f"🎉 You caught {waifu.get('name')}! +{coins_reward} coins", 
-            show_alert=True
-        )
+        # Victory popup
+        win_popups = [
+            f"🔥 SHE'S YOURS! {waifu.get('name')} is down bad!",
+            f"💋 CAUGHT! {waifu.get('name')} joined your harem!",
+            f"😈 W RIZZ! +{coins_reward} coins!",
+            f"✨ BADDIE SECURED! GG!",
+        ]
+        await callback.answer(random.choice(win_popups), show_alert=True)
         
     else:
         # ═══════════════════════════════════════════
-        #  USER LOSES - No more attempts!
+        #  USER LOSES! 💔
         # ═══════════════════════════════════════════
         
-        # Update stats
         try:
             db.get_or_create_user(user.id, user.username, user.first_name)
             db.increment_user_stats(user.id, "total_losses")
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ [GSMASH] Loss stats error: {e}")
         
-        rarity_emoji = wm.get_rarity_emoji(rarity)
-        
-        text = f"""
-💔 **REJECTED!**
-
-{user.first_name} tried to catch **{waifu.get('name')}** but got rejected!
-
-{rarity_emoji} **{waifu.get('name')}** escaped!
-
-📺 Anime: {waifu.get('anime')}
-💎 Rarity: {rarity.title()}
-🎯 Catch Rate was: {win_chance}%
-
-Better luck next time! 😢
-"""
+        # Get rejection caption
+        text = get_lose_spawn_caption(waifu, user.first_name, win_chance)
         
         try:
             if callback.message.photo:
                 await callback.message.edit_caption(caption=text, reply_markup=None)
             else:
                 await callback.message.edit_text(text=text, reply_markup=None)
-        except:
-            pass
+        except Exception as e:
+            print(f"⚠️ [GSMASH] Final edit error: {e}")
         
-        # Random rejection messages
-        rejection_msgs = [
-            f"💔 {waifu.get('name')} rejected you!",
-            f"😢 Not this time! {waifu.get('name')} escaped!",
-            f"❌ So close! But {waifu.get('name')} got away!",
-            f"💨 {waifu.get('name')} dodged and ran away!",
-            f"😅 Better luck next time!",
-            f"🏃 {waifu.get('name')} said no and left!"
+        # Rejection popups
+        lose_popups = [
+            f"💔 REJECTED! {waifu.get('name')} said no!",
+            f"💀 NO RIZZ! She curved you hard!",
+            f"😭 L + Ratio! Better luck next time!",
+            f"🚫 She said EW and left!",
+            f"📉 Your rizz wasn't enough today!",
         ]
-        
-        await callback.answer(
-            random.choice(rejection_msgs), 
-            show_alert=True
-        )
-    
-    # Clean up spawn claims
-    if chat_id in spawn_claims and spawn_id in spawn_claims[chat_id]:
-        del spawn_claims[chat_id][spawn_id]
+        await callback.answer(random.choice(lose_popups), show_alert=True)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -708,14 +920,27 @@ async def force_spawn_command(client: Client, message: Message):
     owner_id = getattr(config, 'OWNER_ID', 0)
     
     if not is_admin and user.id != owner_id:
-        await message.reply_text("❌ Only admins can use this command!")
+        await message.reply_text("❌ Only admins can force spawn!")
         return
     
     if chat_id in active_spawns:
-        await message.reply_text("⚠️ A waifu is already active! Wait for it to expire!")
+        await message.reply_text("⚠️ A baddie is already active! Wait for her to leave!")
         return
     
+    # Initialize activity if needed
+    if chat_id not in group_activity:
+        group_activity[chat_id] = {
+            "messages": 50,  # Give good activity for force spawn
+            "users": set(),
+            "last_spawn": 0
+        }
+    
     await spawn_waifu_in_group(client, message.chat)
+    
+    try:
+        await message.delete()
+    except:
+        pass
 
 
 @Client.on_message(filters.command(["spawnstats", "sstats"]) & filters.group)
@@ -741,26 +966,27 @@ async def spawn_stats_command(client: Client, message: Message):
     else:
         spawn_chance = 0
     
-    predicted_rarity = get_rarity_by_activity(msg_count)
+    activity_level = get_activity_level(msg_count)
     
-    # Check if there's active spawn
+    # Active spawn info
     active_info = ""
     if chat_id in active_spawns:
         spawn = active_spawns[chat_id]
         waifu = spawn.get("waifu", {})
-        claimed = "❌ Already claimed" if spawn.get("claimed") else "✅ Available"
-        active_info = f"\n\n🎯 **Active Spawn:**\n• {waifu.get('name')} ({waifu.get('rarity')})\n• Status: {claimed}"
+        claimed = spawn.get("claimed_by")
+        status = "❌ Claimed" if claimed else "✅ Available"
+        active_info = f"\n\n🎯 **Active Spawn:**\n• {waifu.get('name')} ({waifu.get('rarity')})\n• Status: {status}"
     
     text = f"""
-📊 **Spawn Statistics**
+📊 **Spawn Stats**
 
-💬 Messages: {msg_count}/{settings['max_messages']}
-👥 Unique Users: {user_count}/{settings['min_users']}
-⏰ Last Spawn: {last_spawn_text}
-🎯 Spawn Chance: {spawn_chance}%
-💎 Likely Rarity: {predicted_rarity.title()}{active_info}
+💬 Messages: `{msg_count}/{settings['max_messages']}`
+👥 Users: `{user_count}/{settings['min_users']}`
+⏰ Last Spawn: `{last_spawn_text}`
+🎯 Spawn Chance: `{spawn_chance}%`
+🔥 Activity: `{activity_level.title()}`{active_info}
 
-⚡ Remember: First click only!
+⚡ Keep chatting for more spawns!
 """
     
     await message.reply_text(text)
@@ -771,7 +997,9 @@ async def reset_spawn_command(client: Client, message: Message):
     user = message.from_user
     owner_id = getattr(config, 'OWNER_ID', 0)
     
-    if user.id != owner_id:
+    is_admin = await is_group_admin(client, message.chat.id, user.id)
+    
+    if not is_admin and user.id != owner_id:
         return
     
     chat_id = message.chat.id
@@ -782,7 +1010,4 @@ async def reset_spawn_command(client: Client, message: Message):
     if chat_id in active_spawns:
         del active_spawns[chat_id]
     
-    if chat_id in spawn_claims:
-        del spawn_claims[chat_id]
-    
-    await message.reply_text("✅ Spawn activity reset!")
+    await message.reply_text("✅ Spawn data reset! Fresh start! 🔥")
