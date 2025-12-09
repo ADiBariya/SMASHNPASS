@@ -11,7 +11,9 @@ from pyrogram.types import (
 )
 from database import db
 from helpers import get_waifu_manager, Utils
+from config import COMMAND_PREFIX
 import config
+
 
 # Module info
 __MODULE__ = "Smash"
