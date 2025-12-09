@@ -1,3 +1,4 @@
+
 # modules/shop.py - Shop System (FIXED with Custom Rarity Points)
 
 from pyrogram import Client, filters
