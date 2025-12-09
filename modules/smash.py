@@ -1,4 +1,4 @@
-# modules/smash.py - Main Game Module with Anti-Spam & Progress Bar
+# modules/smash.py - Main Game Module with Sexy Captions & Progress Bar
 
 import random
 import asyncio
@@ -34,15 +34,243 @@ __HELP__ = """
 # Store active games {user_id: waifu_data}
 active_games = {}
 
-# Track recently shown waifus per user (to avoid repeats)
-# {user_id: [last 10 waifu ids]}
+# Track recently shown waifus per user
 recent_waifus = {}
 
-# Auto-delete settings per group {chat_id: seconds}
+# Auto-delete settings per group
 auto_delete_settings = {}
 
-# Default auto-delete time (0 = disabled)
 DEFAULT_AUTO_DELETE = 30
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  🔥 SEXY CAPTION GENERATORS
+# ═══════════════════════════════════════════════════════════════════
+
+def get_smash_loading_caption(waifu_name: str) -> str:
+    """Get sexy loading caption"""
+    captions = [
+        f"💥 **SMASHING YOUR BADDIE...**\n\n"
+        f"Getting close to **{waifu_name}**... 😏🔥",
+        
+        f"🔥 **MAKING MOVES...**\n\n"
+        f"Shooting your shot at **{waifu_name}**... 💋",
+        
+        f"💋 **RIZZING UP...**\n\n"
+        f"Working your magic on **{waifu_name}**... ✨",
+        
+        f"😈 **SLIDING INTO DMs...**\n\n"
+        f"Charming **{waifu_name}**... 💕",
+        
+        f"🌹 **SMOOTH OPERATOR...**\n\n"
+        f"Wooing **{waifu_name}** with your charm... 😘",
+        
+        f"💫 **MAIN CHARACTER MOMENT...**\n\n"
+        f"Making **{waifu_name}** fall for you... 🦋",
+    ]
+    return random.choice(captions)
+
+
+def get_win_caption(waifu: dict, coins: int) -> str:
+    """Get sexy win caption"""
+    name = waifu.get('name', 'Unknown')
+    anime = waifu.get('anime', 'Unknown')
+    rarity = waifu.get('rarity', 'common').title()
+    power = waifu.get('power', 0)
+    
+    win_headers = [
+        f"🔥 **SHE'S ALL YOURS NOW!**",
+        f"💋 **YOU SMASHED IT!**",
+        f"😈 **BADDIE ACQUIRED!**",
+        f"💕 **SHE SAID YES!**",
+        f"🎉 **RIZZ GOD ENERGY!**",
+        f"✨ **SMOOTH CRIMINAL!**",
+        f"💥 **SMASH SUCCESSFUL!**",
+        f"🦋 **SHE FELL FOR YOU!**",
+    ]
+    
+    win_messages = [
+        f"**{name}** couldn't resist your charm! 😏",
+        f"**{name}** is now your waifu! No cap! 🔥",
+        f"**{name}** joined your collection, king! 👑",
+        f"**{name}** said \"take me home\"! 💋",
+        f"You pulled **{name}** with that rizz! 😎",
+        f"**{name}** is down bad for you now! 💕",
+        f"**{name}** got swept off her feet! ✨",
+        f"Main character moment with **{name}**! 🌟",
+    ]
+    
+    header = random.choice(win_headers)
+    message = random.choice(win_messages)
+    
+    return f"""
+{header}
+
+{message}
+
+┏━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 📺 **Anime:** {anime}
+┃ 💎 **Rarity:** {rarity}
+┃ ⚔️ **Power:** {power}
+┃ 💰 **Coins:** +{coins}
+┗━━━━━━━━━━━━━━━━━━━━━━┛
+
+Use /collection to see your baddies! 😈
+"""
+
+
+def get_lose_caption(waifu: dict) -> str:
+    """Get rejection caption"""
+    name = waifu.get('name', 'Unknown')
+    
+    lose_headers = [
+        f"💔 **REJECTED!**",
+        f"😭 **SHE CURVED YOU!**",
+        f"💀 **NO RIZZ DETECTED!**",
+        f"😬 **FRIENDZONED!**",
+        f"🚫 **BLOCKED & REPORTED!**",
+        f"📉 **RIZZ FAILED!**",
+        f"😢 **LEFT ON READ!**",
+        f"🥶 **COLD SHOULDER!**",
+    ]
+    
+    lose_messages = [
+        f"**{name}** said \"ew, no thanks\" 💀",
+        f"**{name}** left you on seen... 📱",
+        f"**{name}** chose violence today 😤",
+        f"**{name}** activated airplane mode ✈️",
+        f"**{name}** said you're not her type 🙅‍♀️",
+        f"**{name}** ran away screaming 🏃‍♀️",
+        f"**{name}** called security on you 👮",
+        f"**{name}** pretended she didn't see you 👀",
+    ]
+    
+    tips = [
+        "Maybe try being less down bad? 🤔",
+        "Legendary waifus have high standards! 👑",
+        "Your rizz needs work, bro 💪",
+        "Keep grinding, king! 🔥",
+        "Not every baddie can be yours 😤",
+        "L today, W tomorrow! 📈",
+        "Practice makes perfect! ✨",
+        "The grind never stops! 💯",
+    ]
+    
+    header = random.choice(lose_headers)
+    message = random.choice(lose_messages)
+    tip = random.choice(tips)
+    
+    return f"""
+{header}
+
+{message}
+
+**Tip:** {tip}
+"""
+
+
+def get_waifu_intro_caption(waifu: dict, is_passed: bool = False) -> str:
+    """Get intro caption for waifu"""
+    name = waifu.get('name', 'Unknown')
+    anime = waifu.get('anime', 'Unknown')
+    rarity = waifu.get('rarity', 'common').title()
+    power = waifu.get('power', 0)
+    
+    # Get rarity emoji
+    rarity_emojis = {
+        "common": "⚪",
+        "rare": "🔵", 
+        "epic": "🟣",
+        "legendary": "🟡"
+    }
+    rarity_emoji = rarity_emojis.get(waifu.get('rarity', 'common'), "⚪")
+    
+    if is_passed:
+        headers = [
+            "👋 **Passed! Here's another baddie:**",
+            "👀 **Next one up:**",
+            "🔄 **Alright, check this one:**",
+            "✨ **New challenger appeared:**",
+            "🎲 **Rolling again... look who showed up:**",
+        ]
+        header = random.choice(headers)
+    else:
+        headers = [
+            "🔥 **A wild baddie appeared!**",
+            "✨ **Look who showed up!**",
+            "👀 **Ayo check this one out:**",
+            "💫 **New waifu alert!**",
+            "😳 **She's looking at you:**",
+            "🎯 **Target acquired:**",
+        ]
+        header = random.choice(headers)
+    
+    flirt_lines = [
+        "She's waiting for your move... 😏",
+        "What's it gonna be, chief? 🤔",
+        "You feeling lucky, punk? 🎰",
+        "Do you have what it takes? 💪",
+        "She's kinda bad tho... 👀",
+        "Your call, player 🎮",
+        "Smash or pass, no cap 🧢",
+        "The choice is yours 🔥",
+    ]
+    
+    return f"""
+{header}
+
+{rarity_emoji} **{name}**
+
+┏━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 📺 **Anime:** {anime}
+┃ 💎 **Rarity:** {rarity}
+┃ ⚔️ **Power:** {power}
+┗━━━━━━━━━━━━━━━━━━━━━━┛
+
+{random.choice(flirt_lines)}
+"""
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  🔥 SEXY PROGRESS BAR
+# ═══════════════════════════════════════════════════════════════════
+
+async def show_progress_bar(callback: CallbackQuery, waifu_name: str, is_win: bool):
+    """Show sexy progress bar animation"""
+    
+    progress_stages = [
+        "💋 Shooting your shot...\n▱▱▱▱▱▱▱▱▱▱ 0%",
+        "😏 Getting closer...\n▰▰▱▱▱▱▱▱▱▱ 20%",
+        "🔥 She's looking...\n▰▰▰▰▱▱▱▱▱▱ 40%",
+        "💕 Making eye contact...\n▰▰▰▰▰▰▱▱▱▱ 60%",
+        "😈 Going in for it...\n▰▰▰▰▰▰▰▰▱▱ 80%",
+        "💥 SMASHING...\n▰▰▰▰▰▰▰▰▰▰ 100%",
+    ]
+    
+    for stage in progress_stages:
+        try:
+            await callback.answer(stage, show_alert=False)
+            await asyncio.sleep(0.4)
+        except:
+            pass
+    
+    # Final result popup
+    if is_win:
+        results = [
+            f"🔥 SHE'S YOURS! {waifu_name} joined you!",
+            f"💋 SMASHED! {waifu_name} is down bad!",
+            f"😈 W RIZZ! {waifu_name} fell for you!",
+            f"✨ BADDIE GET! {waifu_name} acquired!",
+        ]
+        await callback.answer(random.choice(results), show_alert=True)
+    else:
+        rejects = [
+            f"💔 REJECTED! {waifu_name} said no way!",
+            f"💀 L + RATIO! {waifu_name} curved you!",
+            f"😭 NO RIZZ! {waifu_name} ran away!",
+            f"🚫 DENIED! {waifu_name} blocked you!",
+        ]
+        await callback.answer(random.choice(rejects), show_alert=True)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -76,14 +304,13 @@ async def auto_delete_message(message: Message, delay: int):
 
 
 def get_unique_waifu(wm, user_id: int):
-    """Get a waifu that hasn't been shown recently to this user"""
+    """Get a waifu that hasn't been shown recently"""
     
-    # Initialize recent tracking for user if needed
     if user_id not in recent_waifus:
         recent_waifus[user_id] = []
     
     recent_list = recent_waifus[user_id]
-    max_attempts = 50  # Try up to 50 times to get unique waifu
+    max_attempts = 50
     
     for _ in range(max_attempts):
         waifu = wm.get_random_waifu()
@@ -92,46 +319,13 @@ def get_unique_waifu(wm, user_id: int):
         
         waifu_id = waifu.get("id")
         
-        # If waifu not in recent list, use it
         if waifu_id not in recent_list:
-            # Add to recent list
             recent_list.append(waifu_id)
-            
-            # Keep only last 10 waifus in memory
             if len(recent_list) > 10:
                 recent_list.pop(0)
-            
             return waifu
     
-    # If couldn't find unique after many attempts, just return any
     return wm.get_random_waifu()
-
-
-async def show_progress_bar(callback: CallbackQuery, waifu_name: str, is_win: bool):
-    """Show progress bar animation while smashing"""
-    
-    progress_stages = [
-        "💥 Smashing...\n▱▱▱▱▱",
-        "💥 Smashing...\n▰▱▱▱▱",
-        "💥 Smashing...\n▰▰▱▱▱",
-        "💥 Smashing...\n▰▰▰▱▱",
-        "💥 Smashing...\n▰▰▰▰▱",
-        "💥 Smashing...\n▰▰▰▰▰"
-    ]
-    
-    # Show progress animation
-    for stage in progress_stages:
-        try:
-            await callback.answer(stage, show_alert=False)
-            await asyncio.sleep(0.3)
-        except:
-            pass
-    
-    # Final result
-    if is_win:
-        await callback.answer(f"🎉 Success! You caught {waifu_name}!", show_alert=True)
-    else:
-        await callback.answer(f"💔 Failed! {waifu_name} rejected you!", show_alert=True)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -145,23 +339,21 @@ async def set_auto_delete(client: Client, message: Message):
     user = message.from_user
     chat_id = message.chat.id
     
-    # Check admin
     is_admin = await is_group_admin(client, chat_id, user.id)
     owner_id = getattr(config, 'OWNER_ID', 0)
     
     if not is_admin and user.id != owner_id:
-        await message.reply_text("❌ Only admins can change auto-delete settings!")
+        await message.reply_text("❌ Only admins can change this!")
         return
     
     args = message.text.split()[1:]
     
     if not args:
         await message.reply_text(
-            "**Usage:**\n"
+            "**🗑️ Auto-Delete Settings**\n\n"
             "`/autodel <seconds>` - Set time (10-300)\n"
-            "`/autodel off` - Disable auto-delete\n\n"
-            "**Example:**\n"
-            "`/autodel 30` - Delete after 30 seconds"
+            "`/autodel off` - Disable\n\n"
+            "**Example:** `/autodel 30`"
         )
         return
     
@@ -169,28 +361,21 @@ async def set_auto_delete(client: Client, message: Message):
     
     if value in ["off", "disable", "0"]:
         auto_delete_settings[chat_id] = 0
-        await message.reply_text(
-            "✅ **Auto-Delete Disabled!**\n\n"
-            "Smash results will not be deleted automatically."
-        )
+        await message.reply_text("✅ Auto-Delete disabled!")
         return
     
     try:
         seconds = int(value)
     except ValueError:
-        await message.reply_text("❌ Please enter a valid number!")
+        await message.reply_text("❌ Enter a valid number!")
         return
     
     if seconds < 10 or seconds > 300:
-        await message.reply_text("❌ Value must be between 10 and 300 seconds!")
+        await message.reply_text("❌ Must be between 10-300 seconds!")
         return
     
     auto_delete_settings[chat_id] = seconds
-    
-    await message.reply_text(
-        f"✅ **Auto-Delete Set!**\n\n"
-        f"Smash results will be deleted after **{seconds} seconds**."
-    )
+    await message.reply_text(f"✅ Auto-Delete set to **{seconds}s**!")
 
 
 @Client.on_message(filters.command(["autodelstatus", "delstatus"]) & filters.group)
@@ -201,11 +386,11 @@ async def auto_delete_status(client: Client, message: Message):
     current = get_auto_delete_time(chat_id)
     
     if current > 0:
-        status = f"✅ Enabled - **{current} seconds**"
+        status = f"✅ **{current} seconds**"
     else:
         status = "❌ Disabled"
     
-    await message.reply_text(f"🗑️ **Auto-Delete Status:** {status}")
+    await message.reply_text(f"🗑️ Auto-Delete: {status}")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -226,7 +411,6 @@ async def smash_command(client: Client, message: Message):
         await message.reply_text(f"❌ Error loading waifus: {e}")
         return
     
-    # Get or create user
     try:
         db.get_or_create_user(user.id, user.username, user.first_name)
     except Exception as e:
@@ -237,43 +421,28 @@ async def smash_command(client: Client, message: Message):
         on_cooldown, remaining = db.check_cooldown(user.id, "smash")
         if on_cooldown:
             await message.reply_text(
-                f"⏳ **Cooldown!**\n\n"
-                f"Please wait **{Utils.format_time(remaining)}** before playing again!"
+                f"⏳ **Chill bro!**\n\n"
+                f"Wait **{Utils.format_time(remaining)}** before hunting again! 🔥"
             )
             return
     except Exception as e:
         print(f"⚠️ [SMASH] Cooldown error: {e}")
     
-    # Get unique waifu (avoid recent repeats)
     waifu = get_unique_waifu(wm, user.id)
     
     print(f"🎲 [SMASH] Got waifu: {waifu.get('name') if waifu else 'None'}")
     
     if not waifu:
         await message.reply_text(
-            "❌ **No waifus available!**\n\n"
-            "Admin needs to add waifus in the database channel."
+            "❌ **No baddies available!**\n\n"
+            "Admin needs to add waifus first! 😢"
         )
         return
     
-    # Store active game
     active_games[user.id] = waifu
     
-    # Format waifu card
-    rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
-    rarity = waifu.get("rarity", "common").title()
-    
-    text = f"""
-{rarity_emoji} **{waifu.get('name', 'Unknown')}**
-
-📺 **Anime:** {waifu.get('anime', 'Unknown')}
-💎 **Rarity:** {rarity}
-⚔️ **Power:** {waifu.get('power', 0)}
-
-**What will you do?**
-💥 Smash = Try to win her!
-👋 Pass = Skip to next waifu
-"""
+    # Use sexy caption
+    text = get_waifu_intro_caption(waifu, is_passed=False)
     
     buttons = InlineKeyboardMarkup([
         [
@@ -282,7 +451,6 @@ async def smash_command(client: Client, message: Message):
         ]
     ])
     
-    # Send with image if available
     image_url = waifu.get("image") or waifu.get("file_id")
     
     try:
@@ -300,12 +468,12 @@ async def smash_command(client: Client, message: Message):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Smash Button Callback with Progress Bar
+#  Smash Button Callback
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex(r"^smash_(\d+)_(\d+)$"))
 async def smash_callback(client: Client, callback: CallbackQuery):
-    """Handle smash button click with progress animation"""
+    """Handle smash button with sexy animations"""
     
     print(f"💥 [SMASH] Callback: {callback.data}")
     
@@ -313,31 +481,28 @@ async def smash_callback(client: Client, callback: CallbackQuery):
     game_user_id = int(data[1])
     waifu_id = int(data[2])
     
-    # Check if correct user
     if callback.from_user.id != game_user_id:
-        await callback.answer("❌ This is not your game!", show_alert=True)
+        await callback.answer("❌ Get your own baddie!", show_alert=True)
         return
     
     user = callback.from_user
     chat_id = callback.message.chat.id
     wm = get_waifu_manager()
     
-    # Get waifu from active games
     if user.id not in active_games:
-        await callback.answer("❌ Game expired! Use /smash again.", show_alert=True)
+        await callback.answer("❌ Game expired! Use /smash", show_alert=True)
         return
     
     waifu = active_games.pop(user.id)
     
     if waifu.get("id") != waifu_id:
-        await callback.answer("❌ Invalid game! Use /smash again.", show_alert=True)
+        await callback.answer("❌ Invalid game!", show_alert=True)
         return
     
-    # Calculate win/lose FIRST (before showing progress)
+    # Calculate win
     win_chance = getattr(config, 'WIN_CHANCE', 60)
-    
-    # Rarity affects win chance
     rarity = waifu.get("rarity", "common")
+    
     if rarity == "legendary":
         win_chance -= 20
     elif rarity == "epic":
@@ -347,32 +512,27 @@ async def smash_callback(client: Client, callback: CallbackQuery):
     
     is_win = Utils.calculate_win(win_chance)
     
-    # Show progress bar animation
+    # Start progress animation
     asyncio.create_task(show_progress_bar(callback, waifu.get('name', 'Unknown'), is_win))
     
-    # Show "Smashing..." status while processing
-    processing_text = f"""
-💥 **SMASHING...**
-
-Processing your attempt for **{waifu.get('name')}**...
-"""
+    # Show sexy loading caption
+    loading_text = get_smash_loading_caption(waifu.get('name', 'Unknown'))
     
     try:
         if callback.message.photo:
-            await callback.message.edit_caption(caption=processing_text, reply_markup=None)
+            await callback.message.edit_caption(caption=loading_text, reply_markup=None)
         else:
-            await callback.message.edit_text(text=processing_text, reply_markup=None)
+            await callback.message.edit_text(text=loading_text, reply_markup=None)
     except:
         pass
     
-    # Wait a bit for dramatic effect
-    await asyncio.sleep(2)
+    await asyncio.sleep(2.5)
     
     # Set cooldown
     try:
         db.set_cooldown(user.id, "smash", getattr(config, 'GAME_COOLDOWN', 30))
-    except Exception as e:
-        print(f"⚠️ [SMASH] Cooldown error: {e}")
+    except:
+        pass
     
     # Update stats
     try:
@@ -382,29 +542,22 @@ Processing your attempt for **{waifu.get('name')}**...
     
     print(f"🎲 [SMASH] Chance: {win_chance}%, Result: {'WIN' if is_win else 'LOSE'}")
     
-    rarity_emoji = wm.get_rarity_emoji(rarity)
-    
-    # Get auto-delete time
     delete_time = get_auto_delete_time(chat_id)
-    delete_notice = f"\n\n🗑️ _This message will be deleted in {delete_time}s_" if delete_time > 0 else ""
+    delete_notice = f"\n\n🗑️ _Deleting in {delete_time}s_" if delete_time > 0 else ""
     
     if is_win:
-        # User wins!
         try:
             db.increment_user_stats(user.id, "total_wins")
         except:
             pass
         
-        # FIX: Get coins based on rarity using proper method or fallback
+        # Get coins
         try:
-            # Try using rarity_points dictionary if it exists
             if hasattr(wm, 'rarity_points'):
                 coins = wm.rarity_points.get(rarity, 10)
             else:
-                # Fallback to hardcoded values matching your requirements
                 coins = {"common": 10, "rare": 100, "epic": 25, "legendary": 50}.get(rarity, 10)
         except:
-            # Ultimate fallback
             coins = {"common": 10, "rare": 100, "epic": 25, "legendary": 50}.get(rarity, 10)
         
         try:
@@ -412,48 +565,27 @@ Processing your attempt for **{waifu.get('name')}**...
         except:
             pass
         
-        # Add waifu to collection
         try:
             db.add_waifu_to_collection(user.id, waifu)
         except Exception as e:
             print(f"⚠️ [SMASH] Collection error: {e}")
         
-        text = f"""
-🎉 **SMASH SUCCESS!**
-
-{rarity_emoji} **{waifu.get('name')}** joined your collection!
-
-📺 Anime: {waifu.get('anime')}
-💎 Rarity: {rarity.title()}
-⚔️ Power: {waifu.get('power')}
-💰 Coins earned: +{coins}
-
-Use /collection to see your waifus!{delete_notice}
-"""
+        text = get_win_caption(waifu, coins) + delete_notice
         
         buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🔄 Play Again", callback_data="play_smash"),
-                InlineKeyboardButton("📦 Collection", callback_data="view_collection")
+                InlineKeyboardButton("🔥 Hunt Again", callback_data="play_smash"),
+                InlineKeyboardButton("📦 My Baddies", callback_data="view_collection")
             ]
         ])
         
     else:
-        # User loses
         try:
             db.increment_user_stats(user.id, "total_losses")
         except:
             pass
         
-        text = f"""
-💔 **SMASH FAILED!**
-
-{rarity_emoji} **{waifu.get('name')}** rejected you!
-
-Better luck next time! 😢
-
-**Tip:** Legendary waifus are harder to win!{delete_notice}
-"""
+        text = get_lose_caption(waifu) + delete_notice
         
         buttons = InlineKeyboardMarkup([
             [
@@ -475,18 +607,17 @@ Better luck next time! 😢
         except:
             pass
     
-    # Schedule auto-delete
     if result_message and delete_time > 0:
         asyncio.create_task(auto_delete_message(callback.message, delete_time))
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Pass Button Callback - Edit Message to Avoid Spam
+#  Pass Button Callback
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex(r"^pass_(\d+)_(\d+)$"))
 async def pass_callback(client: Client, callback: CallbackQuery):
-    """Handle pass button click - Edit message instead of new"""
+    """Handle pass button"""
     
     print(f"👋 [PASS] Callback: {callback.data}")
     
@@ -494,48 +625,31 @@ async def pass_callback(client: Client, callback: CallbackQuery):
     game_user_id = int(data[1])
     waifu_id = int(data[2])
     
-    # Check if correct user
     if callback.from_user.id != game_user_id:
-        await callback.answer("❌ This is not your game!", show_alert=True)
+        await callback.answer("❌ Not your game!", show_alert=True)
         return
     
     user = callback.from_user
     wm = get_waifu_manager()
     
-    # Remove from active games
     if user.id in active_games:
         active_games.pop(user.id)
     
-    # Update stats
     try:
         db.increment_user_stats(user.id, "total_pass")
     except:
         pass
     
-    # Get new unique waifu
     waifu = get_unique_waifu(wm, user.id)
     
     if not waifu:
-        await callback.answer("❌ No more waifus!", show_alert=True)
+        await callback.answer("❌ No more baddies!", show_alert=True)
         return
     
-    # Store new game
     active_games[user.id] = waifu
     
-    rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
-    rarity = waifu.get("rarity", "common").title()
-    
-    text = f"""
-👋 **Passed!** Here's another one:
-
-{rarity_emoji} **{waifu.get('name', 'Unknown')}**
-
-📺 **Anime:** {waifu.get('anime', 'Unknown')}
-💎 **Rarity:** {rarity}
-⚔️ **Power:** {waifu.get('power', 0)}
-
-**What will you do?**
-"""
+    # Sexy pass caption
+    text = get_waifu_intro_caption(waifu, is_passed=True)
     
     buttons = InlineKeyboardMarkup([
         [
@@ -546,30 +660,23 @@ async def pass_callback(client: Client, callback: CallbackQuery):
     
     image_url = waifu.get("image") or waifu.get("file_id")
     
-    # Try to edit existing message first (to avoid spam)
     try:
         if callback.message.photo:
-            # If current message has photo and new waifu also has photo
             if image_url:
                 try:
-                    # Try to edit with new photo
                     await callback.message.edit_media(
                         media=InputMediaPhoto(media=image_url, caption=text),
                         reply_markup=buttons
                     )
                 except:
-                    # If edit fails, just edit caption
                     await callback.message.edit_caption(caption=text, reply_markup=buttons)
             else:
-                # New waifu has no image, just edit caption
                 await callback.message.edit_caption(caption=text, reply_markup=buttons)
         else:
-            # Text message - just edit
             await callback.message.edit_text(text=text, reply_markup=buttons)
             
     except Exception as e:
         print(f"⚠️ [PASS] Edit failed: {e}")
-        # Only if edit fails completely, send new message
         try:
             await callback.message.delete()
             if image_url:
@@ -583,7 +690,13 @@ async def pass_callback(client: Client, callback: CallbackQuery):
         except:
             pass
     
-    await callback.answer("👋 Passed! New waifu loaded!")
+    pass_responses = [
+        "👋 Next baddie loading...",
+        "🔄 Alright, check this one!",
+        "👀 Here's another one!",
+        "✨ New challenger!",
+    ]
+    await callback.answer(random.choice(pass_responses))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -599,46 +712,31 @@ async def play_smash_callback(client: Client, callback: CallbackQuery):
     
     wm = get_waifu_manager()
     
-    # Get or create user
     try:
         db.get_or_create_user(user.id, user.username, user.first_name)
     except:
         pass
     
-    # Check cooldown
     try:
         on_cooldown, remaining = db.check_cooldown(user.id, "smash")
         if on_cooldown:
             await callback.answer(
-                f"⏳ Cooldown! Wait {Utils.format_time(remaining)}",
+                f"⏳ Chill! Wait {Utils.format_time(remaining)}",
                 show_alert=True
             )
             return
     except:
         pass
     
-    # Get unique waifu
     waifu = get_unique_waifu(wm, user.id)
     
     if not waifu:
-        await callback.answer("❌ No waifus available!", show_alert=True)
+        await callback.answer("❌ No baddies available!", show_alert=True)
         return
     
-    # Store active game
     active_games[user.id] = waifu
     
-    rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
-    rarity = waifu.get("rarity", "common").title()
-    
-    text = f"""
-{rarity_emoji} **{waifu.get('name', 'Unknown')}**
-
-📺 **Anime:** {waifu.get('anime', 'Unknown')}
-💎 **Rarity:** {rarity}
-⚔️ **Power:** {waifu.get('power', 0)}
-
-**What will you do?**
-"""
+    text = get_waifu_intro_caption(waifu, is_passed=False)
     
     buttons = InlineKeyboardMarkup([
         [
@@ -649,7 +747,6 @@ async def play_smash_callback(client: Client, callback: CallbackQuery):
     
     image_url = waifu.get("image") or waifu.get("file_id")
     
-    # Try to edit first
     try:
         if callback.message.photo:
             if image_url:
@@ -659,7 +756,6 @@ async def play_smash_callback(client: Client, callback: CallbackQuery):
         else:
             await callback.message.edit_text(text=text, reply_markup=buttons)
     except:
-        # If edit fails, delete and send new
         try:
             await callback.message.delete()
         except:
@@ -677,4 +773,10 @@ async def play_smash_callback(client: Client, callback: CallbackQuery):
         except Exception as e:
             print(f"❌ [PLAY] Error: {e}")
     
-    await callback.answer("🎮 New game started!")
+    start_responses = [
+        "🎮 Let's hunt some baddies!",
+        "🔥 New game started!",
+        "💥 Time to smash!",
+        "😈 Let's get it!",
+    ]
+    await callback.answer(random.choice(start_responses))
