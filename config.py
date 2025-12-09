@@ -3,7 +3,7 @@ import os
 # Bot Configuration - Main credentials
 API_ID = int(os.environ.get("API_ID", "22733269"))
 API_HASH = os.environ.get("API_HASH", "d1d8331e5b288c572e8bb6baa7d8f833")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7890556580:AAFesFBvv20MjoMl4pnGUUyQgnIL7DKXuyw")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "6744296768:AAE_hQJkIkJL7nl91unW2nCidDy0PcYLxH4")
 
 # Owner Configuration
 import os
@@ -42,11 +42,13 @@ SUPPORT_GROUP = "WaifusmashSupport"  # Without @
 
 
 RARITY_POINTS = {
-    "common": 10,
-    "epic": 25,
-    "legendary": 50,
-    "rare": 100
-}
+        "common": 10,
+        "epic": 25,
+        "legendary": 50,
+        "rare": 100
+    }
 
 # Plugins Path
 PLUGINS_PATH = "modules"  # Changed from "plugins" to match your main.py
+
+
