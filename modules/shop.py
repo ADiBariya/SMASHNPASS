@@ -21,11 +21,11 @@ __HELP__ = """
 `.inventory` - View your items
 
 **Available Boxes:**
-📦 Common Box - 500 coins (Common waifu)
-🟣 Epic Box - 1500 coins (Epic waifu)
-🟡 Legendary Box - 3000 coins (Legendary waifu)
-💎 Rare Box - 5000 coins (Rare waifu - Best!)
-🌟 Premium Box - 7500 coins (Guaranteed Rare!)
+📦 Common Box - 50 coins (Common waifu)
+🟣 Epic Box - 150 coins (Epic waifu)
+🟡 Legendary Box - 300 coins (Legendary waifu)
+💎 Rare Box - 500 coins (Rare waifu - Best!)
+🌟 Premium Box - 750 coins (Guaranteed Rare!)
 """
 
 # Rarity points system (for sell value)
@@ -40,35 +40,35 @@ RARITY_POINTS = {
 SHOP_ITEMS = {
     "common_box": {
         "name": "Common Box",
-        "price": 500,
+        "price": 50,
         "emoji": "📦",
         "description": "Contains Common waifu (Value: 10)",
         "rarity": "common"
     },
     "epic_box": {
         "name": "Epic Box",
-        "price": 1500,
+        "price": 150,
         "emoji": "🟣",
         "description": "Contains Epic waifu (Value: 25)",
         "rarity": "epic"
     },
     "legendary_box": {
         "name": "Legendary Box",
-        "price": 3000,
+        "price": 300,
         "emoji": "🟡",
         "description": "Contains Legendary waifu (Value: 50)",
         "rarity": "legendary"
     },
     "rare_box": {
         "name": "Rare Box",
-        "price": 5000,
+        "price": 500,
         "emoji": "💎",
         "description": "Contains Rare waifu (Value: 100) - Best!",
         "rarity": "rare"
     },
     "premium_box": {
         "name": "Premium Box",
-        "price": 7500,
+        "price": 750,
         "emoji": "🌟",
         "description": "Guaranteed Rare waifu! (Best Value!)",
         "rarity": "rare"
@@ -149,15 +149,15 @@ async def shop_cmd(client: Client, message: Message):
     # Create buttons - ordered by rarity value (low to high)
     buttons = [
         [
-            InlineKeyboardButton("📦 Common (500)", callback_data="shop_buy_common_box"),
-            InlineKeyboardButton("🟣 Epic (1.5K)", callback_data="shop_buy_epic_box")
+            InlineKeyboardButton("📦 Common (50)", callback_data="shop_buy_common_box"),
+            InlineKeyboardButton("🟣 Epic (150)", callback_data="shop_buy_epic_box")
         ],
         [
-            InlineKeyboardButton("🟡 Legendary (3K)", callback_data="shop_buy_legendary_box"),
-            InlineKeyboardButton("💎 Rare (5K)", callback_data="shop_buy_rare_box")
+            InlineKeyboardButton("🟡 Legendary (300)", callback_data="shop_buy_legendary_box"),
+            InlineKeyboardButton("💎 Rare (500)", callback_data="shop_buy_rare_box")
         ],
         [
-            InlineKeyboardButton("🌟 Premium (7.5K)", callback_data="shop_buy_premium_box")
+            InlineKeyboardButton("🌟 Premium (750)", callback_data="shop_buy_premium_box")
         ],
         [
             InlineKeyboardButton("💰 Coin Boost", callback_data="shop_buy_coin_boost"),
@@ -410,15 +410,15 @@ async def shop_refresh_callback(client: Client, callback: CallbackQuery):
 
     buttons = [
         [
-            InlineKeyboardButton("📦 Common (500)", callback_data="shop_buy_common_box"),
-            InlineKeyboardButton("🟣 Epic (1.5K)", callback_data="shop_buy_epic_box")
+            InlineKeyboardButton("📦 Common (50)", callback_data="shop_buy_common_box"),
+            InlineKeyboardButton("🟣 Epic (150)", callback_data="shop_buy_epic_box")
         ],
         [
-            InlineKeyboardButton("🟡 Legendary (3K)", callback_data="shop_buy_legendary_box"),
-            InlineKeyboardButton("💎 Rare (5K)", callback_data="shop_buy_rare_box")
+            InlineKeyboardButton("🟡 Legendary (300)", callback_data="shop_buy_legendary_box"),
+            InlineKeyboardButton("💎 Rare (500)", callback_data="shop_buy_rare_box")
         ],
         [
-            InlineKeyboardButton("🌟 Premium (7.5K)", callback_data="shop_buy_premium_box")
+            InlineKeyboardButton("🌟 Premium (750)", callback_data="shop_buy_premium_box")
         ],
         [
             InlineKeyboardButton("🔄 Refresh", callback_data="shop_refresh"),
@@ -508,11 +508,11 @@ async def buy_cmd(client: Client, message: Message):
         return await message.reply_text(
             "❌ **Usage:** `.buy <item_name>`\n\n"
             "**Available Boxes (Low to High):**\n"
-            "• `common` - 500 coins (⚪ Common - 10 pts)\n"
-            "• `epic` - 1500 coins (🟣 Epic - 25 pts)\n"
-            "• `legendary` - 3000 coins (🟡 Legendary - 50 pts)\n"
-            "• `rare` - 5000 coins (🔵 Rare - 100 pts)\n"
-            "• `premium` - 7500 coins (💎 Guaranteed Rare!)"
+            "• `common` - 50 coins (⚪ Common - 10 pts)\n"
+            "• `epic` - 150 coins (🟣 Epic - 25 pts)\n"
+            "• `legendary` - 300 coins (🟡 Legendary - 50 pts)\n"
+            "• `rare` - 500 coins (🔵 Rare - 100 pts)\n"
+            "• `premium` - 750 coins (💎 Guaranteed Rare!)"
         )
 
     item_id = message.command[1].lower().replace(" ", "_")
