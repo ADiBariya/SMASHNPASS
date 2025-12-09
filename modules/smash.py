@@ -395,8 +395,17 @@ Processing your attempt for **{waifu.get('name')}**...
         except:
             pass
         
-        # Add coins based on rarity
-        coins = wm.get_rarity_points(rarity)
+        # FIX: Get coins based on rarity using proper method or fallback
+        try:
+            # Try using rarity_points dictionary if it exists
+            if hasattr(wm, 'rarity_points'):
+                coins = wm.rarity_points.get(rarity, 10)
+            else:
+                # Fallback to hardcoded values matching your requirements
+                coins = {"common": 10, "rare": 100, "epic": 25, "legendary": 50}.get(rarity, 10)
+        except:
+            # Ultimate fallback
+            coins = {"common": 10, "rare": 100, "epic": 25, "legendary": 50}.get(rarity, 10)
         
         try:
             db.add_coins(user.id, coins)
