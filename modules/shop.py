@@ -21,8 +21,8 @@ __HELP__ = """
 `.inventory` - View your items
 
 **Available Boxes:**
-📦 Common Box - 50 coins (Common waifu)
-🟣 Epic Box - 150 coins (Epic waifu)
+📦 Common Box - 500 coins (Common waifu)
+🟣 Epic Box - 1500 coins (Epic waifu)
 🟡 Legendary Box - 300 coins (Legendary waifu)
 💎 Rare Box - 500 coins (Rare waifu - Best!)
 🌟 Premium Box - 750 coins (Guaranteed Rare!)
