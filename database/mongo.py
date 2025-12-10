@@ -1,12 +1,11 @@
-# database/mongo.py - MongoDB Operations (FIXED & ENHANCED)
+# database/mongo.py - MongoDB Operations (FULLY UPDATED & ENHANCED)
 
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any, Tuple
 import config
 import json
 import os
-from pymongo import UpdateOne
 import logging
 
 # Setup logger
@@ -24,8 +23,8 @@ class Database:
         self.trades = self.db["trades"]
         self.stats = self.db["stats"]
         self.cooldowns = self.db["cooldowns"]
-        # Global Waifus Registry
         self.waifus = self.db["waifus"]
+        self.groups = self.db["groups"]
         
         # Create indexes for faster queries
         self._create_indexes()
@@ -33,13 +32,41 @@ class Database:
     def _create_indexes(self):
         """Create database indexes for optimization"""
         try:
+            # User indexes
             self.users.create_index("user_id", unique=True)
+            self.users.create_index("last_active")
+            self.users.create_index("coins")
+            self.users.create_index("total_wins")
+            self.users.create_index("banned")
+            
+            # Collection indexes
             self.collections.create_index("user_id")
             self.collections.create_index([("user_id", 1), ("waifu_id", 1)])
             self.collections.create_index([("user_id", 1), ("waifu_id", 1), ("waifu_image", 1)])
+            self.collections.create_index("waifu_rarity")
+            self.collections.create_index("obtained_at")
+            
+            # Cooldown indexes
             self.cooldowns.create_index("user_id")
+            self.cooldowns.create_index([("user_id", 1), ("action", 1)])
+            self.cooldowns.create_index("expires_at", expireAfterSeconds=0)
+            
+            # Waifu indexes
             self.waifus.create_index("id", unique=True)
             self.waifus.create_index("name")
+            self.waifus.create_index("rarity")
+            
+            # Group indexes
+            self.groups.create_index("chat_id", unique=True)
+            self.groups.create_index("last_active")
+            
+            # Trade indexes
+            self.trades.create_index("from_user")
+            self.trades.create_index("to_user")
+            self.trades.create_index("status")
+            self.trades.create_index("expires_at")
+            
+            logger.info("Database indexes created successfully")
         except Exception as e:
             logger.warning(f"Index creation warning: {e}")
     
@@ -61,7 +88,7 @@ class Database:
             "user_id": user_id,
             "username": username,
             "first_name": first_name,
-            "display_name": first_name,  # Add display_name
+            "display_name": first_name,
             "coins": 0,
             "total_smash": 0,
             "total_pass": 0,
@@ -71,6 +98,7 @@ class Database:
             "total_spent": 0,
             "daily_streak": 0,
             "favorite_waifu": None,
+            "banned": False,
             "created_at": datetime.now(),
             "last_daily": None,
             "last_active": datetime.now()
@@ -95,7 +123,6 @@ class Database:
                 update_data["username"] = username
             if first_name:
                 update_data["first_name"] = first_name
-                # Also update display_name if not set
                 if not user.get("display_name"):
                     update_data["display_name"] = first_name
             
@@ -104,6 +131,7 @@ class Database:
                     {"user_id": user_id},
                     {"$set": update_data}
                 )
+                user.update(update_data)
         return user
     
     def update_user(self, user_id: int, update_data: Dict) -> bool:
@@ -129,6 +157,284 @@ class Database:
             return result.modified_count > 0 or result.upserted_id is not None
         except Exception as e:
             logger.error(f"Error incrementing stats for {user_id}: {e}")
+            return False
+    
+    def get_all_users(self) -> List[Dict]:
+        """Get all users"""
+        try:
+            return list(self.users.find({}))
+        except Exception as e:
+            logger.error(f"Error getting all users: {e}")
+            return []
+    
+    def get_total_users(self) -> int:
+        """Get total user count"""
+        try:
+            return self.users.count_documents({})
+        except Exception as e:
+            logger.error(f"Error getting total users: {e}")
+            return 0
+    
+    def get_active_users_count(self, hours: int = 24) -> int:
+        """Get count of users active in the last X hours"""
+        try:
+            cutoff = datetime.now() - timedelta(hours=hours)
+            return self.users.count_documents({
+                "last_active": {"$gte": cutoff}
+            })
+        except Exception as e:
+            logger.error(f"Error getting active users: {e}")
+            return 0
+    
+    def search_users(self, query: str, limit: int = 10) -> List[Dict]:
+        """Search users by username or first_name"""
+        try:
+            return list(self.users.find({
+                "$or": [
+                    {"username": {"$regex": query, "$options": "i"}},
+                    {"first_name": {"$regex": query, "$options": "i"}}
+                ]
+            }).limit(limit))
+        except Exception as e:
+            logger.error(f"Error searching users: {e}")
+            return []
+    
+    # ═══════════════════════════════════════════════════════════════════
+    #  BAN/UNBAN OPERATIONS
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def ban_user(self, user_id: int, reason: str = None) -> bool:
+        """Ban a user from the bot"""
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$set": {
+                    "banned": True,
+                    "banned_at": datetime.now(),
+                    "ban_reason": reason
+                }},
+                upsert=True
+            )
+            logger.info(f"Banned user: {user_id}")
+            return result.modified_count > 0 or result.upserted_id is not None
+        except Exception as e:
+            logger.error(f"Error banning user {user_id}: {e}")
+            return False
+    
+    def unban_user(self, user_id: int) -> bool:
+        """Unban a user"""
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {
+                    "$set": {"banned": False},
+                    "$unset": {"banned_at": "", "ban_reason": ""}
+                }
+            )
+            logger.info(f"Unbanned user: {user_id}")
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error unbanning user {user_id}: {e}")
+            return False
+    
+    def is_user_banned(self, user_id: int) -> bool:
+        """Check if user is banned"""
+        try:
+            user = self.get_user(user_id)
+            return user.get("banned", False) if user else False
+        except Exception as e:
+            logger.error(f"Error checking ban status: {e}")
+            return False
+    
+    def get_banned_users(self) -> List[Dict]:
+        """Get list of banned users"""
+        try:
+            return list(self.users.find({"banned": True}))
+        except Exception as e:
+            logger.error(f"Error getting banned users: {e}")
+            return []
+    
+    def get_banned_users_count(self) -> int:
+        """Get count of banned users"""
+        try:
+            return self.users.count_documents({"banned": True})
+        except Exception as e:
+            logger.error(f"Error getting banned users count: {e}")
+            return 0
+    
+    def reset_user(self, user_id: int) -> bool:
+        """Reset all user data completely"""
+        try:
+            # Delete from users collection
+            self.users.delete_one({"user_id": user_id})
+            
+            # Delete from collections
+            deleted_waifus = self.collections.delete_many({"user_id": user_id})
+            
+            # Delete cooldowns
+            self.cooldowns.delete_many({"user_id": user_id})
+            
+            # Delete trades
+            self.trades.delete_many({
+                "$or": [
+                    {"from_user": user_id},
+                    {"to_user": user_id}
+                ]
+            })
+            
+            logger.info(f"Reset all data for user: {user_id} (deleted {deleted_waifus.deleted_count} waifus)")
+            return True
+        except Exception as e:
+            logger.error(f"Error resetting user {user_id}: {e}")
+            return False
+    
+    # ═══════════════════════════════════════════════════════════════════
+    #  GROUP OPERATIONS
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def get_group(self, chat_id: int) -> Optional[Dict]:
+        """Get group data"""
+        try:
+            return self.groups.find_one({"chat_id": chat_id})
+        except Exception as e:
+            logger.error(f"Error getting group {chat_id}: {e}")
+            return None
+    
+    def create_group(self, chat_id: int, title: str = None, username: str = None) -> Dict:
+        """Create new group entry"""
+        group_data = {
+            "chat_id": chat_id,
+            "title": title,
+            "username": username,
+            "created_at": datetime.now(),
+            "last_active": datetime.now(),
+            "message_count": 0,
+            "spawn_count": 0,
+            "settings": {
+                "spawn_enabled": True,
+                "spawn_rate": 100,
+                "notifications": True
+            }
+        }
+        try:
+            self.groups.update_one(
+                {"chat_id": chat_id},
+                {"$set": group_data},
+                upsert=True
+            )
+            logger.info(f"Created/Updated group: {chat_id}")
+            return group_data
+        except Exception as e:
+            logger.error(f"Error creating group {chat_id}: {e}")
+            return group_data
+    
+    def get_or_create_group(self, chat_id: int, title: str = None, username: str = None) -> Dict:
+        """Get group or create if not exists"""
+        group = self.get_group(chat_id)
+        if not group:
+            group = self.create_group(chat_id, title, username)
+        else:
+            # Update last active and title
+            update_data = {"last_active": datetime.now()}
+            if title:
+                update_data["title"] = title
+            if username:
+                update_data["username"] = username
+            
+            self.groups.update_one(
+                {"chat_id": chat_id},
+                {"$set": update_data}
+            )
+            group.update(update_data)
+        return group
+    
+    def update_group(self, chat_id: int, update_data: Dict) -> bool:
+        """Update group data"""
+        try:
+            result = self.groups.update_one(
+                {"chat_id": chat_id},
+                {"$set": update_data}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error updating group {chat_id}: {e}")
+            return False
+    
+    def increment_group_stats(self, chat_id: int, field: str, value: int = 1) -> bool:
+        """Increment group statistics"""
+        try:
+            result = self.groups.update_one(
+                {"chat_id": chat_id},
+                {
+                    "$inc": {field: value},
+                    "$set": {"last_active": datetime.now()}
+                },
+                upsert=True
+            )
+            return result.modified_count > 0 or result.upserted_id is not None
+        except Exception as e:
+            logger.error(f"Error incrementing group stats: {e}")
+            return False
+    
+    def get_total_groups(self) -> int:
+        """Get total group count"""
+        try:
+            return self.groups.count_documents({})
+        except Exception as e:
+            logger.error(f"Error getting total groups: {e}")
+            return 0
+    
+    def get_active_groups_count(self, hours: int = 24) -> int:
+        """Get count of groups active in the last X hours"""
+        try:
+            cutoff = datetime.now() - timedelta(hours=hours)
+            return self.groups.count_documents({
+                "last_active": {"$gte": cutoff}
+            })
+        except Exception as e:
+            logger.error(f"Error getting active groups: {e}")
+            return 0
+    
+    def get_all_groups(self) -> List[Dict]:
+        """Get all groups"""
+        try:
+            return list(self.groups.find({}))
+        except Exception as e:
+            logger.error(f"Error getting all groups: {e}")
+            return []
+    
+    def get_top_groups(self, limit: int = 10, sort_by: str = "spawn_count") -> List[Dict]:
+        """Get top groups by specified field"""
+        try:
+            return list(
+                self.groups.find({})
+                .sort(sort_by, -1)
+                .limit(limit)
+            )
+        except Exception as e:
+            logger.error(f"Error getting top groups: {e}")
+            return []
+    
+    def delete_group(self, chat_id: int) -> bool:
+        """Delete a group from database"""
+        try:
+            result = self.groups.delete_one({"chat_id": chat_id})
+            return result.deleted_count > 0
+        except Exception as e:
+            logger.error(f"Error deleting group {chat_id}: {e}")
+            return False
+    
+    def update_group_settings(self, chat_id: int, settings: Dict) -> bool:
+        """Update group settings"""
+        try:
+            result = self.groups.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"settings": settings}},
+                upsert=True
+            )
+            return result.modified_count > 0 or result.upserted_id is not None
+        except Exception as e:
+            logger.error(f"Error updating group settings: {e}")
             return False
     
     # ═══════════════════════════════════════════════════════════════════
@@ -168,6 +474,19 @@ class Database:
         user = self.get_user(user_id)
         return user.get("coins", 0) if user else 0
     
+    def set_coins(self, user_id: int, amount: int) -> bool:
+        """Set user's coin balance to specific amount"""
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"coins": amount}},
+                upsert=True
+            )
+            return result.modified_count > 0 or result.upserted_id is not None
+        except Exception as e:
+            logger.error(f"Error setting coins for {user_id}: {e}")
+            return False
+    
     def update_coins(self, user_id: int, amount: int) -> bool:
         """Update coins (positive to add, negative to remove)"""
         if amount >= 0:
@@ -175,8 +494,30 @@ class Database:
         else:
             return self.remove_coins(user_id, abs(amount))
     
+    def transfer_coins(self, from_user: int, to_user: int, amount: int) -> bool:
+        """Transfer coins between users"""
+        if self.remove_coins(from_user, amount):
+            if self.add_coins(to_user, amount):
+                return True
+            else:
+                # Rollback if adding fails
+                self.add_coins(from_user, amount)
+        return False
+    
+    def get_total_coins_in_circulation(self) -> int:
+        """Get total coins across all users"""
+        try:
+            pipeline = [
+                {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$coins", 0]}}}}
+            ]
+            result = list(self.users.aggregate(pipeline))
+            return result[0]["total"] if result else 0
+        except Exception as e:
+            logger.error(f"Error getting total coins: {e}")
+            return 0
+    
     # ═══════════════════════════════════════════════════════════════════
-    #  COLLECTION OPERATIONS (FIXED)
+    #  COLLECTION OPERATIONS
     # ═══════════════════════════════════════════════════════════════════
     
     def _get_waifu_id(self, waifu_data: Dict) -> Optional[int]:
@@ -196,7 +537,7 @@ class Database:
             return None
     
     def _get_waifu_field(self, waifu_data: Dict, field: str, default: Any = None) -> Any:
-        """Get waifu field from any format (handles both id/waifu_id style)"""
+        """Get waifu field from any format"""
         value = waifu_data.get(field)
         if value is not None:
             return value
@@ -245,7 +586,7 @@ class Database:
         return self.add_waifu_to_collection(user_id, waifu_data)
     
     def remove_from_collection(self, user_id: int, waifu_id) -> bool:
-        """Remove ONE waifu from collection (not all duplicates)"""
+        """Remove ONE waifu from collection"""
         try:
             waifu_id = int(waifu_id)
         except (ValueError, TypeError):
@@ -280,7 +621,6 @@ class Database:
             logger.info(f"Removed waifu ID:{waifu_id} with specific image from user {user_id}")
             return True
         
-        logger.warning(f"No exact image match, trying ID only fallback...")
         return self.remove_from_collection(user_id, waifu_id)
     
     def remove_waifu_from_collection(self, user_id: int, waifu_id) -> bool:
@@ -320,6 +660,27 @@ class Database:
             logger.error(f"Error counting collection for {user_id}: {e}")
             return 0
     
+    def get_total_collected_waifus(self) -> int:
+        """Get total waifus collected across all users"""
+        try:
+            return self.collections.count_documents({})
+        except Exception as e:
+            logger.error(f"Error getting total collected waifus: {e}")
+            return 0
+    
+    def get_unique_collectors_count(self) -> int:
+        """Get count of unique users who have collected at least one waifu"""
+        try:
+            pipeline = [
+                {"$group": {"_id": "$user_id"}},
+                {"$count": "total"}
+            ]
+            result = list(self.collections.aggregate(pipeline))
+            return result[0]["total"] if result else 0
+        except Exception as e:
+            logger.error(f"Error getting unique collectors: {e}")
+            return 0
+    
     def check_waifu_owned(self, user_id: int, waifu_id) -> bool:
         """Check if user owns a specific waifu"""
         try:
@@ -354,7 +715,7 @@ class Database:
             return 0
     
     def count_waifu_variant_owned(self, user_id: int, waifu_id: int, image: str) -> int:
-        """Count how many of a specific waifu variant (same image) user owns"""
+        """Count how many of a specific waifu variant user owns"""
         try:
             waifu_id = int(waifu_id)
             return self.collections.count_documents({
@@ -377,7 +738,7 @@ class Database:
             return []
     
     def get_duplicate_waifus(self, user_id: int) -> List[Dict]:
-        """Get duplicate waifus in collection (by ID only)"""
+        """Get duplicate waifus in collection"""
         try:
             pipeline = [
                 {"$match": {"user_id": user_id}},
@@ -395,7 +756,7 @@ class Database:
             return []
     
     def get_duplicate_variants(self, user_id: int) -> List[Dict]:
-        """Get duplicate waifu variants (same ID + same image)"""
+        """Get duplicate waifu variants"""
         try:
             pipeline = [
                 {"$match": {"user_id": user_id}},
@@ -411,6 +772,51 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting duplicate variants: {e}")
             return []
+    
+    def get_rarity_distribution(self) -> Dict[str, int]:
+        """Get distribution of collected waifus by rarity"""
+        try:
+            pipeline = [
+                {"$group": {
+                    "_id": {"$toLower": {"$ifNull": ["$waifu_rarity", "unknown"]}},
+                    "count": {"$sum": 1}
+                }},
+                {"$sort": {"count": -1}}
+            ]
+            results = list(self.collections.aggregate(pipeline))
+            
+            distribution = {}
+            for r in results:
+                rarity = r["_id"] or "unknown"
+                distribution[rarity] = r["count"]
+            
+            return distribution
+        except Exception as e:
+            logger.error(f"Error getting rarity distribution: {e}")
+            return {}
+    
+    def get_user_rarity_distribution(self, user_id: int) -> Dict[str, int]:
+        """Get rarity distribution for a specific user"""
+        try:
+            pipeline = [
+                {"$match": {"user_id": user_id}},
+                {"$group": {
+                    "_id": {"$toLower": {"$ifNull": ["$waifu_rarity", "unknown"]}},
+                    "count": {"$sum": 1}
+                }},
+                {"$sort": {"count": -1}}
+            ]
+            results = list(self.collections.aggregate(pipeline))
+            
+            distribution = {}
+            for r in results:
+                rarity = r["_id"] or "unknown"
+                distribution[rarity] = r["count"]
+            
+            return distribution
+        except Exception as e:
+            logger.error(f"Error getting user rarity distribution: {e}")
+            return {}
     
     def cleanup_invalid_waifus(self, user_id: int = None) -> int:
         """Remove entries with invalid waifu_id"""
@@ -488,8 +894,17 @@ class Database:
             logger.error(f"Error clearing cooldown: {e}")
             return False
     
+    def clear_all_cooldowns(self, user_id: int) -> int:
+        """Clear all cooldowns for a user"""
+        try:
+            result = self.cooldowns.delete_many({"user_id": user_id})
+            return result.deleted_count
+        except Exception as e:
+            logger.error(f"Error clearing all cooldowns: {e}")
+            return 0
+    
     # ═══════════════════════════════════════════════════════════════════
-    #  GLOBAL WAIFU REGISTRY (SYNC/UPDATE)
+    #  GLOBAL WAIFU REGISTRY
     # ═══════════════════════════════════════════════════════════════════
     
     def upsert_waifu(self, waifu_data: Dict) -> bool:
@@ -508,6 +923,38 @@ class Database:
         except Exception as e:
             logger.error(f"Error upserting waifu: {e}")
             return False
+
+    def get_waifu_by_id(self, waifu_id: int) -> Optional[Dict]:
+        """Get waifu from global registry by ID"""
+        try:
+            return self.waifus.find_one({"id": waifu_id})
+        except Exception as e:
+            logger.error(f"Error getting waifu {waifu_id}: {e}")
+            return None
+    
+    def get_all_waifus(self) -> List[Dict]:
+        """Get all waifus from registry"""
+        try:
+            return list(self.waifus.find({}))
+        except Exception as e:
+            logger.error(f"Error getting all waifus: {e}")
+            return []
+    
+    def get_waifus_by_rarity(self, rarity: str) -> List[Dict]:
+        """Get waifus by rarity from registry"""
+        try:
+            return list(self.waifus.find({"rarity": {"$regex": rarity, "$options": "i"}}))
+        except Exception as e:
+            logger.error(f"Error getting waifus by rarity: {e}")
+            return []
+    
+    def get_total_waifus_in_registry(self) -> int:
+        """Get total waifus in registry"""
+        try:
+            return self.waifus.count_documents({})
+        except Exception as e:
+            logger.error(f"Error getting total waifus in registry: {e}")
+            return 0
 
     def sync_waifus_from_json(self, json_path: str = "data/waifus.json") -> int:
         """Syncs the JSON file content to MongoDB 'waifus' collection"""
@@ -538,7 +985,16 @@ class Database:
         except Exception as e:
             logger.error(f"Failed to sync waifus from JSON: {e}")
             return 0
-
+    
+    def delete_waifu_from_registry(self, waifu_id: int) -> bool:
+        """Delete a waifu from the registry"""
+        try:
+            result = self.waifus.delete_one({"id": waifu_id})
+            return result.deleted_count > 0
+        except Exception as e:
+            logger.error(f"Error deleting waifu {waifu_id}: {e}")
+            return False
+    
     # ═══════════════════════════════════════════════════════════════════
     #  DAILY OPERATIONS
     # ═══════════════════════════════════════════════════════════════════
@@ -558,8 +1014,8 @@ class Database:
         remaining = (next_daily - datetime.now()).total_seconds()
         return False, int(remaining)
     
-    def claim_daily(self, user_id: int, coins: int) -> bool:
-        """Claim daily reward"""
+    def claim_daily(self, user_id: int, coins: int) -> Tuple[bool, int]:
+        """Claim daily reward. Returns (success, streak)"""
         user = self.get_user(user_id)
         
         streak = 1
@@ -581,12 +1037,24 @@ class Database:
             }},
             upsert=True
         )
-        return True
+        return True, streak
     
     def get_daily_streak(self, user_id: int) -> int:
         """Get user's daily streak"""
         user = self.get_user(user_id)
         return user.get("daily_streak", 0) if user else 0
+    
+    def reset_daily_streak(self, user_id: int) -> bool:
+        """Reset user's daily streak"""
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"daily_streak": 0, "last_daily": None}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error resetting daily streak: {e}")
+            return False
     
     # ═══════════════════════════════════════════════════════════════════
     #  FAVORITE WAIFU OPERATIONS
@@ -623,7 +1091,7 @@ class Database:
             return False
     
     # ═══════════════════════════════════════════════════════════════════
-    #  LEADERBOARD OPERATIONS (ENHANCED)
+    #  LEADERBOARD OPERATIONS
     # ═══════════════════════════════════════════════════════════════════
     
     def get_top_collectors(self, limit: int = 10) -> List[Dict]:
@@ -640,10 +1108,8 @@ class Database:
             results = list(self.collections.aggregate(pipeline))
             
             if not results:
-                logger.info("No collectors found in database")
                 return []
             
-            # Add user details
             formatted_results = []
             for result in results:
                 user_id = result["_id"]
@@ -668,7 +1134,6 @@ class Database:
                 
                 formatted_results.append(formatted)
             
-            logger.info(f"Found {len(formatted_results)} top collectors")
             return formatted_results
             
         except Exception as e:
@@ -692,14 +1157,7 @@ class Database:
                 .sort("total_wins", -1)
                 .limit(limit)
             )
-            
-            if not results:
-                logger.info("No winners found in database")
-                return []
-            
-            logger.info(f"Found {len(results)} top winners")
             return results
-            
         except Exception as e:
             logger.error(f"Error in get_top_winners: {e}")
             return []
@@ -721,30 +1179,116 @@ class Database:
                 .sort("coins", -1)
                 .limit(limit)
             )
-            
-            if not results:
-                logger.info("No rich users found in database")
-                return []
-            
-            logger.info(f"Found {len(results)} top rich users")
             return results
-            
         except Exception as e:
             logger.error(f"Error in get_top_rich: {e}")
             return []
+    
+    def get_top_smashers(self, limit: int = 10) -> List[Dict]:
+        """Get top users by smash count"""
+        try:
+            results = list(
+                self.users.find(
+                    {"total_smash": {"$gt": 0}},
+                    {
+                        "user_id": 1,
+                        "username": 1,
+                        "first_name": 1,
+                        "display_name": 1,
+                        "total_smash": 1
+                    }
+                )
+                .sort("total_smash", -1)
+                .limit(limit)
+            )
+            return results
+        except Exception as e:
+            logger.error(f"Error in get_top_smashers: {e}")
+            return []
+    
+    def get_top_streaks(self, limit: int = 10) -> List[Dict]:
+        """Get top users by daily streak"""
+        try:
+            results = list(
+                self.users.find(
+                    {"daily_streak": {"$gt": 0}},
+                    {
+                        "user_id": 1,
+                        "username": 1,
+                        "first_name": 1,
+                        "display_name": 1,
+                        "daily_streak": 1
+                    }
+                )
+                .sort("daily_streak", -1)
+                .limit(limit)
+            )
+            return results
+        except Exception as e:
+            logger.error(f"Error in get_top_streaks: {e}")
+            return []
+    
+    def get_user_rank(self, user_id: int, leaderboard_type: str = "collection") -> int:
+        """Get user's rank in a specific leaderboard"""
+        try:
+            if leaderboard_type == "collection":
+                pipeline = [
+                    {"$group": {"_id": "$user_id", "count": {"$sum": 1}}},
+                    {"$sort": {"count": -1}}
+                ]
+                results = list(self.collections.aggregate(pipeline))
+                for i, r in enumerate(results, 1):
+                    if r["_id"] == user_id:
+                        return i
+                        
+            elif leaderboard_type == "coins":
+                pipeline = [
+                    {"$match": {"coins": {"$gt": 0}}},
+                    {"$sort": {"coins": -1}},
+                    {"$group": {
+                        "_id": None,
+                        "users": {"$push": "$user_id"}
+                    }}
+                ]
+                results = list(self.users.aggregate(pipeline))
+                if results:
+                    users = results[0].get("users", [])
+                    if user_id in users:
+                        return users.index(user_id) + 1
+                        
+            elif leaderboard_type == "wins":
+                pipeline = [
+                    {"$match": {"total_wins": {"$gt": 0}}},
+                    {"$sort": {"total_wins": -1}},
+                    {"$group": {
+                        "_id": None,
+                        "users": {"$push": "$user_id"}
+                    }}
+                ]
+                results = list(self.users.aggregate(pipeline))
+                if results:
+                    users = results[0].get("users", [])
+                    if user_id in users:
+                        return users.index(user_id) + 1
+            
+            return 0
+        except Exception as e:
+            logger.error(f"Error getting user rank: {e}")
+            return 0
     
     # ═══════════════════════════════════════════════════════════════════
     #  TRADE OPERATIONS
     # ═══════════════════════════════════════════════════════════════════
     
     def create_trade(self, from_user: int, to_user: int, waifu_id: int, 
-                     waifu_name: str, coins: int = 0) -> str:
+                     waifu_name: str, coins: int = 0, waifu_image: str = None) -> str:
         """Create a trade request"""
         trade_data = {
             "from_user": from_user,
             "to_user": to_user,
             "waifu_id": waifu_id,
             "waifu_name": waifu_name,
+            "waifu_image": waifu_image,
             "coins": coins,
             "status": "pending",
             "created_at": datetime.now(),
@@ -753,10 +1297,26 @@ class Database:
         result = self.trades.insert_one(trade_data)
         return str(result.inserted_id)
     
+    def get_trade(self, trade_id: str) -> Optional[Dict]:
+        """Get trade by ID"""
+        from bson import ObjectId
+        try:
+            return self.trades.find_one({"_id": ObjectId(trade_id)})
+        except:
+            return None
+    
     def get_pending_trades(self, user_id: int) -> List[Dict]:
         """Get pending trades for user"""
         return list(self.trades.find({
             "to_user": user_id,
+            "status": "pending",
+            "expires_at": {"$gt": datetime.now()}
+        }))
+    
+    def get_outgoing_trades(self, user_id: int) -> List[Dict]:
+        """Get outgoing trades from user"""
+        return list(self.trades.find({
+            "from_user": user_id,
             "status": "pending",
             "expires_at": {"$gt": datetime.now()}
         }))
@@ -778,8 +1338,17 @@ class Database:
         
         waifu = self.get_waifu_from_collection(trade["from_user"], trade["waifu_id"])
         if waifu:
-            self.remove_from_collection(trade["from_user"], trade["waifu_id"])
+            # Remove from sender
+            if trade.get("waifu_image"):
+                self.remove_from_collection_by_image(
+                    trade["from_user"], 
+                    trade["waifu_id"],
+                    trade["waifu_image"]
+                )
+            else:
+                self.remove_from_collection(trade["from_user"], trade["waifu_id"])
             
+            # Add to receiver
             new_waifu = {
                 "id": waifu.get("waifu_id"),
                 "name": waifu.get("waifu_name"),
@@ -790,13 +1359,14 @@ class Database:
             }
             self.add_to_collection(trade["to_user"], new_waifu)
         
+        # Handle coins
         if trade.get("coins", 0) > 0:
             self.add_coins(trade["from_user"], trade["coins"])
             self.remove_coins(trade["to_user"], trade["coins"])
         
         self.trades.update_one(
             {"_id": ObjectId(trade_id)},
-            {"$set": {"status": "accepted"}}
+            {"$set": {"status": "accepted", "completed_at": datetime.now()}}
         )
         return True
     
@@ -807,11 +1377,56 @@ class Database:
         try:
             result = self.trades.update_one(
                 {"_id": ObjectId(trade_id)},
-                {"$set": {"status": "rejected"}}
+                {"$set": {"status": "rejected", "completed_at": datetime.now()}}
             )
             return result.modified_count > 0
         except:
             return False
+    
+    def cancel_trade(self, trade_id: str, user_id: int) -> bool:
+        """Cancel a trade (by sender)"""
+        from bson import ObjectId
+        
+        try:
+            result = self.trades.update_one(
+                {
+                    "_id": ObjectId(trade_id),
+                    "from_user": user_id,
+                    "status": "pending"
+                },
+                {"$set": {"status": "cancelled", "completed_at": datetime.now()}}
+            )
+            return result.modified_count > 0
+        except:
+            return False
+    
+    def cleanup_expired_trades(self) -> int:
+        """Clean up expired trades"""
+        try:
+            result = self.trades.update_many(
+                {
+                    "status": "pending",
+                    "expires_at": {"$lt": datetime.now()}
+                },
+                {"$set": {"status": "expired"}}
+            )
+            return result.modified_count
+        except Exception as e:
+            logger.error(f"Error cleaning up expired trades: {e}")
+            return 0
+    
+    def get_trade_history(self, user_id: int, limit: int = 20) -> List[Dict]:
+        """Get user's trade history"""
+        try:
+            return list(self.trades.find({
+                "$or": [
+                    {"from_user": user_id},
+                    {"to_user": user_id}
+                ]
+            }).sort("created_at", -1).limit(limit))
+        except Exception as e:
+            logger.error(f"Error getting trade history: {e}")
+            return []
     
     # ═══════════════════════════════════════════════════════════════════
     #  INVENTORY OPERATIONS
@@ -820,6 +1435,7 @@ class Database:
     def add_to_inventory(self, user_id: int, item: Dict) -> bool:
         """Add item to user inventory"""
         try:
+            item["added_at"] = datetime.now()
             result = self.users.update_one(
                 {"user_id": user_id},
                 {"$push": {"inventory": item}},
@@ -847,14 +1463,35 @@ class Database:
             logger.error(f"Error removing from inventory: {e}")
             return False
     
+    def clear_inventory(self, user_id: int) -> bool:
+        """Clear user's inventory"""
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"inventory": []}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error clearing inventory: {e}")
+            return False
+    
+    def get_inventory_item(self, user_id: int, item_id: str) -> Optional[Dict]:
+        """Get specific item from inventory"""
+        inventory = self.get_inventory(user_id)
+        for item in inventory:
+            if item.get("id") == item_id:
+                return item
+        return None
+    
     # ═══════════════════════════════════════════════════════════════════
-    #  GLOBAL STATS (ENHANCED)
+    #  GLOBAL STATS
     # ═══════════════════════════════════════════════════════════════════
     
     def get_global_stats(self) -> Dict:
         """Get global bot statistics"""
         try:
             total_users = self.users.count_documents({})
+            total_groups = self.groups.count_documents({})
             total_waifus = self.collections.count_documents({})
             
             smash_result = list(self.users.aggregate([
@@ -865,73 +1502,174 @@ class Database:
                 {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_pass", 0]}}}}
             ]))
             
+            coins_result = list(self.users.aggregate([
+                {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$coins", 0]}}}}
+            ]))
+            
             stats = {
                 "total_users": total_users,
+                "total_groups": total_groups,
                 "total_waifus_collected": total_waifus,
                 "total_smashes": smash_result[0]["total"] if smash_result else 0,
-                "total_passes": pass_result[0]["total"] if pass_result else 0
+                "total_passes": pass_result[0]["total"] if pass_result else 0,
+                "total_coins": coins_result[0]["total"] if coins_result else 0
             }
             
-            logger.info(f"Global stats: {stats}")
             return stats
             
         except Exception as e:
             logger.error(f"Error getting global stats: {e}")
             return {
                 "total_users": 0,
+                "total_groups": 0,
                 "total_waifus_collected": 0,
                 "total_smashes": 0,
-                "total_passes": 0
+                "total_passes": 0,
+                "total_coins": 0
             }
     
-    def get_all_users(self) -> List[Dict]:
-        """Get all users"""
+    def increment_global_stat(self, stat_name: str, value: int = 1) -> bool:
+        """Increment a global stat"""
         try:
-            return list(self.users.find({}))
+            result = self.stats.update_one(
+                {"name": "global"},
+                {"$inc": {stat_name: value}},
+                upsert=True
+            )
+            return result.modified_count > 0 or result.upserted_id is not None
         except Exception as e:
-            logger.error(f"Error getting all users: {e}")
-            return []
+            logger.error(f"Error incrementing global stat: {e}")
+            return False
     
-    def get_total_users(self) -> int:
-        """Get total user count"""
+    def get_bot_uptime_stats(self) -> Dict:
+        """Get bot uptime/activity stats"""
         try:
-            return self.users.count_documents({})
+            now = datetime.now()
+            
+            # Active in last hour
+            hour_ago = now - timedelta(hours=1)
+            active_hour = self.users.count_documents({"last_active": {"$gte": hour_ago}})
+            
+            # Active in last 24 hours
+            day_ago = now - timedelta(hours=24)
+            active_day = self.users.count_documents({"last_active": {"$gte": day_ago}})
+            
+            # Active in last 7 days
+            week_ago = now - timedelta(days=7)
+            active_week = self.users.count_documents({"last_active": {"$gte": week_ago}})
+            
+            # New users today
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            new_today = self.users.count_documents({"created_at": {"$gte": today_start}})
+            
+            return {
+                "active_last_hour": active_hour,
+                "active_last_24h": active_day,
+                "active_last_7d": active_week,
+                "new_users_today": new_today
+            }
         except Exception as e:
-            logger.error(f"Error getting total users: {e}")
-            return 0
+            logger.error(f"Error getting uptime stats: {e}")
+            return {
+                "active_last_hour": 0,
+                "active_last_24h": 0,
+                "active_last_7d": 0,
+                "new_users_today": 0
+            }
     
     # ═══════════════════════════════════════════════════════════════════
-    #  DEBUG METHODS
+    #  DEBUG & MAINTENANCE METHODS
     # ═══════════════════════════════════════════════════════════════════
     
     def debug_check_data(self) -> Dict:
         """Debug method to check database state"""
         try:
             users_count = self.users.count_documents({})
+            groups_count = self.groups.count_documents({})
             collections_count = self.collections.count_documents({})
+            trades_count = self.trades.count_documents({})
+            waifus_count = self.waifus.count_documents({})
             
-            # Sample user
             sample_user = self.users.find_one({})
-            
-            # Sample collection entry
             sample_collection = self.collections.find_one({})
+            sample_group = self.groups.find_one({})
             
-            # Users with coins
             users_with_coins = self.users.count_documents({"coins": {"$gt": 0}})
-            
-            # Users with wins
             users_with_wins = self.users.count_documents({"total_wins": {"$gt": 0}})
+            banned_users = self.users.count_documents({"banned": True})
             
             return {
                 "users_count": users_count,
+                "groups_count": groups_count,
                 "collections_count": collections_count,
+                "trades_count": trades_count,
+                "waifus_registry_count": waifus_count,
                 "sample_user": sample_user,
                 "sample_collection": sample_collection,
+                "sample_group": sample_group,
                 "users_with_coins": users_with_coins,
-                "users_with_wins": users_with_wins
+                "users_with_wins": users_with_wins,
+                "banned_users": banned_users
             }
         except Exception as e:
             logger.error(f"Error in debug check: {e}")
+            return {"error": str(e)}
+    
+    def vacuum_database(self) -> Dict:
+        """Clean up old/unnecessary data"""
+        try:
+            results = {}
+            
+            # Clean expired trades
+            expired_trades = self.cleanup_expired_trades()
+            results["expired_trades_cleaned"] = expired_trades
+            
+            # Clean invalid waifus
+            invalid_waifus = self.cleanup_invalid_waifus()
+            results["invalid_waifus_cleaned"] = invalid_waifus
+            
+            # Clean old cooldowns (should auto-expire, but just in case)
+            old_cooldowns = self.cooldowns.delete_many({
+                "expires_at": {"$lt": datetime.now() - timedelta(days=1)}
+            })
+            results["old_cooldowns_cleaned"] = old_cooldowns.deleted_count
+            
+            logger.info(f"Database vacuum completed: {results}")
+            return results
+        except Exception as e:
+            logger.error(f"Error during vacuum: {e}")
+            return {"error": str(e)}
+    
+    def get_database_size(self) -> Dict:
+        """Get size of each collection"""
+        try:
+            stats = {}
+            for collection_name in ["users", "collections", "trades", "cooldowns", "waifus", "groups", "stats"]:
+                collection = self.db[collection_name]
+                stats[collection_name] = {
+                    "count": collection.count_documents({}),
+                    "size": self.db.command("collstats", collection_name).get("size", 0)
+                }
+            return stats
+        except Exception as e:
+            logger.error(f"Error getting database size: {e}")
+            return {"error": str(e)}
+    
+    def backup_user_data(self, user_id: int) -> Dict:
+        """Export all user data for backup"""
+        try:
+            user = self.get_user(user_id)
+            collection = self.get_full_collection(user_id)
+            trades = self.get_trade_history(user_id, limit=100)
+            
+            return {
+                "user": user,
+                "collection": collection,
+                "trades": trades,
+                "exported_at": datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Error backing up user data: {e}")
             return {"error": str(e)}
 
 
