@@ -1,4 +1,4 @@
-# database/mongo.py - MongoDB Operations (FIXED & ENHANCED)
+# database/mongo.py - MongoDB Operations (FIXED & ENHANCED v2)
 
 from pymongo import MongoClient
 from datetime import datetime, timedelta
@@ -37,9 +37,14 @@ class Database:
             self.collections.create_index("user_id")
             self.collections.create_index([("user_id", 1), ("waifu_id", 1)])
             self.collections.create_index([("user_id", 1), ("waifu_id", 1), ("waifu_image", 1)])
+            self.collections.create_index([("user_id", 1), ("waifu_rarity", 1)])
             self.cooldowns.create_index("user_id")
+            self.cooldowns.create_index([("user_id", 1), ("action", 1)], unique=True)
             self.waifus.create_index("id", unique=True)
             self.waifus.create_index("name")
+            self.trades.create_index("from_user")
+            self.trades.create_index("to_user")
+            self.trades.create_index("expires_at")
         except Exception as e:
             logger.warning(f"Index creation warning: {e}")
     
@@ -61,7 +66,7 @@ class Database:
             "user_id": user_id,
             "username": username,
             "first_name": first_name,
-            "display_name": first_name,  # Add display_name
+            "display_name": first_name,
             "coins": 0,
             "total_smash": 0,
             "total_pass": 0,
@@ -76,7 +81,11 @@ class Database:
             "last_active": datetime.now()
         }
         try:
-            self.users.insert_one(user_data)
+            self.users.update_one(
+                {"user_id": user_id},
+                {"$setOnInsert": user_data},
+                upsert=True
+            )
             logger.info(f"Created new user: {user_id}")
             return user_data
         except Exception as e:
@@ -95,7 +104,6 @@ class Database:
                 update_data["username"] = username
             if first_name:
                 update_data["first_name"] = first_name
-                # Also update display_name if not set
                 if not user.get("display_name"):
                     update_data["display_name"] = first_name
             
@@ -104,16 +112,17 @@ class Database:
                     {"user_id": user_id},
                     {"$set": update_data}
                 )
-        return user
+        return user or self.get_user(user_id)
     
     def update_user(self, user_id: int, update_data: Dict) -> bool:
         """Update user data"""
         try:
             result = self.users.update_one(
                 {"user_id": user_id},
-                {"$set": update_data}
+                {"$set": update_data},
+                upsert=True
             )
-            return result.modified_count > 0
+            return result.modified_count > 0 or result.upserted_id is not None
         except Exception as e:
             logger.error(f"Error updating user {user_id}: {e}")
             return False
@@ -176,7 +185,7 @@ class Database:
             return self.remove_coins(user_id, abs(amount))
     
     # ═══════════════════════════════════════════════════════════════════
-    #  COLLECTION OPERATIONS (FIXED)
+    #  COLLECTION OPERATIONS (FIXED & ENHANCED)
     # ═══════════════════════════════════════════════════════════════════
     
     def _get_waifu_id(self, waifu_data: Dict) -> Optional[int]:
@@ -196,7 +205,7 @@ class Database:
             return None
     
     def _get_waifu_field(self, waifu_data: Dict, field: str, default: Any = None) -> Any:
-        """Get waifu field from any format (handles both id/waifu_id style)"""
+        """Get waifu field from any format"""
         value = waifu_data.get(field)
         if value is not None:
             return value
@@ -245,7 +254,7 @@ class Database:
         return self.add_waifu_to_collection(user_id, waifu_data)
     
     def remove_from_collection(self, user_id: int, waifu_id) -> bool:
-        """Remove ONE waifu from collection (not all duplicates)"""
+        """Remove ONE waifu from collection"""
         try:
             waifu_id = int(waifu_id)
         except (ValueError, TypeError):
@@ -280,7 +289,6 @@ class Database:
             logger.info(f"Removed waifu ID:{waifu_id} with specific image from user {user_id}")
             return True
         
-        logger.warning(f"No exact image match, trying ID only fallback...")
         return self.remove_from_collection(user_id, waifu_id)
     
     def remove_waifu_from_collection(self, user_id: int, waifu_id) -> bool:
@@ -288,19 +296,25 @@ class Database:
         return self.remove_from_collection(user_id, waifu_id)
     
     def get_full_collection(self, user_id: int) -> List[Dict]:
-        """Get user's complete collection"""
+        """Get user's complete collection - NO LIMIT"""
         try:
-            return list(
+            collection = list(
                 self.collections.find({"user_id": user_id})
                 .sort("obtained_at", -1)
             )
+            logger.debug(f"Retrieved {len(collection)} waifus for user {user_id}")
+            return collection
         except Exception as e:
             logger.error(f"Error getting collection for {user_id}: {e}")
             return []
     
-    def get_user_collection(self, user_id: int, page: int = 1, per_page: int = 10) -> List[Dict]:
-        """Get user's waifu collection with pagination"""
+    def get_user_collection(self, user_id: int, page: int = 0, per_page: int = 0) -> List[Dict]:
+        """Get user's waifu collection - returns ALL if no pagination specified"""
         try:
+            if page <= 0 or per_page <= 0:
+                # Return ALL waifus
+                return self.get_full_collection(user_id)
+            
             skip = (page - 1) * per_page
             return list(
                 self.collections.find({"user_id": user_id})
@@ -315,10 +329,40 @@ class Database:
     def get_collection_count(self, user_id: int) -> int:
         """Get total waifus in user collection"""
         try:
-            return self.collections.count_documents({"user_id": user_id})
+            count = self.collections.count_documents({"user_id": user_id})
+            return count
         except Exception as e:
             logger.error(f"Error counting collection for {user_id}: {e}")
             return 0
+    
+    def get_collection_by_rarity(self, user_id: int) -> Dict[str, int]:
+        """Get collection count grouped by rarity"""
+        try:
+            pipeline = [
+                {"$match": {"user_id": user_id}},
+                {"$group": {
+                    "_id": {"$toLower": "$waifu_rarity"},
+                    "count": {"$sum": 1}
+                }}
+            ]
+            results = list(self.collections.aggregate(pipeline))
+            
+            rarity_counts = {
+                "common": 0,
+                "rare": 0,
+                "epic": 0,
+                "legendary": 0
+            }
+            
+            for r in results:
+                rarity = r.get("_id", "common")
+                if rarity in rarity_counts:
+                    rarity_counts[rarity] = r.get("count", 0)
+            
+            return rarity_counts
+        except Exception as e:
+            logger.error(f"Error getting rarity counts for {user_id}: {e}")
+            return {"common": 0, "rare": 0, "epic": 0, "legendary": 0}
     
     def check_waifu_owned(self, user_id: int, waifu_id) -> bool:
         """Check if user owns a specific waifu"""
@@ -354,7 +398,7 @@ class Database:
             return 0
     
     def count_waifu_variant_owned(self, user_id: int, waifu_id: int, image: str) -> int:
-        """Count how many of a specific waifu variant (same image) user owns"""
+        """Count how many of a specific waifu variant user owns"""
         try:
             waifu_id = int(waifu_id)
             return self.collections.count_documents({
@@ -377,7 +421,7 @@ class Database:
             return []
     
     def get_duplicate_waifus(self, user_id: int) -> List[Dict]:
-        """Get duplicate waifus in collection (by ID only)"""
+        """Get duplicate waifus in collection"""
         try:
             pipeline = [
                 {"$match": {"user_id": user_id}},
@@ -395,7 +439,7 @@ class Database:
             return []
     
     def get_duplicate_variants(self, user_id: int) -> List[Dict]:
-        """Get duplicate waifu variants (same ID + same image)"""
+        """Get duplicate waifu variants"""
         try:
             pipeline = [
                 {"$match": {"user_id": user_id}},
@@ -411,6 +455,22 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting duplicate variants: {e}")
             return []
+    
+    def get_best_waifu(self, user_id: int) -> Optional[Dict]:
+        """Get user's best (highest rarity) waifu"""
+        try:
+            # Priority order for rarity
+            for rarity in ["legendary", "epic", "rare", "common"]:
+                waifu = self.collections.find_one({
+                    "user_id": user_id,
+                    "waifu_rarity": rarity
+                })
+                if waifu:
+                    return waifu
+            return None
+        except Exception as e:
+            logger.error(f"Error getting best waifu for {user_id}: {e}")
+            return None
     
     def cleanup_invalid_waifus(self, user_id: int = None) -> int:
         """Remove entries with invalid waifu_id"""
@@ -489,7 +549,7 @@ class Database:
             return False
     
     # ═══════════════════════════════════════════════════════════════════
-    #  GLOBAL WAIFU REGISTRY (SYNC/UPDATE)
+    #  GLOBAL WAIFU REGISTRY
     # ═══════════════════════════════════════════════════════════════════
     
     def upsert_waifu(self, waifu_data: Dict) -> bool:
@@ -531,7 +591,7 @@ class Database:
             
             if operations:
                 result = self.waifus.bulk_write(operations)
-                logger.info(f"Synced {len(waifu_list)} waifus to MongoDB (Modified: {result.modified_count}, Upserted: {result.upserted_count})")
+                logger.info(f"Synced {len(waifu_list)} waifus to MongoDB")
                 return len(waifu_list)
             return 0
             
@@ -558,9 +618,9 @@ class Database:
         remaining = (next_daily - datetime.now()).total_seconds()
         return False, int(remaining)
     
-    def claim_daily(self, user_id: int, coins: int) -> bool:
-        """Claim daily reward"""
-        user = self.get_user(user_id)
+    def claim_daily(self, user_id: int, coins: int) -> Tuple[bool, int]:
+        """Claim daily reward - Returns (success, streak)"""
+        user = self.get_or_create_user(user_id)
         
         streak = 1
         if user and user.get("last_daily"):
@@ -581,7 +641,7 @@ class Database:
             }},
             upsert=True
         )
-        return True
+        return True, streak
     
     def get_daily_streak(self, user_id: int) -> int:
         """Get user's daily streak"""
@@ -623,7 +683,7 @@ class Database:
             return False
     
     # ═══════════════════════════════════════════════════════════════════
-    #  LEADERBOARD OPERATIONS (ENHANCED)
+    #  LEADERBOARD OPERATIONS (ENHANCED FOR PROFILE MODULE)
     # ═══════════════════════════════════════════════════════════════════
     
     def get_top_collectors(self, limit: int = 10) -> List[Dict]:
@@ -634,6 +694,7 @@ class Database:
                     "_id": "$user_id",
                     "count": {"$sum": 1}
                 }},
+                {"$match": {"_id": {"$ne": None}}},
                 {"$sort": {"count": -1}},
                 {"$limit": limit}
             ]
@@ -655,16 +716,20 @@ class Database:
                 
                 formatted = {
                     "user_id": user_id,
+                    "collection_count": result["count"],
+                    "_collection_count": result["count"],  # Alias for compatibility
                     "count": result["count"],
                     "username": None,
                     "first_name": None,
-                    "display_name": None
+                    "display_name": None,
+                    "coins": 0
                 }
                 
                 if user:
                     formatted["username"] = user.get("username")
                     formatted["first_name"] = user.get("first_name")
                     formatted["display_name"] = user.get("display_name")
+                    formatted["coins"] = user.get("coins", 0)
                 
                 formatted_results.append(formatted)
             
@@ -686,7 +751,8 @@ class Database:
                         "username": 1,
                         "first_name": 1,
                         "display_name": 1,
-                        "total_wins": 1
+                        "total_wins": 1,
+                        "coins": 1
                     }
                 )
                 .sort("total_wins", -1)
@@ -715,7 +781,8 @@ class Database:
                         "username": 1,
                         "first_name": 1,
                         "display_name": 1,
-                        "coins": 1
+                        "coins": 1,
+                        "total_wins": 1
                     }
                 )
                 .sort("coins", -1)
@@ -731,6 +798,85 @@ class Database:
             
         except Exception as e:
             logger.error(f"Error in get_top_rich: {e}")
+            return []
+    
+    def get_user_rank(self, user_id: int) -> int:
+        """Get user's global rank by collection + coins"""
+        try:
+            # Get all users with collection counts
+            pipeline = [
+                {"$group": {
+                    "_id": "$user_id",
+                    "collection_count": {"$sum": 1}
+                }},
+                {"$match": {"_id": {"$ne": None}}}
+            ]
+            collection_data = {r["_id"]: r["collection_count"] for r in self.collections.aggregate(pipeline)}
+            
+            # Get all users
+            all_users = list(self.users.find({}, {"user_id": 1, "coins": 1}))
+            
+            # Calculate net worth for each user
+            user_scores = []
+            for user in all_users:
+                uid = user.get("user_id")
+                if uid is None:
+                    continue
+                coins = user.get("coins", 0)
+                collection_count = collection_data.get(uid, 0)
+                # Simple scoring: coins + (collection_count * 100)
+                score = coins + (collection_count * 100)
+                user_scores.append({"user_id": uid, "score": score})
+            
+            # Sort by score
+            user_scores.sort(key=lambda x: x["score"], reverse=True)
+            
+            # Find user's rank
+            for i, u in enumerate(user_scores, 1):
+                if u["user_id"] == user_id:
+                    return i
+            
+            return 0
+        except Exception as e:
+            logger.error(f"Error getting user rank: {e}")
+            return 0
+    
+    def get_all_users_with_stats(self) -> List[Dict]:
+        """Get all users with their collection stats - for leaderboard"""
+        try:
+            # Get collection counts
+            pipeline = [
+                {"$group": {
+                    "_id": "$user_id",
+                    "collection_count": {"$sum": 1}
+                }},
+                {"$match": {"_id": {"$ne": None}}}
+            ]
+            collection_data = {r["_id"]: r["collection_count"] for r in self.collections.aggregate(pipeline)}
+            
+            # Get all users
+            all_users = list(self.users.find({}))
+            
+            # Merge data
+            users_with_stats = []
+            for user in all_users:
+                user_id = user.get("user_id")
+                if user_id is None:
+                    continue
+                
+                user_stats = dict(user)
+                user_stats["_collection_count"] = collection_data.get(user_id, 0)
+                user_stats["collection_count"] = collection_data.get(user_id, 0)
+                
+                # Calculate collection value (simple: count * 50)
+                user_stats["_collection_value"] = user_stats["_collection_count"] * 50
+                user_stats["_net_worth"] = user.get("coins", 0) + user_stats["_collection_value"]
+                
+                users_with_stats.append(user_stats)
+            
+            return users_with_stats
+        except Exception as e:
+            logger.error(f"Error getting users with stats: {e}")
             return []
     
     # ═══════════════════════════════════════════════════════════════════
@@ -857,20 +1003,37 @@ class Database:
             total_users = self.users.count_documents({})
             total_waifus = self.collections.count_documents({})
             
-            smash_result = list(self.users.aggregate([
-                {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_smash", 0]}}}}
-            ]))
+            # Aggregate smash/pass totals
+            stats_pipeline = [
+                {"$group": {
+                    "_id": None,
+                    "total_smash": {"$sum": {"$ifNull": ["$total_smash", 0]}},
+                    "total_pass": {"$sum": {"$ifNull": ["$total_pass", 0]}},
+                    "total_wins": {"$sum": {"$ifNull": ["$total_wins", 0]}},
+                    "total_coins": {"$sum": {"$ifNull": ["$coins", 0]}}
+                }}
+            ]
             
-            pass_result = list(self.users.aggregate([
-                {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_pass", 0]}}}}
-            ]))
+            result = list(self.users.aggregate(stats_pipeline))
             
-            stats = {
-                "total_users": total_users,
-                "total_waifus_collected": total_waifus,
-                "total_smashes": smash_result[0]["total"] if smash_result else 0,
-                "total_passes": pass_result[0]["total"] if pass_result else 0
-            }
+            if result:
+                stats = {
+                    "total_users": total_users,
+                    "total_waifus": total_waifus,
+                    "total_waifus_collected": total_waifus,
+                    "total_smashes": result[0].get("total_smash", 0) or result[0].get("total_wins", 0),
+                    "total_passes": result[0].get("total_pass", 0),
+                    "total_coins": result[0].get("total_coins", 0)
+                }
+            else:
+                stats = {
+                    "total_users": total_users,
+                    "total_waifus": total_waifus,
+                    "total_waifus_collected": total_waifus,
+                    "total_smashes": 0,
+                    "total_passes": 0,
+                    "total_coins": 0
+                }
             
             logger.info(f"Global stats: {stats}")
             return stats
@@ -879,9 +1042,11 @@ class Database:
             logger.error(f"Error getting global stats: {e}")
             return {
                 "total_users": 0,
+                "total_waifus": 0,
                 "total_waifus_collected": 0,
                 "total_smashes": 0,
-                "total_passes": 0
+                "total_passes": 0,
+                "total_coins": 0
             }
     
     def get_all_users(self) -> List[Dict]:
@@ -922,16 +1087,45 @@ class Database:
             # Users with wins
             users_with_wins = self.users.count_documents({"total_wins": {"$gt": 0}})
             
+            # Unique collectors
+            unique_collectors = len(self.collections.distinct("user_id"))
+            
             return {
                 "users_count": users_count,
                 "collections_count": collections_count,
-                "sample_user": sample_user,
-                "sample_collection": sample_collection,
+                "unique_collectors": unique_collectors,
+                "sample_user_fields": list(sample_user.keys()) if sample_user else [],
+                "sample_collection_fields": list(sample_collection.keys()) if sample_collection else [],
                 "users_with_coins": users_with_coins,
                 "users_with_wins": users_with_wins
             }
         except Exception as e:
             logger.error(f"Error in debug check: {e}")
+            return {"error": str(e)}
+    
+    def debug_user_collection(self, user_id: int) -> Dict:
+        """Debug a specific user's collection"""
+        try:
+            user = self.get_user(user_id)
+            collection = self.get_full_collection(user_id)
+            rarity_counts = self.get_collection_by_rarity(user_id)
+            
+            return {
+                "user_exists": user is not None,
+                "user_coins": user.get("coins", 0) if user else 0,
+                "collection_count": len(collection),
+                "rarity_counts": rarity_counts,
+                "sample_waifus": [
+                    {
+                        "id": w.get("waifu_id"),
+                        "name": w.get("waifu_name"),
+                        "rarity": w.get("waifu_rarity")
+                    }
+                    for w in collection[:5]
+                ]
+            }
+        except Exception as e:
+            logger.error(f"Error in debug_user_collection: {e}")
             return {"error": str(e)}
 
 
