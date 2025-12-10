@@ -35,8 +35,10 @@ WIN_CHANCE = 50  # 50% chance to win waifu on smash
 DAILY_COINS = 100
 SMASH_COST = 10
 
-#Git token
+#Git stuff
 GIT_TOKEN = "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"
+GIT_REPO = "https://github.com/ADiBariya/SMASHNPASS"
+GIT_BRANCH = "main"
 
 # Channels/Groups
 UPDATES_CHANNEL = "WaifusmashUpdates"  # Without @
