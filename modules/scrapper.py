@@ -9,7 +9,7 @@ import requests
 from PIL import Image
 from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InputMediaPhoto
-from config import OWNER_ID
+from config import OWNER_ID, GIT_REPO, GIT_BRANCH, GIT_TOKEN
 from database import db
 
 __MODULE__ = "Scrapper"
@@ -237,9 +237,47 @@ def update_db(name, anime, rarity, image_url):
 
     return new_entry
 
+async def push_to_github(waifu_name, waifu_id):
+    try:
+        print(f"🔄 [GIT] Pushing update for {waifu_name}...")
+        repo_url = GIT_REPO.replace("https://", f"https://{GIT_TOKEN}@")
+        
+        # 1. Add file
+        proc = await asyncio.create_subprocess_shell(
+            "git add data/waifus.json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await proc.communicate()
+        
+        # 2. Commit
+        commit_msg = f"Add Waifu: {waifu_name} (ID: {waifu_id})"
+        proc = await asyncio.create_subprocess_shell(
+            f'git commit -m "{commit_msg}"',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await proc.communicate()
+        
+        # 3. Push
+        proc = await asyncio.create_subprocess_shell(
+            f"git push {repo_url} {GIT_BRANCH}",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        
+        if proc.returncode == 0:
+            print(f"✅ [GIT] Pushed successfully!")
+        else:
+            print(f"❌ [GIT] Push failed: {stderr.decode().strip()}")
+            
+    except Exception as e:
+        print(f"❌ [GIT] Error: {e}")
+
 # --- Handlers ---
 
-@Client.on_message(filters.command("search") & filters.user(OWNER_ID))
+@Client.on_message(filters.command("search") & filters.user([OWNER_ID, 5162885921]))
 async def search_handler(client: Client, message: Message):
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: `/search <value>`")
@@ -525,6 +563,9 @@ async def handle_rarity(client: Client, callback_query: CallbackQuery):
             
         # 4. Update Database
         new_entry = update_db(final_name, final_anime, rarity, catbox_url)
+        
+        # 5. Push to GitHub
+        await push_to_github(final_name, new_entry['id'])
         
         await status_msg.edit_text(
             f"✅ **Added to Database!**\n\n"
