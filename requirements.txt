@@ -13,4 +13,6 @@ colorlog
 rich
 requests
 psutil
+pyrogram
 Pillow
+gallery-dl
