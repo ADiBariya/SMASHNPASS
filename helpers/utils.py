@@ -1,5 +1,4 @@
 # helpers/utils.py - Utility Functions
-
 import json
 import random
 from pathlib import Path
@@ -36,15 +35,15 @@ class WaifuManager:
             self.waifus = self._get_default_waifus()
             self.rarity_colors = {
                 "common": "⚪",
-                "rare": "🔵",
                 "epic": "🟣",
-                "legendary": "🟡"
+                "legendary": "🟡",
+                "rare": "🔵"
             }
             self.rarity_weights = {
                 "common": 50,
-                "rare": 30,
                 "epic": 15,
-                "legendary": 5
+                "legendary": 5,
+                "rare": 30
             }
             # Save default waifus
             self._save_waifus()
@@ -57,23 +56,23 @@ class WaifuManager:
             self.waifus = data.get("waifus", [])
             self.rarity_colors = data.get("rarity_colors", {
                 "common": "⚪",
-                "rare": "🔵",
                 "epic": "🟣",
-                "legendary": "🟡"
+                "legendary": "🟡",
+                "rare": "🔵"
             })
             self.rarity_weights = data.get("rarity_weights", {
                 "common": 50,
-                "rare": 30,
                 "epic": 15,
-                "legendary": 5
+                "legendary": 5,
+                "rare": 30
             })
             print(f"✅ Loaded {len(self.waifus)} waifus successfully!")
             
         except json.JSONDecodeError as e:
             print(f"❌ JSON Error: {e}")
             self.waifus = self._get_default_waifus()
-            self.rarity_colors = {"common": "⚪", "rare": "🔵", "epic": "🟣", "legendary": "🟡"}
-            self.rarity_weights = {"common": 50, "rare": 30, "epic": 15, "legendary": 5}
+            self.rarity_colors = {"common": "⚪", "epic": "🟣", "legendary": "🟡", "rare": "🔵"}
+            self.rarity_weights = {"common": 50, "epic": 15, "legendary": 5, "rare": 30}
         except Exception as e:
             print(f"❌ Error loading waifus: {e}")
             self.waifus = []
@@ -86,9 +85,8 @@ class WaifuManager:
             {
                 "id": 1,
                 "name": "Boa hancock",
-                "anime": "Naruto Shippuden",
-                "rarity": "rare",
-                "power": 75,
+                "anime": "One Piece",
+                "rarity": "legendary",
                 "image": "https://files.catbox.moe/iu35t6.jpg"
             },
             {
@@ -96,7 +94,6 @@ class WaifuManager:
                 "name": "Nami",
                 "anime": "One Piece",
                 "rarity": "legendary",
-                "power": 95,
                 "image": "https://files.catbox.moe/reh8mz.jpg"
             },
             {
@@ -104,7 +101,6 @@ class WaifuManager:
                 "name": "Robin",
                 "anime": "One piece",
                 "rarity": "epic",
-                "power": 85,
                 "image": "https://files.catbox.moe/0oqwqt.jpg"
             },
             {
@@ -112,7 +108,6 @@ class WaifuManager:
                 "name": "Yamato",
                 "anime": "One piece",
                 "rarity": "epic",
-                "power": 90,
                 "image": "https://files.catbox.moe/5rnwlt.jpg"
             },
             {
@@ -120,7 +115,6 @@ class WaifuManager:
                 "name": "Marin",
                 "anime": "My Dress up Darling",
                 "rarity": "legendary",
-                "power": 98,
                 "image": "https://files.catbox.moe/86wqd9.jpg"
             }
         ]
@@ -202,9 +196,9 @@ class WaifuManager:
         """Get emoji for rarity"""
         default_emojis = {
             "common": "⚪",
-            "rare": "🔵",
             "epic": "🟣",
-            "legendary": "🟡"
+            "legendary": "🟡",
+            "rare": "🔵"
         }
         return self.rarity_colors.get(rarity, default_emojis.get(rarity, "⚪"))
     
@@ -306,7 +300,7 @@ class Utils:
     
     @staticmethod
     def format_waifu_card(waifu: Dict, wm: WaifuManager = None) -> str:
-        """Format waifu data into a nice card text"""
+        """Format waifu data into a nice card text (without power)"""
         if wm is None:
             wm = get_waifu_manager()
         rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
@@ -316,13 +310,12 @@ class Utils:
 
 📺 **Anime:** {waifu.get('anime', 'Unknown')}
 💎 **Rarity:** {waifu.get('rarity', 'common').title()}
-⚔️ **Power:** {waifu.get('power', 0)}
 """
         return text.strip()
     
     @staticmethod
     def format_collection_card(waifu: Dict, wm: WaifuManager = None) -> str:
-        """Format collection waifu data"""
+        """Format collection waifu data (without power)"""
         if wm is None:
             wm = get_waifu_manager()
         rarity_emoji = wm.get_rarity_emoji(waifu.get("waifu_rarity", "common"))
@@ -336,19 +329,18 @@ class Utils:
         text = f"""
 {rarity_emoji} **{waifu.get('waifu_name', 'Unknown')}**
 📺 {waifu.get('waifu_anime', 'Unknown')}
-⚔️ Power: {waifu.get('waifu_power', 0)}
 📅 Obtained: {date_str}
 """
         return text.strip()
     
     @staticmethod
     def get_rarity_value(rarity: str) -> int:
-        """Get numeric value for rarity (for sorting)"""
+        """Get numeric value for rarity (for sorting) - Updated order"""
         rarity_values = {
             "common": 1,
-            "rare": 2,
-            "epic": 3,
-            "legendary": 4
+            "epic": 2,
+            "legendary": 3,
+            "rare": 4
         }
         return rarity_values.get(rarity.lower(), 0)
     
@@ -429,15 +421,14 @@ def get_rarity_emoji(rarity: str) -> str:
 
 
 def get_rarity_value(rarity: str) -> int:
-    """Get coin value for rarity"""
+    """Get coin value for rarity - Updated with new order"""
     values = {
-        "common": 100,
-        "uncommon": 250,
-        "rare": 500,
-        "epic": 1000,
-        "legendary": 2500
+        "common": 10,
+        "epic": 25,
+        "legendary": 50,
+        "rare": 100
     }
-    return values.get(rarity.lower(), 100)
+    return values.get(rarity.lower(), 10)
 
 
 def calculate_collection_value(collection: List[Dict]) -> int:
