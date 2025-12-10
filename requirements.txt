@@ -13,4 +13,4 @@ colorlog
 rich
 requests
 psutil
-PIL
+Pillow
