@@ -1122,4 +1122,3 @@ async def canceltrade_command(client: Client, message: Message):
         await message.reply_text(f"✅ Cancelled {count} trade(s)!")
     else:
         await message.reply_text("📭 No trades to cancel.")
-
