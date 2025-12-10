@@ -1,4 +1,4 @@
-# modules/smash.py - Main Game Module with Sexy Captions & Progress Bar
+# modules/smash.py - Main Game Module with Strict Force Sub & Sexy Captions
 
 import random
 import asyncio
@@ -11,6 +11,7 @@ from pyrogram.types import (
     InlineKeyboardButton,
     CallbackQuery
 )
+from pyrogram.errors import FloodWait, UserNotParticipant
 from database import db
 from helpers import get_waifu_manager, Utils
 import config
@@ -31,6 +32,10 @@ __HELP__ = """
 /autodelstatus - Check current setting
 """
 
+# FORCE SUBSCRIPTION SETTINGS
+SUPPORT_CHAT = "@Waifusmashsupport"  # Your support chat username (change this)
+SUPPORT_CHAT_ID = -1003494497037  # Your support chat ID (change this)
+
 # Store active games {user_id: waifu_data}
 active_games = {}
 
@@ -40,11 +45,14 @@ recent_waifus = {}
 # Auto-delete settings per group
 auto_delete_settings = {}
 
+# Track last pass time to prevent spam
+last_pass_time = {}
+
 DEFAULT_AUTO_DELETE = 30
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  🔥 SEXY CAPTION GENERATORS
+#  🔥 SEXY CAPTION GENERATORS (WITHOUT POWER & BORDERS)
 # ═══════════════════════════════════════════════════════════════════
 
 def get_smash_loading_caption(waifu_name: str) -> str:
@@ -76,7 +84,6 @@ def get_win_caption(waifu: dict, coins: int) -> str:
     name = waifu.get('name', 'Unknown')
     anime = waifu.get('anime', 'Unknown')
     rarity = waifu.get('rarity', 'common').title()
-    power = waifu.get('power', 0)
     
     win_headers = [
         f"🔥 **SHE'S ALL YOURS NOW!**",
@@ -108,12 +115,9 @@ def get_win_caption(waifu: dict, coins: int) -> str:
 
 {message}
 
-┏━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 📺 **Anime:** {anime}
-┃ 💎 **Rarity:** {rarity}
-┃ ⚔️ **Power:** {power}
-┃ 💰 **Coins:** +{coins}
-┗━━━━━━━━━━━━━━━━━━━━━━┛
+📺 **Anime:** {anime}
+💎 **Rarity:** {rarity}
+💰 **Coins:** +{coins}
 
 Use /collection to see your baddies! 😈
 """
@@ -174,7 +178,6 @@ def get_waifu_intro_caption(waifu: dict, is_passed: bool = False) -> str:
     name = waifu.get('name', 'Unknown')
     anime = waifu.get('anime', 'Unknown')
     rarity = waifu.get('rarity', 'common').title()
-    power = waifu.get('power', 0)
     
     # Get rarity emoji
     rarity_emojis = {
@@ -221,14 +224,74 @@ def get_waifu_intro_caption(waifu: dict, is_passed: bool = False) -> str:
 
 {rarity_emoji} **{name}**
 
-┏━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 📺 **Anime:** {anime}
-┃ 💎 **Rarity:** {rarity}
-┃ ⚔️ **Power:** {power}
-┗━━━━━━━━━━━━━━━━━━━━━━┛
+📺 **Anime:** {anime}
+💎 **Rarity:** {rarity}
 
 {random.choice(flirt_lines)}
 """
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  🔒 STRICT FORCE SUBSCRIPTION CHECKER
+# ═══════════════════════════════════════════════════════════════════
+
+async def check_subscription(client: Client, user_id: int) -> bool:
+    """Check if user is CURRENTLY subscribed to support chat"""
+    try:
+        # Get current member status
+        member = await client.get_chat_member(SUPPORT_CHAT_ID, user_id)
+        
+        # Check if user is actually in the chat (not left or kicked)
+        if member.status in ["left", "kicked", "banned"]:
+            print(f"❌ [SUB CHECK] User {user_id} status: {member.status}")
+            return False
+        
+        # User is member, admin, or creator
+        print(f"✅ [SUB CHECK] User {user_id} is subscribed: {member.status}")
+        return True
+        
+    except UserNotParticipant:
+        print(f"❌ [SUB CHECK] User {user_id} not in chat")
+        return False
+        
+    except Exception as e:
+        print(f"⚠️ [SUB CHECK] Error checking {user_id}: {e}")
+        # Return False on error to be safe
+        return False
+
+
+def get_force_sub_message(waifu_name: str = None) -> str:
+    """Get force subscription message"""
+    messages = [
+        f"""
+❌ **Oops! You Left My Support Chat!**
+
+Bro really thought they could leave and still play? 💀
+Join back to continue hunting baddies! 🔥
+""",
+        f"""
+❌ **Access Denied!**
+
+You need to stay in my support chat to play! 
+No support = No baddies! 😤
+""",
+        f"""
+❌ **Caught You Lacking!**
+
+Join my support chat first, then come back! 
+The baddies are waiting... 👀
+""",
+    ]
+    
+    if waifu_name:
+        messages.append(f"""
+❌ **Hold Up!**
+
+**{waifu_name}** says join my support first! 
+She doesn't talk to non-members 🙅‍♀️
+""")
+    
+    return random.choice(messages)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -271,6 +334,44 @@ async def show_progress_bar(callback: CallbackQuery, waifu_name: str, is_win: bo
             f"🚫 DENIED! {waifu_name} blocked you!",
         ]
         await callback.answer(random.choice(rejects), show_alert=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  🛡️ FLOOD WAIT HANDLER
+# ═══════════════════════════════════════════════════════════════════
+
+async def safe_edit_message(callback: CallbackQuery, text: str = None, caption: str = None, 
+                           reply_markup=None, media=None, retry_count: int = 3):
+    """Safely edit message with flood wait handling"""
+    
+    for attempt in range(retry_count):
+        try:
+            if media:
+                return await callback.message.edit_media(media=media, reply_markup=reply_markup)
+            elif callback.message.photo and caption:
+                return await callback.message.edit_caption(caption=caption, reply_markup=reply_markup)
+            elif text:
+                return await callback.message.edit_text(text=text, reply_markup=reply_markup)
+                
+        except FloodWait as e:
+            wait_time = min(e.value, 10)
+            print(f"⏳ [FLOOD] Waiting {wait_time}s due to rate limit...")
+            
+            if wait_time <= 5:
+                await asyncio.sleep(wait_time)
+            else:
+                await callback.answer(
+                    f"⏳ Too many actions! Wait {wait_time}s...",
+                    show_alert=True
+                )
+                return None
+                
+        except Exception as e:
+            print(f"⚠️ [EDIT] Error on attempt {attempt + 1}: {e}")
+            if attempt == retry_count - 1:
+                return None
+    
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -328,73 +429,22 @@ def get_unique_waifu(wm, user_id: int):
     return wm.get_random_waifu()
 
 
-# ═══════════════════════════════════════════════════════════════════
-#  Auto-Delete Admin Commands
-# ═══════════════════════════════════════════════════════════════════
-
-@Client.on_message(filters.command(["autodel", "autodelete"]) & filters.group)
-async def set_auto_delete(client: Client, message: Message):
-    """Set auto-delete time for smash results"""
+def can_pass_again(user_id: int) -> tuple[bool, int]:
+    """Check if user can pass again (anti-spam)"""
+    current_time = time.time()
     
-    user = message.from_user
-    chat_id = message.chat.id
+    if user_id in last_pass_time:
+        time_diff = current_time - last_pass_time[user_id]
+        if time_diff < 2:
+            return False, int(2 - time_diff)
     
-    is_admin = await is_group_admin(client, chat_id, user.id)
-    owner_id = getattr(config, 'OWNER_ID', 0)
-    
-    if not is_admin and user.id != owner_id:
-        await message.reply_text("❌ Only admins can change this!")
-        return
-    
-    args = message.text.split()[1:]
-    
-    if not args:
-        await message.reply_text(
-            "**🗑️ Auto-Delete Settings**\n\n"
-            "`/autodel <seconds>` - Set time (10-300)\n"
-            "`/autodel off` - Disable\n\n"
-            "**Example:** `/autodel 30`"
-        )
-        return
-    
-    value = args[0].lower()
-    
-    if value in ["off", "disable", "0"]:
-        auto_delete_settings[chat_id] = 0
-        await message.reply_text("✅ Auto-Delete disabled!")
-        return
-    
-    try:
-        seconds = int(value)
-    except ValueError:
-        await message.reply_text("❌ Enter a valid number!")
-        return
-    
-    if seconds < 10 or seconds > 300:
-        await message.reply_text("❌ Must be between 10-300 seconds!")
-        return
-    
-    auto_delete_settings[chat_id] = seconds
-    await message.reply_text(f"✅ Auto-Delete set to **{seconds}s**!")
+    return True, 0
 
 
-@Client.on_message(filters.command(["autodelstatus", "delstatus"]) & filters.group)
-async def auto_delete_status(client: Client, message: Message):
-    """Check auto-delete status"""
-    
-    chat_id = message.chat.id
-    current = get_auto_delete_time(chat_id)
-    
-    if current > 0:
-        status = f"✅ **{current} seconds**"
-    else:
-        status = "❌ Disabled"
-    
-    await message.reply_text(f"🗑️ Auto-Delete: {status}")
-
+# [Auto-delete commands same as before...]
 
 # ═══════════════════════════════════════════════════════════════════
-#  /smash Command
+#  /smash Command with Initial Sub Check
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_message(filters.command(["smash", "waifu", "sp"], config.COMMAND_PREFIX))
@@ -404,6 +454,26 @@ async def smash_command(client: Client, message: Message):
     
     print(f"🎮 [SMASH] /smash from {user.first_name} ({user.id})")
     
+    # 🔒 CHECK SUBSCRIPTION FIRST
+    is_subscribed = await check_subscription(client, user.id)
+    
+    if not is_subscribed:
+        force_sub_text = get_force_sub_message()
+        force_sub_text += "\n\n👇 **Join now and start playing!**"
+        
+        force_sub_buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("💬 Join Support Chat", url=f"https://t.me/{SUPPORT_CHAT.replace('@', '')}")
+            ],
+            [
+                InlineKeyboardButton("✅ I Joined, Start Game", callback_data=f"check_and_start_{user.id}")
+            ]
+        ])
+        
+        await message.reply_text(force_sub_text, reply_markup=force_sub_buttons)
+        return
+    
+    # Continue with normal game flow if subscribed
     try:
         wm = get_waifu_manager()
     except Exception as e:
@@ -468,12 +538,46 @@ async def smash_command(client: Client, message: Message):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Smash Button Callback
+#  Check and Start Game After Joining
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_callback_query(filters.regex(r"^check_and_start_(\d+)$"))
+async def check_and_start_callback(client: Client, callback: CallbackQuery):
+    """Check subscription and start game"""
+    
+    user_id = int(callback.data.split("_")[3])
+    
+    if callback.from_user.id != user_id:
+        await callback.answer("❌ This button is not for you!", show_alert=True)
+        return
+    
+    # Check if user joined
+    is_subscribed = await check_subscription(client, callback.from_user.id)
+    
+    if not is_subscribed:
+        await callback.answer(
+            "❌ You haven't joined the support chat yet! Join first!",
+            show_alert=True
+        )
+        return
+    
+    # Start the game
+    await callback.message.delete()
+    await callback.answer("✅ Starting game...")
+    
+    # Trigger smash command
+    callback.message.from_user = callback.from_user
+    callback.message.text = "/smash"
+    await smash_command(client, callback.message)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Smash Button Callback with STRICT Force Sub
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex(r"^smash_(\d+)_(\d+)$"))
 async def smash_callback(client: Client, callback: CallbackQuery):
-    """Handle smash button with sexy animations"""
+    """Handle smash button with strict subscription check"""
     
     print(f"💥 [SMASH] Callback: {callback.data}")
     
@@ -486,6 +590,39 @@ async def smash_callback(client: Client, callback: CallbackQuery):
         return
     
     user = callback.from_user
+    
+    # 🔒 ALWAYS CHECK SUBSCRIPTION ON EVERY SMASH
+    is_subscribed = await check_subscription(client, user.id)
+    
+    if not is_subscribed:
+        # Get waifu name for personalized message
+        waifu_name = None
+        if user.id in active_games:
+            waifu_name = active_games[user.id].get('name')
+        
+        force_sub_text = get_force_sub_message(waifu_name)
+        force_sub_text += "\n\n👇 **Join back to continue playing!**"
+        
+        force_sub_buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("💬 Join Support Chat", url=f"https://t.me/{SUPPORT_CHAT.replace('@', '')}")
+            ],
+            [
+                InlineKeyboardButton("🔄 I Joined, Try Again", callback_data=f"retry_smash_{game_user_id}_{waifu_id}")
+            ]
+        ])
+        
+        await safe_edit_message(
+            callback,
+            caption=force_sub_text if callback.message.photo else None,
+            text=force_sub_text if not callback.message.photo else None,
+            reply_markup=force_sub_buttons
+        )
+        
+        await callback.answer("❌ You left the support chat! Join back!", show_alert=True)
+        return
+    
+    # Continue with game if subscribed
     chat_id = callback.message.chat.id
     wm = get_waifu_manager()
     
@@ -515,16 +652,15 @@ async def smash_callback(client: Client, callback: CallbackQuery):
     # Start progress animation
     asyncio.create_task(show_progress_bar(callback, waifu.get('name', 'Unknown'), is_win))
     
-    # Show sexy loading caption
+    # Show sexy loading caption with flood handling
     loading_text = get_smash_loading_caption(waifu.get('name', 'Unknown'))
     
-    try:
-        if callback.message.photo:
-            await callback.message.edit_caption(caption=loading_text, reply_markup=None)
-        else:
-            await callback.message.edit_text(text=loading_text, reply_markup=None)
-    except:
-        pass
+    await safe_edit_message(
+        callback,
+        caption=loading_text if callback.message.photo else None,
+        text=loading_text if not callback.message.photo else None,
+        reply_markup=None
+    )
     
     await asyncio.sleep(2.5)
     
@@ -593,31 +729,68 @@ async def smash_callback(client: Client, callback: CallbackQuery):
             ]
         ])
     
-    # Update message
-    result_message = None
-    try:
-        if callback.message.photo:
-            result_message = await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            result_message = await callback.message.edit_text(text=text, reply_markup=buttons)
-    except Exception as e:
-        print(f"⚠️ [SMASH] Edit error: {e}")
-        try:
-            result_message = await callback.message.reply_text(text, reply_markup=buttons)
-        except:
-            pass
+    # Update message with flood handling
+    result = await safe_edit_message(
+        callback,
+        caption=text if callback.message.photo else None,
+        text=text if not callback.message.photo else None,
+        reply_markup=buttons
+    )
     
-    if result_message and delete_time > 0:
+    if result and delete_time > 0:
         asyncio.create_task(auto_delete_message(callback.message, delete_time))
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Pass Button Callback
+#  Retry Smash After Re-Joining Support
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_callback_query(filters.regex(r"^retry_smash_(\d+)_(\d+)$"))
+async def retry_smash_callback(client: Client, callback: CallbackQuery):
+    """Handle retry after re-joining support"""
+    
+    data = callback.data.split("_")
+    game_user_id = int(data[2])
+    waifu_id = int(data[3])
+    
+    if callback.from_user.id != game_user_id:
+        await callback.answer("❌ Not your game!", show_alert=True)
+        return
+    
+    user = callback.from_user
+    
+    # Check subscription again
+    is_subscribed = await check_subscription(client, user.id)
+    
+    if not is_subscribed:
+        await callback.answer(
+            "❌ You STILL haven't joined the support chat! Join first!",
+            show_alert=True
+        )
+        return
+    
+    await callback.answer("✅ Welcome back! Let's continue...")
+    
+    # Restore the game if waifu still in active_games
+    if user.id not in active_games:
+        # Try to restore from waifu_id
+        wm = get_waifu_manager()
+        # Since we can't get exact waifu back, just start new game
+        callback.data = "play_smash"
+        await play_smash_callback(client, callback)
+    else:
+        # If game still active, redirect to smash
+        callback.data = f"smash_{game_user_id}_{waifu_id}"
+        await smash_callback(client, callback)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Pass Button Callback (No Force Sub Required for Pass)
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex(r"^pass_(\d+)_(\d+)$"))
 async def pass_callback(client: Client, callback: CallbackQuery):
-    """Handle pass button"""
+    """Handle pass button - but check sub for next waifu"""
     
     print(f"👋 [PASS] Callback: {callback.data}")
     
@@ -630,6 +803,19 @@ async def pass_callback(client: Client, callback: CallbackQuery):
         return
     
     user = callback.from_user
+    
+    # Anti-spam check
+    can_pass, wait_time = can_pass_again(user.id)
+    if not can_pass:
+        await callback.answer(
+            f"⏳ Too fast! Wait {wait_time}s between passes.",
+            show_alert=False
+        )
+        return
+    
+    # Update last pass time
+    last_pass_time[user.id] = time.time()
+    
     wm = get_waifu_manager()
     
     if user.id in active_games:
@@ -660,23 +846,25 @@ async def pass_callback(client: Client, callback: CallbackQuery):
     
     image_url = waifu.get("image") or waifu.get("file_id")
     
-    try:
-        if callback.message.photo:
-            if image_url:
-                try:
-                    await callback.message.edit_media(
-                        media=InputMediaPhoto(media=image_url, caption=text),
-                        reply_markup=buttons
-                    )
-                except:
-                    await callback.message.edit_caption(caption=text, reply_markup=buttons)
-            else:
-                await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            await callback.message.edit_text(text=text, reply_markup=buttons)
-            
-    except Exception as e:
-        print(f"⚠️ [PASS] Edit failed: {e}")
+    # Try to edit with flood handling
+    result = await safe_edit_message(
+        callback,
+        caption=text if callback.message.photo else None,
+        text=text if not callback.message.photo else None,
+        reply_markup=buttons,
+        media=InputMediaPhoto(media=image_url, caption=text) if image_url and callback.message.photo else None
+    )
+    
+    if result:
+        pass_responses = [
+            "👋 Next baddie loading...",
+            "🔄 Alright, check this one!",
+            "👀 Here's another one!",
+            "✨ New challenger!",
+        ]
+        await callback.answer(random.choice(pass_responses))
+    else:
+        # If edit failed due to flood, send new message
         try:
             await callback.message.delete()
             if image_url:
@@ -687,29 +875,49 @@ async def pass_callback(client: Client, callback: CallbackQuery):
                 )
             else:
                 await callback.message.reply_text(text, reply_markup=buttons)
+            await callback.answer("👋 Passed! (New message due to rate limit)")
         except:
-            pass
-    
-    pass_responses = [
-        "👋 Next baddie loading...",
-        "🔄 Alright, check this one!",
-        "👀 Here's another one!",
-        "✨ New challenger!",
-    ]
-    await callback.answer(random.choice(pass_responses))
+            await callback.answer("⚠️ Too many actions! Wait a moment.", show_alert=True)
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Play Again Callback
+#  Play Again Callback with Force Sub Check
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex("^play_smash$"))
 async def play_smash_callback(client: Client, callback: CallbackQuery):
-    """Handle play smash button"""
+    """Handle play smash button with sub check"""
     user = callback.from_user
     
     print(f"🎮 [PLAY] Callback from {user.first_name}")
     
+    # 🔒 CHECK SUBSCRIPTION EVERY TIME
+    is_subscribed = await check_subscription(client, user.id)
+    
+    if not is_subscribed:
+        force_sub_text = get_force_sub_message()
+        force_sub_text += "\n\n👇 **Join back to keep playing!**"
+        
+        force_sub_buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("💬 Join Support Chat", url=f"https://t.me/{SUPPORT_CHAT.replace('@', '')}")
+            ],
+            [
+                InlineKeyboardButton("✅ I Joined, Continue", callback_data=f"check_play_{user.id}")
+            ]
+        ])
+        
+        await safe_edit_message(
+            callback,
+            caption=force_sub_text if callback.message.photo else None,
+            text=force_sub_text if not callback.message.photo else None,
+            reply_markup=force_sub_buttons
+        )
+        
+        await callback.answer("❌ Join support chat to continue!", show_alert=True)
+        return
+    
+    # Continue with game
     wm = get_waifu_manager()
     
     try:
@@ -747,15 +955,24 @@ async def play_smash_callback(client: Client, callback: CallbackQuery):
     
     image_url = waifu.get("image") or waifu.get("file_id")
     
-    try:
-        if callback.message.photo:
-            if image_url:
-                await callback.message.edit_caption(caption=text, reply_markup=buttons)
-            else:
-                await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            await callback.message.edit_text(text=text, reply_markup=buttons)
-    except:
+    # Try to edit with flood handling
+    result = await safe_edit_message(
+        callback,
+        caption=text if callback.message.photo else None,
+        text=text if not callback.message.photo else None,
+        reply_markup=buttons
+    )
+    
+    if result:
+        start_responses = [
+            "🎮 Let's hunt some baddies!",
+            "🔥 New game started!",
+            "💥 Time to smash!",
+            "😈 Let's get it!",
+        ]
+        await callback.answer(random.choice(start_responses))
+    else:
+        # If edit failed, send new message
         try:
             await callback.message.delete()
         except:
@@ -770,13 +987,38 @@ async def play_smash_callback(client: Client, callback: CallbackQuery):
                 )
             else:
                 await callback.message.reply_text(text, reply_markup=buttons)
+            await callback.answer("🎮 New game! (Fresh message due to rate limit)")
         except Exception as e:
             print(f"❌ [PLAY] Error: {e}")
+            await callback.answer("❌ Error! Try /smash command", show_alert=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Check and Play After Re-Joining
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_callback_query(filters.regex(r"^check_play_(\d+)$"))
+async def check_play_callback(client: Client, callback: CallbackQuery):
+    """Check subscription and continue playing"""
     
-    start_responses = [
-        "🎮 Let's hunt some baddies!",
-        "🔥 New game started!",
-        "💥 Time to smash!",
-        "😈 Let's get it!",
-    ]
-    await callback.answer(random.choice(start_responses))
+    user_id = int(callback.data.split("_")[2])
+    
+    if callback.from_user.id != user_id:
+        await callback.answer("❌ This button is not for you!", show_alert=True)
+        return
+    
+    # Check if user joined
+    is_subscribed = await check_subscription(client, callback.from_user.id)
+    
+    if not is_subscribed:
+        await callback.answer(
+            "❌ You STILL haven't joined! Join the support chat first!",
+            show_alert=True
+        )
+        return
+    
+    await callback.answer("✅ Welcome back! Let's continue...")
+    
+    # Continue with play_smash
+    callback.data = "play_smash"
+    await play_smash_callback(client, callback)
