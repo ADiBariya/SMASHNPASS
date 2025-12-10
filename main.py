@@ -300,6 +300,13 @@ async def start_bot():
     loaded, failed = load_modules()
 
     await app.start()
+    
+    # Sync Waifus
+    try:
+        db.sync_waifus_from_json("data/waifus.json")
+    except Exception as e:
+        logger.error(f"❌ Failed to sync waifus on startup: {e}")
+
     me = await app.get_me()
     logger.info(f"🤖 Logged in as @{me.username}")
 
