@@ -4,6 +4,9 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any, Tuple
 import config
+import json
+import os
+from pymongo import UpdateOne
 
 
 class Database:
@@ -16,7 +19,10 @@ class Database:
         self.collections = self.db["collections"]
         self.trades = self.db["trades"]
         self.stats = self.db["stats"]
+        self.stats = self.db["stats"]
         self.cooldowns = self.db["cooldowns"]
+        # Global Waifus Registry
+        self.waifus = self.db["waifus"]
         
         # Create indexes for faster queries
         self._create_indexes()
@@ -30,6 +36,8 @@ class Database:
             # NEW: Index for image-based queries
             self.collections.create_index([("user_id", 1), ("waifu_id", 1), ("waifu_image", 1)])
             self.cooldowns.create_index("user_id")
+            self.waifus.create_index("id", unique=True)
+            self.waifus.create_index("name")
         except Exception as e:
             print(f"Index creation warning: {e}")
     
@@ -423,6 +431,58 @@ class Database:
         })
         return result.deleted_count > 0
     
+    # ═══════════════════════════════════════════════════════════════════
+    #  GLOBAL WAIFU REGISTRY (SYNC/UPDATE)
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def upsert_waifu(self, waifu_data: Dict) -> bool:
+        """Update or Insert a waifu definition into global registry"""
+        try:
+            wid = waifu_data.get("id")
+            if not wid:
+                return False
+                
+            self.waifus.update_one(
+                {"id": wid},
+                {"$set": waifu_data},
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            print(f"❌ [DB] Error upserting waifu: {e}")
+            return False
+
+    def sync_waifus_from_json(self, json_path: str = "data/waifus.json") -> int:
+        """Syncs the JSON file content to MongoDB 'waifus' collection"""
+        if not os.path.exists(json_path):
+            print(f"⚠️ [DB] {json_path} not found. Skipping sync.")
+            return 0
+            
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                
+            waifu_list = data.get("waifus", [])
+            if not waifu_list:
+                return 0
+                
+            operations = []
+            for w in waifu_list:
+                if "id" in w:
+                    # Upsert based on ID
+                    op = UpdateOne({"id": w["id"]}, {"$set": w}, upsert=True)
+                    operations.append(op)
+            
+            if operations:
+                result = self.waifus.bulk_write(operations)
+                print(f"✅ [DB] Synced {len(waifu_list)} waifus to MongoDB (Modified: {result.modified_count}, Upserted: {result.upserted_count})")
+                return len(waifu_list)
+            return 0
+            
+        except Exception as e:
+            print(f"❌ [DB] Failed to sync waifus from JSON: {e}")
+            return 0
+
     # ═══════════════════════════════════════════════════════════════════
     #  DAILY OPERATIONS
     # ═══════════════════════════════════════════════════════════════════
