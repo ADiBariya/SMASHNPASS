@@ -678,8 +678,119 @@
             "anime": "Your Name",
             "rarity": "epic",
             "image": "https://files.catbox.moe/v9xk91.jpg"
+        },
+        {
+            "id": 99,
+            "name": "Tatsumaki",
+            "anime": "One punch Man",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/aaoeqx.jpg"
+        },
+        {
+            "id": 100,
+            "name": "kurokawa",
+            "anime": "Oshi no ko",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/kvaupw.jpg"
+        },
+        {
+            "id": 101,
+            "name": "Robin",
+            "anime": "One Piece",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/pvax4m.jpg"
+        },
+        {
+            "id": 102,
+            "name": "Hinata",
+            "anime": "Naruto",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/waluqc.jpg"
+        },
+        {
+            "id": 103,
+            "name": "Hinata",
+            "anime": "Naruto",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/qm27vf.jpg"
+        },
+        {
+            "id": 104
+            "name": "Tan Tan",
+            "anime": "Naruto",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/qnso47.jpg"
+        },
+        {
+            "id": 105,
+            "name": "Makima",
+            "anime": "Chainsaw Man",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/6v28v1.jpg"
+        },
+        {
+            "id": 106,
+            "name": "Goku makima & Fubuki",
+            "anime": "Mix",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/7oyokr.jpg"
+        },
+        {
+            "id": 107,
+            "name": "Sakura",
+            "anime": "Naruto",
+            "rarity": "Epic",
+            "image": "https://files.catbox.moe/ui4z38.jpg"
+        },
+        {
+            "id": 108,
+            "name": "Ayane",
+            "anime": "Overflow",
+            "rarity": "common",
+            "image": "https://files.catbox.moe/3fa8gd.jpg"
+        },
+        {
+            "id": 109,
+            "name": "Tamaki",
+            "anime": "Fire Force",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/x6wadl.jpg"
+        },
+        {
+            "id": 110,
+            "name": "Asuna",
+            "anime": "Sword art online",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/gr528v.jpg"
+        },
+        {
+            "id": 111,
+            "name": "Marin",
+            "anime": "My Dress up Darling",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/0y3b89.jpg"
+        },
+        {
+            "id": 112,
+            "name": "Nefer",
+            "anime": "Genshin Impact",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/mun8kv.jpg"
+        },
+        {
+            "id": 113,
+            "name": "Chiori",
+            "anime": "Genshin Impact",
+            "rarity": "rare",
+            "image": "https://files.catbox.moe/011pqt.jpg"
+        },
+        {
+            "id": 114,
+            "name": "Yor",
+            "anime": "Spy X Family",
+            "rarity": "legendary",
+            "image": "https://files.catbox.moe/fxn7qp.jpg"
         }
-        
     ],
     "rarity_colors": {
         "common": "⚪",
