@@ -13,3 +13,4 @@ colorlog
 rich
 requests
 psutil
+PIL
