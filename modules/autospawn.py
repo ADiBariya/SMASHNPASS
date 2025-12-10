@@ -1,4 +1,4 @@
-# modules/auto_spawn.py - Auto Spawn System with Sexy Captions
+# modules/auto_spawn.py - Auto Spawn System with Auto-Delete After Any Smash
 
 import random
 import time
@@ -27,6 +27,7 @@ Waifus automatically spawn in group chats!
 • You either WIN or LOSE - no second chances!
 • Rarer baddies are harder to catch
 • Spawns expire in 40 seconds
+• ALL smashed waifus auto-delete after 10 seconds (win or lose)
 
 **Admin Commands:**
 /setspawn <setting> <value> - Change spawn settings
@@ -45,14 +46,16 @@ DEFAULT_SETTINGS = {
     "max_messages": 50,
     "min_users": 2,
     "cooldown": 120,
-    "expiry": 40
+    "expiry": 40,
+    "auto_delete_after_smash": 10  # Auto-delete after 10 seconds (win OR lose)
 }
 
 SETTING_LIMITS = {
     "min_messages": (5, 100),
     "max_messages": (20, 200),
     "min_users": (1, 10),
-    "cooldown": (30, 600)
+    "cooldown": (30, 600),
+    "auto_delete_after_smash": (5, 60)  # 5-60 seconds
 }
 
 RARITY_THRESHOLDS = {
@@ -182,8 +185,8 @@ def get_catching_caption(waifu_name: str, user_name: str) -> str:
     return random.choice(captions)
 
 
-def get_win_spawn_caption(waifu: dict, user_name: str, coins: int) -> str:
-    """Get sexy win caption for spawn"""
+def get_win_spawn_caption(waifu: dict, user_name: str, coins: int, delete_time: int) -> str:
+    """Get sexy win caption for spawn with auto-delete notice"""
     
     name = waifu.get('name', 'Unknown')
     anime = waifu.get('anime', 'Unknown')
@@ -232,11 +235,13 @@ def get_win_spawn_caption(waifu: dict, user_name: str, coins: int) -> str:
 ┗━━━━━━━━━━━━━━━━━━━━━━┛
 
 GG **{user_name}**! Check /collection 🎊
+
+🗑️ _Auto-deleting in {delete_time}s..._
 """
 
 
-def get_lose_spawn_caption(waifu: dict, user_name: str, win_chance: int) -> str:
-    """Get rejection caption for spawn"""
+def get_lose_spawn_caption(waifu: dict, user_name: str, win_chance: int, delete_time: int) -> str:
+    """Get rejection caption for spawn WITH delete notice"""
     
     name = waifu.get('name', 'Unknown')
     anime = waifu.get('anime', 'Unknown')
@@ -284,6 +289,8 @@ def get_lose_spawn_caption(waifu: dict, user_name: str, win_chance: int) -> str:
 
 Better luck next time **{user_name}**! 😢
 The grind continues... 💪
+
+🗑️ _Auto-deleting in {delete_time}s..._
 """
 
 
@@ -302,6 +309,23 @@ def get_expired_caption(waifu: dict) -> str:
     ]
     
     return random.choice(expired_msgs)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  🗑️ AUTO-DELETE FUNCTION
+# ═══════════════════════════════════════════════════════════════════
+
+async def auto_delete_spawn_message(client: Client, chat_id: int, message_id: int, delay: int):
+    """Delete spawn message after delay"""
+    try:
+        print(f"🗑️ [AUTO-DELETE] Will delete spawn in {delay}s")
+        await asyncio.sleep(delay)
+        
+        await client.delete_messages(chat_id, message_id)
+        print(f"✅ [AUTO-DELETE] Deleted spawn message in chat {chat_id}")
+        
+    except Exception as e:
+        print(f"⚠️ [AUTO-DELETE] Could not delete spawn: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -437,8 +461,9 @@ async def set_spawn_command(client: Client, message: Message):
             "• `messages` - Min messages (5-100)\n"
             "• `maxmessages` - Force spawn (20-200)\n"
             "• `cooldown` - Seconds between spawns (30-600)\n"
-            "• `users` - Min unique users (1-10)\n\n"
-            "**Example:** `/setspawn cooldown 60`"
+            "• `users` - Min unique users (1-10)\n"
+            "• `autodelete` - Delete time after smash (5-60)\n\n"
+            "**Example:** `/setspawn autodelete 10`"
         )
         return
     
@@ -456,7 +481,9 @@ async def set_spawn_command(client: Client, message: Message):
         "maxmessages": "max_messages",
         "cooldown": "cooldown",
         "users": "min_users",
-        "minusers": "min_users"
+        "minusers": "min_users",
+        "autodelete": "auto_delete_after_smash",
+        "delete": "auto_delete_after_smash"
     }
     
     actual_setting = setting_map.get(setting)
@@ -496,6 +523,7 @@ async def spawn_settings_command(client: Client, message: Message):
 ⏰ **Timings:**
 • Cooldown: `{settings['cooldown']}s`
 • Expiry: `40s`
+• Auto-delete after smash: `{settings.get('auto_delete_after_smash', 10)}s`
 
 🎯 **Win Chances:**
 • Common: `{WIN_CHANCES['common']}%`
@@ -504,6 +532,7 @@ async def spawn_settings_command(client: Client, message: Message):
 • Legendary: `{WIN_CHANCES['legendary']}%`
 
 ⚡ First come, first serve!
+🗑️ ALL smashed waifus auto-delete after {settings.get('auto_delete_after_smash', 10)}s
 """
     
     await message.reply_text(text)
@@ -716,12 +745,12 @@ async def check_spawn_expiry(client: Client, chat_id: int, spawn_time: int):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  🔥 CATCH CALLBACK - FIXED!
+#  🔥 CATCH CALLBACK - AUTO-DELETE ON BOTH WIN AND LOSE
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex(r"^gsmash:"))
 async def group_catch_callback(client: Client, callback: CallbackQuery):
-    """Handle group catch - ONE attempt only!"""
+    """Handle group catch - Auto-delete regardless of result"""
     
     print(f"💥 [GSMASH] Callback received: {callback.data}")
     
@@ -792,6 +821,10 @@ async def group_catch_callback(client: Client, callback: CallbackQuery):
     rarity = waifu.get("rarity", "common")
     win_chance = WIN_CHANCES.get(rarity, 50)
     
+    # Get auto-delete setting
+    settings = get_group_settings(chat_id)
+    delete_time = settings.get("auto_delete_after_smash", 10)
+    
     # Show catching animation
     catching_text = get_catching_caption(waifu.get('name', 'Unknown'), user.first_name)
     
@@ -854,8 +887,8 @@ async def group_catch_callback(client: Client, callback: CallbackQuery):
         except Exception as e:
             print(f"⚠️ [GSMASH] Stats error: {e}")
         
-        # Get sexy win caption
-        text = get_win_spawn_caption(waifu, user.first_name, coins_reward)
+        # Get sexy win caption WITH delete notice
+        text = get_win_spawn_caption(waifu, user.first_name, coins_reward, delete_time)
         
         try:
             if callback.message.photo:
@@ -885,8 +918,8 @@ async def group_catch_callback(client: Client, callback: CallbackQuery):
         except Exception as e:
             print(f"⚠️ [GSMASH] Loss stats error: {e}")
         
-        # Get rejection caption
-        text = get_lose_spawn_caption(waifu, user.first_name, win_chance)
+        # Get rejection caption WITH delete notice
+        text = get_lose_spawn_caption(waifu, user.first_name, win_chance, delete_time)
         
         try:
             if callback.message.photo:
@@ -905,6 +938,18 @@ async def group_catch_callback(client: Client, callback: CallbackQuery):
             f"📉 Your rizz wasn't enough today!",
         ]
         await callback.answer(random.choice(lose_popups), show_alert=True)
+    
+    # 🗑️ ALWAYS SCHEDULE AUTO-DELETE (WIN OR LOSE)
+    asyncio.create_task(
+        auto_delete_spawn_message(
+            client, 
+            chat_id, 
+            callback.message.id, 
+            delete_time
+        )
+    )
+    
+    print(f"🗑️ [GSMASH] Scheduled auto-delete in {delete_time}s (Result: {'WIN' if is_win else 'LOSE'})")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -984,7 +1029,8 @@ async def spawn_stats_command(client: Client, message: Message):
 👥 Users: `{user_count}/{settings['min_users']}`
 ⏰ Last Spawn: `{last_spawn_text}`
 🎯 Spawn Chance: `{spawn_chance}%`
-🔥 Activity: `{activity_level.title()}`{active_info}
+🔥 Activity: `{activity_level.title()}`
+🗑️ Auto-delete: `{settings.get('auto_delete_after_smash', 10)}s` after ANY smash{active_info}
 
 ⚡ Keep chatting for more spawns!
 """
