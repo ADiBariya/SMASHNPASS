@@ -92,7 +92,7 @@ async def scrape_images(tag_name, pid=0):
     parsed_items = []
     for href, src, title in matches:
          full_link = f"https://rule34.xxx/{href.lstrip('/')}"
-         caption = f"{title}\n\n🔗 [Source]({full_link})"
+         caption = f"🔗 [Source]({full_link})"
          parsed_items.append({"img": src, "caption": caption, "link": full_link})
          
     return parsed_items
