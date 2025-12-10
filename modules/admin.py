@@ -15,7 +15,7 @@ __HELP__ = """
 `.addwaifu` - Add new waifu (reply to JSON)
 `.delwaifu <id>` - Delete waifu from database
 `.broadcast <msg>` - Broadcast to all users
-`.stats` - Bot statistics
+`.bstats` - Bot statistics
 `.sudo add @user` - Add sudo user
 `.sudo remove @user` - Remove sudo user
 `.sudo list` - List sudo users
@@ -27,7 +27,6 @@ __HELP__ = """
 
 def is_admin(user_id: int) -> bool:
     return user_id == OWNER_ID or user_id in SUDO_USERS
-
 
 
 @Client.on_message(filters.command(["addcoins", "ac"], prefixes=COMMAND_PREFIX))
@@ -55,11 +54,13 @@ async def add_coins_cmd(client: Client, message: Message):
     if amount <= 0:
         return await message.reply_text("❌ Amount must be positive!")
 
-    # Use sync DB method
+    # Ensure user exists first
+    db.get_or_create_user(target.id, target.username, target.first_name)
+    
     success = db.add_coins(target.id, amount)
 
     if not success:
-        return await message.reply_text("❌ Failed to add coins (user may not exist).")
+        return await message.reply_text("❌ Failed to add coins.")
 
     await message.reply_text(
         f"✅ **Coins Added!**\n\n"
@@ -210,7 +211,7 @@ async def broadcast_cmd(client: Client, message: Message):
         broadcast_text = message.text.split(None, 1)[1] if len(message.text.split(None, 1)) > 1 else ""
 
     # Get all users (sync)
-    all_users = list(db.users.find({}))
+    all_users = db.get_all_users()
 
     success = 0
     failed = 0
@@ -238,48 +239,47 @@ async def broadcast_cmd(client: Client, message: Message):
     )
 
 
-@Client.on_message(filters.command(["botstats", "bstats"], prefixes=COMMAND_PREFIX))
+@Client.on_message(filters.command(["botstats", "bstats", "stats"], prefixes=COMMAND_PREFIX))
 async def bot_stats_cmd(client: Client, message: Message):
     """View bot statistics"""
     if not is_admin(message.from_user.id):
         return await message.reply_text("❌ You're not authorized!")
 
-    # Get stats (sync)
+    status_msg = await message.reply_text("📊 Fetching statistics...")
+
     try:
-        total_users = db.users.count_documents({})
-    except Exception:
-        total_users = 0
+        # Get user stats
+        total_users = db.get_total_users()
+        
+        # Get group stats
+        total_groups = db.get_total_groups()
+        
+        # Get waifu stats
+        waifus = load_waifus()
+        total_available_waifus = len(waifus)
+        
+        # Get collection stats
+        total_collected = db.get_total_collected_waifus()
+        
+        # Get unique collectors
+        unique_collectors = db.get_unique_collectors_count()
+        
+        # Get economy stats
+        total_coins = db.get_total_coins_in_circulation()
+        
+        # Get activity stats
+        active_users_24h = db.get_active_users_count(hours=24)
+        active_users_7d = db.get_active_users_count(hours=168)
+        
+        # Get game stats
+        global_stats = db.get_global_stats()
+        total_smashes = global_stats.get("total_smashes", 0)
+        total_passes = global_stats.get("total_passes", 0)
+        
+        # Get rarity distribution
+        rarity_stats = db.get_rarity_distribution()
 
-    # groups collection might not exist; fallback to 0
-    try:
-        total_groups = db.groups.count_documents({}) if hasattr(db, "groups") else 0
-    except Exception:
-        total_groups = 0
-
-    waifus = load_waifus()
-
-    # Count total waifus in collections
-    pipeline = [
-         {"$project": {"collection_size": {"$size": {"$ifNull": ["$collection", []]}}}},
-         {"$group": {"_id": None, "total": {"$sum": "$collection_size"}}}
-    ]
-    try:
-        result = list(db.users.aggregate(pipeline))
-        total_collected = result[0]["total"] if result else 0
-    except Exception:
-        total_collected = 0
-
-    # Count total coins
-    pipeline2 = [
-        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$coins", 0]}}}}
-    ]
-    try:
-        result2 = list(db.users.aggregate(pipeline2))
-        total_coins = result2[0]["total"] if result2 else 0
-    except Exception:
-        total_coins = 0
-
-    text = f"""
+        text = f"""
 📊 **Bot Statistics**
 
 ╭─────────────────────╮
@@ -288,22 +288,42 @@ async def bot_stats_cmd(client: Client, message: Message):
 
 👤 **Total Users:** {total_users:,}
 👥 **Total Groups:** {total_groups:,}
+🟢 **Active (24h):** {active_users_24h:,}
+📅 **Active (7d):** {active_users_7d:,}
 
 ╭─────────────────────╮
 │     🎴 **WAIFUS**
 ╰─────────────────────╯
 
-📦 **Available Waifus:** {len(waifus):,}
+📦 **Available Waifus:** {total_available_waifus:,}
 🎴 **Total Collected:** {total_collected:,}
+👥 **Unique Collectors:** {unique_collectors:,}
+
+╭─────────────────────╮
+│     🎮 **GAMEPLAY**
+╰─────────────────────╯
+
+💕 **Total Smashes:** {total_smashes:,}
+💔 **Total Passes:** {total_passes:,}
 
 ╭─────────────────────╮
 │     💰 **ECONOMY**
 ╰─────────────────────╯
 
 💵 **Total Coins:** {total_coins:,}
-"""
 
-    await message.reply_text(text)
+╭─────────────────────╮
+│     📈 **RARITY DIST**
+╰─────────────────────╯
+"""
+        # Add rarity distribution
+        for rarity, count in rarity_stats.items():
+            text += f"• **{rarity.title()}:** {count:,}\n"
+
+        await status_msg.edit_text(text)
+        
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Error fetching stats: {str(e)}")
 
 
 @Client.on_message(filters.command(["sudo"], prefixes=COMMAND_PREFIX))
@@ -381,11 +401,7 @@ async def ban_user_cmd(client: Client, message: Message):
     if target.id == OWNER_ID:
         return await message.reply_text("❌ Can't ban owner!")
 
-    db.users.update_one(
-        {"user_id": target.id},
-        {"$set": {"banned": True}},
-        upsert=True
-    )
+    db.ban_user(target.id)
 
     await message.reply_text(f"🔨 Banned {target.mention} from bot!")
 
@@ -406,10 +422,7 @@ async def unban_user_cmd(client: Client, message: Message):
     else:
         return await message.reply_text("❌ Specify a user!")
 
-    db.users.update_one(
-        {"user_id": target.id},
-        {"$set": {"banned": False}}
-    )
+    db.unban_user(target.id)
 
     await message.reply_text(f"✅ Unbanned {target.mention}!")
 
@@ -430,6 +443,6 @@ async def reset_user_cmd(client: Client, message: Message):
     else:
         return await message.reply_text("❌ Specify a user!")
 
-    db.users.delete_one({"user_id": target.id})
+    db.reset_user(target.id)
 
     await message.reply_text(f"🗑️ Reset all data for {target.mention}!")
