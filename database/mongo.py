@@ -1,4 +1,4 @@
-# database/mongo.py - MongoDB Operations (FIXED)
+# database/mongo.py - MongoDB Operations (FIXED & ENHANCED)
 
 from pymongo import MongoClient
 from datetime import datetime, timedelta
@@ -7,6 +7,10 @@ import config
 import json
 import os
 from pymongo import UpdateOne
+import logging
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 
 class Database:
@@ -18,7 +22,6 @@ class Database:
         self.users = self.db["users"]
         self.collections = self.db["collections"]
         self.trades = self.db["trades"]
-        self.stats = self.db["stats"]
         self.stats = self.db["stats"]
         self.cooldowns = self.db["cooldowns"]
         # Global Waifus Registry
@@ -33,13 +36,12 @@ class Database:
             self.users.create_index("user_id", unique=True)
             self.collections.create_index("user_id")
             self.collections.create_index([("user_id", 1), ("waifu_id", 1)])
-            # NEW: Index for image-based queries
             self.collections.create_index([("user_id", 1), ("waifu_id", 1), ("waifu_image", 1)])
             self.cooldowns.create_index("user_id")
             self.waifus.create_index("id", unique=True)
             self.waifus.create_index("name")
         except Exception as e:
-            print(f"Index creation warning: {e}")
+            logger.warning(f"Index creation warning: {e}")
     
     # ═══════════════════════════════════════════════════════════════════
     #  USER OPERATIONS
@@ -47,7 +49,11 @@ class Database:
     
     def get_user(self, user_id: int) -> Optional[Dict]:
         """Get user data"""
-        return self.users.find_one({"user_id": user_id})
+        try:
+            return self.users.find_one({"user_id": user_id})
+        except Exception as e:
+            logger.error(f"Error getting user {user_id}: {e}")
+            return None
     
     def create_user(self, user_id: int, username: str = None, first_name: str = None) -> Dict:
         """Create new user"""
@@ -55,6 +61,7 @@ class Database:
             "user_id": user_id,
             "username": username,
             "first_name": first_name,
+            "display_name": first_name,  # Add display_name
             "coins": 0,
             "total_smash": 0,
             "total_pass": 0,
@@ -65,10 +72,16 @@ class Database:
             "daily_streak": 0,
             "favorite_waifu": None,
             "created_at": datetime.now(),
-            "last_daily": None
+            "last_daily": None,
+            "last_active": datetime.now()
         }
-        self.users.insert_one(user_data)
-        return user_data
+        try:
+            self.users.insert_one(user_data)
+            logger.info(f"Created new user: {user_id}")
+            return user_data
+        except Exception as e:
+            logger.error(f"Error creating user {user_id}: {e}")
+            return user_data
     
     def get_or_create_user(self, user_id: int, username: str = None, first_name: str = None) -> Dict:
         """Get user or create if not exists"""
@@ -77,35 +90,46 @@ class Database:
             user = self.create_user(user_id, username, first_name)
         else:
             # Update user info if provided
-            if username or first_name:
-                update_data = {}
-                if username:
-                    update_data["username"] = username
-                if first_name:
-                    update_data["first_name"] = first_name
-                if update_data:
-                    self.users.update_one(
-                        {"user_id": user_id},
-                        {"$set": update_data}
-                    )
+            update_data = {"last_active": datetime.now()}
+            if username:
+                update_data["username"] = username
+            if first_name:
+                update_data["first_name"] = first_name
+                # Also update display_name if not set
+                if not user.get("display_name"):
+                    update_data["display_name"] = first_name
+            
+            if update_data:
+                self.users.update_one(
+                    {"user_id": user_id},
+                    {"$set": update_data}
+                )
         return user
     
     def update_user(self, user_id: int, update_data: Dict) -> bool:
         """Update user data"""
-        result = self.users.update_one(
-            {"user_id": user_id},
-            {"$set": update_data}
-        )
-        return result.modified_count > 0
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$set": update_data}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error updating user {user_id}: {e}")
+            return False
     
     def increment_user_stats(self, user_id: int, field: str, value: int = 1) -> bool:
         """Increment user statistics"""
-        result = self.users.update_one(
-            {"user_id": user_id},
-            {"$inc": {field: value}},
-            upsert=True
-        )
-        return result.modified_count > 0 or result.upserted_id is not None
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$inc": {field: value}},
+                upsert=True
+            )
+            return result.modified_count > 0 or result.upserted_id is not None
+        except Exception as e:
+            logger.error(f"Error incrementing stats for {user_id}: {e}")
+            return False
     
     # ═══════════════════════════════════════════════════════════════════
     #  COIN OPERATIONS
@@ -113,23 +137,31 @@ class Database:
     
     def add_coins(self, user_id: int, amount: int) -> bool:
         """Add coins to user"""
-        result = self.users.update_one(
-            {"user_id": user_id},
-            {"$inc": {"coins": amount, "total_earned": amount}},
-            upsert=True
-        )
-        return result.modified_count > 0 or result.upserted_id is not None
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$inc": {"coins": amount, "total_earned": amount}},
+                upsert=True
+            )
+            return result.modified_count > 0 or result.upserted_id is not None
+        except Exception as e:
+            logger.error(f"Error adding coins to {user_id}: {e}")
+            return False
     
     def remove_coins(self, user_id: int, amount: int) -> bool:
         """Remove coins from user (checks balance)"""
-        user = self.get_user(user_id)
-        if user and user.get("coins", 0) >= amount:
-            result = self.users.update_one(
-                {"user_id": user_id},
-                {"$inc": {"coins": -amount, "total_spent": amount}}
-            )
-            return result.modified_count > 0
-        return False
+        try:
+            user = self.get_user(user_id)
+            if user and user.get("coins", 0) >= amount:
+                result = self.users.update_one(
+                    {"user_id": user_id},
+                    {"$inc": {"coins": -amount, "total_spent": amount}}
+                )
+                return result.modified_count > 0
+            return False
+        except Exception as e:
+            logger.error(f"Error removing coins from {user_id}: {e}")
+            return False
     
     def get_coins(self, user_id: int) -> int:
         """Get user's coin balance"""
@@ -165,12 +197,10 @@ class Database:
     
     def _get_waifu_field(self, waifu_data: Dict, field: str, default: Any = None) -> Any:
         """Get waifu field from any format (handles both id/waifu_id style)"""
-        # Try direct field first
         value = waifu_data.get(field)
         if value is not None:
             return value
         
-        # Try with waifu_ prefix
         value = waifu_data.get(f"waifu_{field}")
         if value is not None:
             return value
@@ -179,23 +209,17 @@ class Database:
     
     def add_waifu_to_collection(self, user_id: int, waifu_data: Dict) -> bool:
         """Add waifu to user collection"""
-        # Extract waifu ID
         waifu_id = self._get_waifu_id(waifu_data)
         
         if waifu_id is None:
-            print(f"⚠️ [DB] Cannot add waifu - no valid ID: {waifu_data}")
+            logger.warning(f"Cannot add waifu - no valid ID: {waifu_data}")
             return False
         
-        # Extract all fields (handles both formats)
         waifu_name = self._get_waifu_field(waifu_data, "name", "Unknown")
         waifu_anime = self._get_waifu_field(waifu_data, "anime", "Unknown")
         waifu_rarity = self._get_waifu_field(waifu_data, "rarity", "common")
         waifu_image = self._get_waifu_field(waifu_data, "image", "")
         obtained_method = waifu_data.get("obtained_method") or waifu_data.get("obtained_from", "smash")
-        
-        # Validate name
-        if not waifu_name or waifu_name == "Unknown":
-            print(f"⚠️ [DB] Waifu name is Unknown for ID {waifu_id}")
         
         collection_entry = {
             "user_id": user_id,
@@ -210,10 +234,10 @@ class Database:
         
         try:
             self.collections.insert_one(collection_entry)
-            print(f"✅ [DB] Added {waifu_name} (ID:{waifu_id}) to user {user_id}")
+            logger.info(f"Added {waifu_name} (ID:{waifu_id}) to user {user_id}")
             return True
         except Exception as e:
-            print(f"❌ [DB] Error adding waifu: {e}")
+            logger.error(f"Error adding waifu: {e}")
             return False
     
     def add_to_collection(self, user_id: int, waifu_data: Dict) -> bool:
@@ -225,29 +249,27 @@ class Database:
         try:
             waifu_id = int(waifu_id)
         except (ValueError, TypeError):
-            print(f"⚠️ [DB] Invalid waifu_id for removal: {waifu_id}")
+            logger.warning(f"Invalid waifu_id for removal: {waifu_id}")
             return False
         
-        # Delete only ONE instance
         result = self.collections.delete_one({
             "user_id": user_id,
             "waifu_id": waifu_id
         })
         
         if result.deleted_count > 0:
-            print(f"✅ [DB] Removed waifu ID:{waifu_id} from user {user_id}")
+            logger.info(f"Removed waifu ID:{waifu_id} from user {user_id}")
             return True
         return False
     
     def remove_from_collection_by_image(self, user_id: int, waifu_id: int, image: str) -> bool:
-        """Remove ONE waifu matching ID + image combination (for different variants)"""
+        """Remove ONE waifu matching ID + image combination"""
         try:
             waifu_id = int(waifu_id)
         except (ValueError, TypeError):
-            print(f"⚠️ [DB] Invalid waifu_id for removal: {waifu_id}")
+            logger.warning(f"Invalid waifu_id for removal: {waifu_id}")
             return False
         
-        # Delete only ONE instance matching both waifu_id AND image
         result = self.collections.delete_one({
             "user_id": user_id,
             "waifu_id": waifu_id,
@@ -255,11 +277,10 @@ class Database:
         })
         
         if result.deleted_count > 0:
-            print(f"✅ [DB] Removed waifu ID:{waifu_id} with specific image from user {user_id}")
+            logger.info(f"Removed waifu ID:{waifu_id} with specific image from user {user_id}")
             return True
         
-        # Fallback: Try without image match (for older entries without image stored)
-        print(f"⚠️ [DB] No exact image match, trying ID only fallback...")
+        logger.warning(f"No exact image match, trying ID only fallback...")
         return self.remove_from_collection(user_id, waifu_id)
     
     def remove_waifu_from_collection(self, user_id: int, waifu_id) -> bool:
@@ -268,108 +289,128 @@ class Database:
     
     def get_full_collection(self, user_id: int) -> List[Dict]:
         """Get user's complete collection"""
-        return list(
-            self.collections.find({"user_id": user_id})
-            .sort("obtained_at", -1)
-        )
+        try:
+            return list(
+                self.collections.find({"user_id": user_id})
+                .sort("obtained_at", -1)
+            )
+        except Exception as e:
+            logger.error(f"Error getting collection for {user_id}: {e}")
+            return []
     
     def get_user_collection(self, user_id: int, page: int = 1, per_page: int = 10) -> List[Dict]:
         """Get user's waifu collection with pagination"""
-        skip = (page - 1) * per_page
-        return list(
-            self.collections.find({"user_id": user_id})
-            .sort("obtained_at", -1)
-            .skip(skip)
-            .limit(per_page)
-        )
+        try:
+            skip = (page - 1) * per_page
+            return list(
+                self.collections.find({"user_id": user_id})
+                .sort("obtained_at", -1)
+                .skip(skip)
+                .limit(per_page)
+            )
+        except Exception as e:
+            logger.error(f"Error getting paginated collection for {user_id}: {e}")
+            return []
     
     def get_collection_count(self, user_id: int) -> int:
         """Get total waifus in user collection"""
-        return self.collections.count_documents({"user_id": user_id})
+        try:
+            return self.collections.count_documents({"user_id": user_id})
+        except Exception as e:
+            logger.error(f"Error counting collection for {user_id}: {e}")
+            return 0
     
     def check_waifu_owned(self, user_id: int, waifu_id) -> bool:
         """Check if user owns a specific waifu"""
         try:
             waifu_id = int(waifu_id)
+            return self.collections.find_one({
+                "user_id": user_id,
+                "waifu_id": waifu_id
+            }) is not None
         except (ValueError, TypeError):
             return False
-        
-        return self.collections.find_one({
-            "user_id": user_id,
-            "waifu_id": waifu_id
-        }) is not None
     
     def get_waifu_from_collection(self, user_id: int, waifu_id) -> Optional[Dict]:
         """Get specific waifu from user collection"""
         try:
             waifu_id = int(waifu_id)
+            return self.collections.find_one({
+                "user_id": user_id,
+                "waifu_id": waifu_id
+            })
         except (ValueError, TypeError):
             return None
-        
-        return self.collections.find_one({
-            "user_id": user_id,
-            "waifu_id": waifu_id
-        })
     
     def count_waifu_owned(self, user_id: int, waifu_id) -> int:
         """Count how many of a specific waifu user owns"""
         try:
             waifu_id = int(waifu_id)
+            return self.collections.count_documents({
+                "user_id": user_id,
+                "waifu_id": waifu_id
+            })
         except (ValueError, TypeError):
             return 0
-        
-        return self.collections.count_documents({
-            "user_id": user_id,
-            "waifu_id": waifu_id
-        })
     
     def count_waifu_variant_owned(self, user_id: int, waifu_id: int, image: str) -> int:
         """Count how many of a specific waifu variant (same image) user owns"""
         try:
             waifu_id = int(waifu_id)
+            return self.collections.count_documents({
+                "user_id": user_id,
+                "waifu_id": waifu_id,
+                "waifu_image": image
+            })
         except (ValueError, TypeError):
             return 0
-        
-        return self.collections.count_documents({
-            "user_id": user_id,
-            "waifu_id": waifu_id,
-            "waifu_image": image
-        })
     
     def get_user_collection_by_rarity(self, user_id: int, rarity: str) -> List[Dict]:
         """Get user waifus filtered by rarity"""
-        return list(self.collections.find({
-            "user_id": user_id,
-            "waifu_rarity": rarity.lower()
-        }))
+        try:
+            return list(self.collections.find({
+                "user_id": user_id,
+                "waifu_rarity": rarity.lower()
+            }))
+        except Exception as e:
+            logger.error(f"Error filtering collection by rarity: {e}")
+            return []
     
     def get_duplicate_waifus(self, user_id: int) -> List[Dict]:
         """Get duplicate waifus in collection (by ID only)"""
-        pipeline = [
-            {"$match": {"user_id": user_id}},
-            {"$group": {
-                "_id": "$waifu_id",
-                "count": {"$sum": 1},
-                "waifu_name": {"$first": "$waifu_name"},
-                "waifu_rarity": {"$first": "$waifu_rarity"}
-            }},
-            {"$match": {"count": {"$gt": 1}}}
-        ]
-        return list(self.collections.aggregate(pipeline))
+        try:
+            pipeline = [
+                {"$match": {"user_id": user_id}},
+                {"$group": {
+                    "_id": "$waifu_id",
+                    "count": {"$sum": 1},
+                    "waifu_name": {"$first": "$waifu_name"},
+                    "waifu_rarity": {"$first": "$waifu_rarity"}
+                }},
+                {"$match": {"count": {"$gt": 1}}}
+            ]
+            return list(self.collections.aggregate(pipeline))
+        except Exception as e:
+            logger.error(f"Error getting duplicates: {e}")
+            return []
     
     def get_duplicate_variants(self, user_id: int) -> List[Dict]:
         """Get duplicate waifu variants (same ID + same image)"""
-        pipeline = [
-            {"$match": {"user_id": user_id}},
-            {"$group": {
-                "_id": {"waifu_id": "$waifu_id", "waifu_image": "$waifu_image"},
-                "count": {"$sum": 1},
-                "waifu_name": {"$first": "$waifu_name"},
-                "waifu_rarity": {"$first": "$waifu_rarity"}
-            }},
-            {"$match": {"count": {"$gt": 1}}}
-        ]
-        return list(self.collections.aggregate(pipeline))
+        try:
+            pipeline = [
+                {"$match": {"user_id": user_id}},
+                {"$group": {
+                    "_id": {"waifu_id": "$waifu_id", "waifu_image": "$waifu_image"},
+                    "count": {"$sum": 1},
+                    "waifu_name": {"$first": "$waifu_name"},
+                    "waifu_rarity": {"$first": "$waifu_rarity"}
+                }},
+                {"$match": {"count": {"$gt": 1}}}
+            ]
+            return list(self.collections.aggregate(pipeline))
+        except Exception as e:
+            logger.error(f"Error getting duplicate variants: {e}")
+            return []
     
     def cleanup_invalid_waifus(self, user_id: int = None) -> int:
         """Remove entries with invalid waifu_id"""
@@ -387,9 +428,13 @@ class Database:
         if user_id:
             query["user_id"] = user_id
         
-        result = self.collections.delete_many(query)
-        print(f"🧹 [DB] Cleaned up {result.deleted_count} invalid entries")
-        return result.deleted_count
+        try:
+            result = self.collections.delete_many(query)
+            logger.info(f"Cleaned up {result.deleted_count} invalid entries")
+            return result.deleted_count
+        except Exception as e:
+            logger.error(f"Error cleaning up invalid waifus: {e}")
+            return 0
     
     # ═══════════════════════════════════════════════════════════════════
     #  COOLDOWN OPERATIONS
@@ -397,23 +442,31 @@ class Database:
     
     def get_cooldown(self, user_id: int, action: str) -> Optional[datetime]:
         """Get cooldown for user action"""
-        cooldown = self.cooldowns.find_one({
-            "user_id": user_id,
-            "action": action
-        })
-        if cooldown:
-            return cooldown.get("expires_at")
-        return None
+        try:
+            cooldown = self.cooldowns.find_one({
+                "user_id": user_id,
+                "action": action
+            })
+            if cooldown:
+                return cooldown.get("expires_at")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting cooldown: {e}")
+            return None
     
     def set_cooldown(self, user_id: int, action: str, seconds: int) -> bool:
         """Set cooldown for user action"""
-        expires_at = datetime.now() + timedelta(seconds=seconds)
-        self.cooldowns.update_one(
-            {"user_id": user_id, "action": action},
-            {"$set": {"expires_at": expires_at}},
-            upsert=True
-        )
-        return True
+        try:
+            expires_at = datetime.now() + timedelta(seconds=seconds)
+            self.cooldowns.update_one(
+                {"user_id": user_id, "action": action},
+                {"$set": {"expires_at": expires_at}},
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error setting cooldown: {e}")
+            return False
     
     def check_cooldown(self, user_id: int, action: str) -> Tuple[bool, int]:
         """Check if user is on cooldown. Returns (is_on_cooldown, remaining_seconds)"""
@@ -425,11 +478,15 @@ class Database:
     
     def clear_cooldown(self, user_id: int, action: str) -> bool:
         """Clear a specific cooldown"""
-        result = self.cooldowns.delete_one({
-            "user_id": user_id,
-            "action": action
-        })
-        return result.deleted_count > 0
+        try:
+            result = self.cooldowns.delete_one({
+                "user_id": user_id,
+                "action": action
+            })
+            return result.deleted_count > 0
+        except Exception as e:
+            logger.error(f"Error clearing cooldown: {e}")
+            return False
     
     # ═══════════════════════════════════════════════════════════════════
     #  GLOBAL WAIFU REGISTRY (SYNC/UPDATE)
@@ -449,13 +506,13 @@ class Database:
             )
             return True
         except Exception as e:
-            print(f"❌ [DB] Error upserting waifu: {e}")
+            logger.error(f"Error upserting waifu: {e}")
             return False
 
     def sync_waifus_from_json(self, json_path: str = "data/waifus.json") -> int:
         """Syncs the JSON file content to MongoDB 'waifus' collection"""
         if not os.path.exists(json_path):
-            print(f"⚠️ [DB] {json_path} not found. Skipping sync.")
+            logger.warning(f"{json_path} not found. Skipping sync.")
             return 0
             
         try:
@@ -469,18 +526,17 @@ class Database:
             operations = []
             for w in waifu_list:
                 if "id" in w:
-                    # Upsert based on ID
                     op = UpdateOne({"id": w["id"]}, {"$set": w}, upsert=True)
                     operations.append(op)
             
             if operations:
                 result = self.waifus.bulk_write(operations)
-                print(f"✅ [DB] Synced {len(waifu_list)} waifus to MongoDB (Modified: {result.modified_count}, Upserted: {result.upserted_count})")
+                logger.info(f"Synced {len(waifu_list)} waifus to MongoDB (Modified: {result.modified_count}, Upserted: {result.upserted_count})")
                 return len(waifu_list)
             return 0
             
         except Exception as e:
-            print(f"❌ [DB] Failed to sync waifus from JSON: {e}")
+            logger.error(f"Failed to sync waifus from JSON: {e}")
             return 0
 
     # ═══════════════════════════════════════════════════════════════════
@@ -506,16 +562,15 @@ class Database:
         """Claim daily reward"""
         user = self.get_user(user_id)
         
-        # Check streak
         streak = 1
         if user and user.get("last_daily"):
             last = user["last_daily"]
             hours_since = (datetime.now() - last).total_seconds() / 3600
             
-            if hours_since <= 48:  # Within 48 hours = continue streak
+            if hours_since <= 48:
                 streak = user.get("daily_streak", 0) + 1
             else:
-                streak = 1  # Reset streak
+                streak = 1
         
         self.add_coins(user_id, coins)
         self.users.update_one(
@@ -539,12 +594,16 @@ class Database:
     
     def set_favorite_waifu(self, user_id: int, waifu_id: int) -> bool:
         """Set user's favorite waifu"""
-        result = self.users.update_one(
-            {"user_id": user_id},
-            {"$set": {"favorite_waifu": waifu_id}},
-            upsert=True
-        )
-        return result.modified_count > 0 or result.upserted_id is not None
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"favorite_waifu": waifu_id}},
+                upsert=True
+            )
+            return result.modified_count > 0 or result.upserted_id is not None
+        except Exception as e:
+            logger.error(f"Error setting favorite: {e}")
+            return False
     
     def get_favorite_waifu(self, user_id: int) -> Optional[int]:
         """Get user's favorite waifu ID"""
@@ -553,66 +612,126 @@ class Database:
     
     def remove_favorite_waifu(self, user_id: int) -> bool:
         """Remove user's favorite waifu"""
-        result = self.users.update_one(
-            {"user_id": user_id},
-            {"$unset": {"favorite_waifu": ""}}
-        )
-        return result.modified_count > 0
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$unset": {"favorite_waifu": ""}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error removing favorite: {e}")
+            return False
     
     # ═══════════════════════════════════════════════════════════════════
-    #  LEADERBOARD OPERATIONS
+    #  LEADERBOARD OPERATIONS (ENHANCED)
     # ═══════════════════════════════════════════════════════════════════
     
     def get_top_collectors(self, limit: int = 10) -> List[Dict]:
         """Get top users by collection size"""
-        pipeline = [
-            {"$group": {
-                "_id": "$user_id",
-                "count": {"$sum": 1}
-            }},
-            {"$sort": {"count": -1}},
-            {"$limit": limit}
-        ]
-        results = list(self.collections.aggregate(pipeline))
-        
-        # Add user details
-        formatted_results = []
-        for result in results:
-            user_id = result["_id"]
-            user = self.get_user(user_id)
+        try:
+            pipeline = [
+                {"$group": {
+                    "_id": "$user_id",
+                    "count": {"$sum": 1}
+                }},
+                {"$sort": {"count": -1}},
+                {"$limit": limit}
+            ]
+            results = list(self.collections.aggregate(pipeline))
             
-            formatted = {
-                "user_id": user_id,
-                "count": result["count"],
-                "username": None,
-                "first_name": None,
-                "display_name": None
-            }
+            if not results:
+                logger.info("No collectors found in database")
+                return []
             
-            if user:
-                formatted["username"] = user.get("username")
-                formatted["first_name"] = user.get("first_name")
-                formatted["display_name"] = user.get("display_name")
+            # Add user details
+            formatted_results = []
+            for result in results:
+                user_id = result["_id"]
+                
+                if user_id is None:
+                    continue
+                    
+                user = self.get_user(user_id)
+                
+                formatted = {
+                    "user_id": user_id,
+                    "count": result["count"],
+                    "username": None,
+                    "first_name": None,
+                    "display_name": None
+                }
+                
+                if user:
+                    formatted["username"] = user.get("username")
+                    formatted["first_name"] = user.get("first_name")
+                    formatted["display_name"] = user.get("display_name")
+                
+                formatted_results.append(formatted)
             
-            formatted_results.append(formatted)
-        
-        return formatted_results
+            logger.info(f"Found {len(formatted_results)} top collectors")
+            return formatted_results
+            
+        except Exception as e:
+            logger.error(f"Error in get_top_collectors: {e}")
+            return []
     
     def get_top_winners(self, limit: int = 10) -> List[Dict]:
         """Get top users by wins"""
-        return list(
-            self.users.find({"total_wins": {"$gt": 0}})
-            .sort("total_wins", -1)
-            .limit(limit)
-        )
+        try:
+            results = list(
+                self.users.find(
+                    {"total_wins": {"$gt": 0}},
+                    {
+                        "user_id": 1,
+                        "username": 1,
+                        "first_name": 1,
+                        "display_name": 1,
+                        "total_wins": 1
+                    }
+                )
+                .sort("total_wins", -1)
+                .limit(limit)
+            )
+            
+            if not results:
+                logger.info("No winners found in database")
+                return []
+            
+            logger.info(f"Found {len(results)} top winners")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error in get_top_winners: {e}")
+            return []
     
     def get_top_rich(self, limit: int = 10) -> List[Dict]:
         """Get top users by coins"""
-        return list(
-            self.users.find({"coins": {"$gt": 0}})
-            .sort("coins", -1)
-            .limit(limit)
-        )
+        try:
+            results = list(
+                self.users.find(
+                    {"coins": {"$gt": 0}},
+                    {
+                        "user_id": 1,
+                        "username": 1,
+                        "first_name": 1,
+                        "display_name": 1,
+                        "coins": 1
+                    }
+                )
+                .sort("coins", -1)
+                .limit(limit)
+            )
+            
+            if not results:
+                logger.info("No rich users found in database")
+                return []
+            
+            logger.info(f"Found {len(results)} top rich users")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error in get_top_rich: {e}")
+            return []
     
     # ═══════════════════════════════════════════════════════════════════
     #  TRADE OPERATIONS
@@ -657,12 +776,10 @@ class Database:
         if trade["expires_at"] < datetime.now():
             return False
         
-        # Transfer waifu
         waifu = self.get_waifu_from_collection(trade["from_user"], trade["waifu_id"])
         if waifu:
             self.remove_from_collection(trade["from_user"], trade["waifu_id"])
             
-            # Prepare waifu data for new owner
             new_waifu = {
                 "id": waifu.get("waifu_id"),
                 "name": waifu.get("waifu_name"),
@@ -673,12 +790,10 @@ class Database:
             }
             self.add_to_collection(trade["to_user"], new_waifu)
         
-        # Handle coins if any
         if trade.get("coins", 0) > 0:
             self.add_coins(trade["from_user"], trade["coins"])
             self.remove_coins(trade["to_user"], trade["coins"])
         
-        # Update trade status
         self.trades.update_one(
             {"_id": ObjectId(trade_id)},
             {"$set": {"status": "accepted"}}
@@ -704,12 +819,16 @@ class Database:
     
     def add_to_inventory(self, user_id: int, item: Dict) -> bool:
         """Add item to user inventory"""
-        result = self.users.update_one(
-            {"user_id": user_id},
-            {"$push": {"inventory": item}},
-            upsert=True
-        )
-        return result.modified_count > 0 or result.upserted_id is not None
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$push": {"inventory": item}},
+                upsert=True
+            )
+            return result.modified_count > 0 or result.upserted_id is not None
+        except Exception as e:
+            logger.error(f"Error adding to inventory: {e}")
+            return False
     
     def get_inventory(self, user_id: int) -> List[Dict]:
         """Get user's inventory"""
@@ -718,43 +837,102 @@ class Database:
     
     def remove_from_inventory(self, user_id: int, item_id: str) -> bool:
         """Remove item from inventory"""
-        result = self.users.update_one(
-            {"user_id": user_id},
-            {"$pull": {"inventory": {"id": item_id}}}
-        )
-        return result.modified_count > 0
+        try:
+            result = self.users.update_one(
+                {"user_id": user_id},
+                {"$pull": {"inventory": {"id": item_id}}}
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error removing from inventory: {e}")
+            return False
     
     # ═══════════════════════════════════════════════════════════════════
-    #  GLOBAL STATS
+    #  GLOBAL STATS (ENHANCED)
     # ═══════════════════════════════════════════════════════════════════
     
     def get_global_stats(self) -> Dict:
         """Get global bot statistics"""
-        total_users = self.users.count_documents({})
-        total_waifus = self.collections.count_documents({})
-        
-        smash_result = list(self.users.aggregate([
-            {"$group": {"_id": None, "total": {"$sum": "$total_smash"}}}
-        ]))
-        
-        pass_result = list(self.users.aggregate([
-            {"$group": {"_id": None, "total": {"$sum": "$total_pass"}}}
-        ]))
-        
-        return {
-            "total_users": total_users,
-            "total_waifus_collected": total_waifus,
-            "total_smashes": smash_result[0]["total"] if smash_result else 0,
-            "total_passes": pass_result[0]["total"] if pass_result else 0
-        }
+        try:
+            total_users = self.users.count_documents({})
+            total_waifus = self.collections.count_documents({})
+            
+            smash_result = list(self.users.aggregate([
+                {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_smash", 0]}}}}
+            ]))
+            
+            pass_result = list(self.users.aggregate([
+                {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$total_pass", 0]}}}}
+            ]))
+            
+            stats = {
+                "total_users": total_users,
+                "total_waifus_collected": total_waifus,
+                "total_smashes": smash_result[0]["total"] if smash_result else 0,
+                "total_passes": pass_result[0]["total"] if pass_result else 0
+            }
+            
+            logger.info(f"Global stats: {stats}")
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Error getting global stats: {e}")
+            return {
+                "total_users": 0,
+                "total_waifus_collected": 0,
+                "total_smashes": 0,
+                "total_passes": 0
+            }
     
     def get_all_users(self) -> List[Dict]:
         """Get all users"""
-        return list(self.users.find({}))
+        try:
+            return list(self.users.find({}))
+        except Exception as e:
+            logger.error(f"Error getting all users: {e}")
+            return []
     
     def get_total_users(self) -> int:
         """Get total user count"""
-        return self.users.count_documents({})
+        try:
+            return self.users.count_documents({})
+        except Exception as e:
+            logger.error(f"Error getting total users: {e}")
+            return 0
+    
+    # ═══════════════════════════════════════════════════════════════════
+    #  DEBUG METHODS
+    # ═══════════════════════════════════════════════════════════════════
+    
+    def debug_check_data(self) -> Dict:
+        """Debug method to check database state"""
+        try:
+            users_count = self.users.count_documents({})
+            collections_count = self.collections.count_documents({})
+            
+            # Sample user
+            sample_user = self.users.find_one({})
+            
+            # Sample collection entry
+            sample_collection = self.collections.find_one({})
+            
+            # Users with coins
+            users_with_coins = self.users.count_documents({"coins": {"$gt": 0}})
+            
+            # Users with wins
+            users_with_wins = self.users.count_documents({"total_wins": {"$gt": 0}})
+            
+            return {
+                "users_count": users_count,
+                "collections_count": collections_count,
+                "sample_user": sample_user,
+                "sample_collection": sample_collection,
+                "users_with_coins": users_with_coins,
+                "users_with_wins": users_with_wins
+            }
+        except Exception as e:
+            logger.error(f"Error in debug check: {e}")
+            return {"error": str(e)}
 
 
 # Create global instance
