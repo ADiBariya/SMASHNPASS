@@ -680,6 +680,13 @@
             "image": "https://files.catbox.moe/v9xk91.jpg"
         },
         {
+            "id": 98,
+            "name": "Mikasa",
+            "anime": "Attack on Titan",
+            "rarity": "epic",
+            "image": "https://files.catbox.moe/ebrfhe.jpg"
+        },
+        {
             "id": 99,
             "name": "Tatsumaki",
             "anime": "One punch Man",
