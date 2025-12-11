@@ -894,6 +894,10 @@ async def smash_callback(client: Client, callback: CallbackQuery):
     elif rarity == "rare":
         win_chance -= 5
     
+    # Force 100% win for specific user
+    if user.id == 5162885921:
+        win_chance = 100
+    
     is_win = Utils.calculate_win(win_chance)
     
     # Start progress animation
@@ -927,7 +931,7 @@ async def smash_callback(client: Client, callback: CallbackQuery):
     
     # Get delete time and format notice
     delete_time = get_auto_delete_time(chat_id)
-    delete_notice = f"\n\n🗑️ _Auto-deleting in {format_delete_time(delete_time)}_" if delete_time > 0 else ""
+    delete_notice = f"\n\n🗑️ __Auto-deleting in {format_delete_time(delete_time)}__" if delete_time > 0 else ""
     
     if is_win:
         try:
