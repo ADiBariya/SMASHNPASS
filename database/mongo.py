@@ -26,6 +26,7 @@ class Database:
         self.cooldowns = self.db["cooldowns"]
         self.waifus = self.db["waifus"]
         self.groups = self.db["groups"]
+        self.reports = self.db["reports"]
         
         # Create indexes for faster queries
         self._create_indexes()
