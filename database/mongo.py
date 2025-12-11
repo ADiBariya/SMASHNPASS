@@ -651,7 +651,8 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting paginated collection for {user_id}: {e}")
             return []
-    
+
+
     def get_collection_count(self, user_id: int) -> int:
         """Get total waifus in user collection"""
         try:

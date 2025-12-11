@@ -1305,7 +1305,7 @@ async def view_collection_callback(client: Client, callback: CallbackQuery):
         
         # Format collection message
         collection_text = f"📦 **{user.first_name}'s Collection**\n\n"
-        collection_text += f"**Total Waifus:** {len(collection)}\n\n"
+        collection_text += f"**Total Waifus:** {db.get_collection_count(user.id)}\n\n"
         
         # Show last 5 waifus
         recent = collection[-5:] if len(collection) > 5 else collection

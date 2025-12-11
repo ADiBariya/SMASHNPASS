@@ -118,6 +118,16 @@ async def lb_collectors_callback(client: Client, callback: CallbackQuery):
     
     text += "\n━━━━━━━━━━━━━━━━━━━━━━━━"
     
+    # Show user rank if not in top 10
+    user_id = callback.from_user.id
+    user_in_top = any(u.get('user_id') == user_id for u in top_users)
+    
+    if not user_in_top:
+        user_count = db.get_collection_count(user_id)
+        if user_count > 0:
+            user_rank = db.get_user_rank(user_id, "collection")
+            text += f"\n\n👤 **Your Rank:** #{user_rank} ({user_count} waifus)"
+    
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 Back", callback_data="lb_main")]
     ])
