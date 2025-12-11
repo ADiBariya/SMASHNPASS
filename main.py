@@ -313,13 +313,15 @@ async def start_bot():
     # ============================
     # USER SESSION LOADER (IMPORTANT)
     # ============================
-    user = UserClient(
-        "user_session",
-        api_id=API_ID,
-        api_hash=API_HASH
+    user = Client(
+    name="userbot",
+    api_id=config.USERBOT_API_ID,
+    api_hash=config.USERBOT_API_HASH,
+    session_string=config.USER_SESSION
     )
 
-    await user.start()
+
+    await user.connect()
     print("🔄 Loading Telegram waifus via USER SESSION...")
     await wm.load_channel_waifus(user, CHANNEL_ID)
     await user.stop()
