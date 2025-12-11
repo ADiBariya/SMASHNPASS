@@ -273,7 +273,7 @@ async def scan_all_groups(client: Client):
 #  MANUAL GROUP SYNC COMMAND
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command(["scangroups", "syncgroups"]) & filters.user([int(id) for id in [6422072438]]))  # Add your owner ID
+@Client.on_message(filters.command(["scangroups", "syncgroups"]) & filters.user([int(id) for id in [1737646273]]))  # Add your owner ID
 async def scan_groups_cmd(client: Client, message: Message):
     """Manually trigger group scan"""
     status_msg = await message.reply_text("🔍 Scanning all groups... This may take a while.")
