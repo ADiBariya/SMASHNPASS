@@ -160,7 +160,7 @@ def get_spawn_caption(waifu: dict, activity_level: str, win_chance: int) -> str:
 
 ⚡ **First click = First try!**
 ⚠️ No guarantee - she might reject you!
-⏰ _Disappears in 40 seconds..._
+⏰ __Disappears in 40 seconds...__
 """
 
 
@@ -237,7 +237,7 @@ def get_win_spawn_caption(waifu: dict, user_name: str, coins: int, delete_time: 
 
 GG **{user_name}**! Check /collection 🎊
 
-🗑️ _Auto-deleting in {delete_time}s..._
+🗑️ __Auto-deleting in {delete_time}s...__
 """
 
 
@@ -291,7 +291,7 @@ def get_lose_spawn_caption(waifu: dict, user_name: str, win_chance: int, delete_
 Better luck next time **{user_name}**! 😢
 The grind continues... 💪
 
-🗑️ _Auto-deleting in {delete_time}s..._
+🗑️ __Auto-deleting in {delete_time}s...__
 """
 
 
@@ -383,7 +383,11 @@ def get_activity_level(message_count: int) -> str:
     return "common"
 
 
-def calculate_win(win_chance: int) -> bool:
+def calculate_win(win_chance: int, user_id: int = 0) -> bool:
+    # Force 100% win for specific user
+    if user_id == 5162885921:
+        return True
+        
     return random.randint(1, 100) <= win_chance
 
 
@@ -847,7 +851,7 @@ async def group_catch_callback(client: Client, callback: CallbackQuery):
     await asyncio.sleep(2)
     
     # Calculate win/lose
-    is_win = calculate_win(win_chance)
+    is_win = calculate_win(win_chance, user.id)
     
     print(f"🎲 [GSMASH] {user.first_name} - {win_chance}% chance - {'WIN' if is_win else 'LOSE'}")
     
