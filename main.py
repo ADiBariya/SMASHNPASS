@@ -1,3 +1,4 @@
+
 import os
 import sys
 import asyncio
@@ -9,6 +10,7 @@ from datetime import datetime
 from pyrogram import Client, idle, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from config import API_ID, API_HASH, BOT_TOKEN
+from pyrogram import Client as UserClient
 from database import db
 from helpers.utils import get_waifu_manager
 
@@ -52,6 +54,7 @@ LOADED_MODULES = {}
 BOT_START_TIME = datetime.now()
 STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"
 HELP_IMAGE_URL = "https://files.catbox.moe/9lkbyr.jpg"
+
 
 try:
     from config import LOG_GROUP_ID
@@ -103,7 +106,7 @@ def get_full_help():
 # ============================
 # STARTUP NOTIFICATION
 # ============================
-async def send_startup_notification(me, loaded, failed, waifu_count=0):
+async def send_startup_notification(me, loaded, failed):
     """Send startup notification to log group and owner"""
     startup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -120,9 +123,6 @@ async def send_startup_notification(me, loaded, failed, waifu_count=0):
 ├ ✅ **Loaded:** {loaded}
 ├ ❌ **Failed:** {failed}
 └ 📊 **Total:** {loaded + failed}
-
-**Waifu Database:**
-└ 🎴 **Total Waifus:** {waifu_count}
 
 **System Status:**
 ├ 🗄️ **Database:** Connected
@@ -294,103 +294,6 @@ async def logs_handler(client, message: Message):
         logger.warning(f"⚠️ DM logs failed to send: {e}")
         await message.reply_text("⚠️ Could not send to your DM. Make sure you've started the bot in private.")
 
-
-# ============================
-# ✅ TELEGRAM CHANNEL WAIFU LOADER
-# ============================
-async def load_channel_waifus():
-    """Load waifus from Telegram channel using user session"""
-    
-    # Check required config
-    required_configs = ['USERBOT_API_ID', 'USERBOT_API_HASH', 'USER_SESSION']
-    
-    for cfg in required_configs:
-        if not hasattr(config, cfg) or not getattr(config, cfg):
-            logger.error(f"❌ Missing config: {cfg}")
-            print(f"❌ Missing config: {cfg}")
-            return 0
-    
-    # Channel ID - UPDATE THIS TO YOUR CHANNEL
-    CHANNEL_ID = -1002322377810
-    
-    user = None
-    waifu_count = 0
-    
-    try:
-        print("\n" + "=" * 50)
-        print("🔄 LOADING TELEGRAM WAIFUS...")
-        print("=" * 50)
-        
-        # Create user client
-        user = Client(
-            name="userbot_session",
-            api_id=config.USERBOT_API_ID,
-            api_hash=config.USERBOT_API_HASH,
-            session_string=config.USER_SESSION,
-            in_memory=True,
-            no_updates=True
-        )
-        
-        logger.info("🔄 Connecting user session...")
-        print("🔄 Connecting user session...")
-        
-        # Start user client
-        await user.start()
-        
-        # Verify connection
-        me = await user.get_me()
-        logger.info(f"✅ User session connected: {me.first_name} (@{me.username or 'N/A'})")
-        print(f"✅ Connected as: {me.first_name} (@{me.username or 'N/A'})")
-        
-        # Try to access channel
-        try:
-            chat = await user.get_chat(CHANNEL_ID)
-            logger.info(f"✅ Channel accessed: {chat.title}")
-            print(f"✅ Channel found: {chat.title}")
-        except Exception as e:
-            logger.error(f"❌ Cannot access channel {CHANNEL_ID}: {e}")
-            print(f"❌ Cannot access channel: {e}")
-            print("💡 Make sure the user account has joined the channel!")
-            return 0
-        
-        # Get waifu manager and load waifus
-        wm = get_waifu_manager()
-        
-        logger.info(f"📥 Loading waifus from channel...")
-        print(f"📥 Loading waifus from channel...")
-        
-        await wm.load_channel_waifus(user, CHANNEL_ID)
-        
-        # Get count
-        if hasattr(wm, 'waifus') and wm.waifus:
-            waifu_count = len(wm.waifus)
-        elif hasattr(wm, 'get_all_waifus'):
-            waifu_count = len(wm.get_all_waifus())
-        
-        logger.info(f"✅ Loaded {waifu_count} waifus from Telegram!")
-        print(f"✅ Successfully loaded {waifu_count} waifus!")
-        print("=" * 50 + "\n")
-        
-        return waifu_count
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to load channel waifus: {e}")
-        print(f"❌ Error loading waifus: {e}")
-        import traceback
-        traceback.print_exc()
-        return 0
-        
-    finally:
-        # Safely stop user client
-        if user is not None:
-            try:
-                await user.stop()
-                logger.info("✅ User session disconnected")
-            except Exception as e:
-                # Ignore stop errors
-                logger.debug(f"User stop warning (ignorable): {e}")
-
-
 # ============================
 # START BOT TASK
 # ============================
@@ -399,43 +302,42 @@ async def start_bot():
     logger.info("🚀 Starting WaifuBot...")
     logger.info("📡 MongoDB auto-connected.")
 
-    # Load modules
     loaded, failed = load_modules()
 
-    # Start the main bot
     await app.start()
     me = await app.get_me()
+
     logger.info(f"🤖 Logged in as @{me.username}")
+    wm = get_waifu_manager()
+
+    CHANNEL_ID = -1003322377810
 
     # ============================
-    # Load waifus from Telegram channel
+    # USER SESSION LOADER (IMPORTANT)
     # ============================
-    waifu_count = 0
-    try:
-        waifu_count = await load_channel_waifus()
-    except Exception as e:
-        logger.error(f"⚠️ Waifu loading error (non-fatal): {e}")
-        print(f"⚠️ Could not load TG waifus: {e}")
-    
-    if waifu_count == 0:
-        print("⚠️ No waifus loaded from Telegram channel!")
-        print("💡 Bot will still work, but /smash may not have waifus")
-        logger.warning("⚠️ Bot running with 0 TG waifus")
+    user = Client(
+    name="userbot",
+    api_id=config.USERBOT_API_ID,
+    api_hash=config.USERBOT_API_HASH,
+    session_string=config.USER_SESSION
+    )
 
+
+    await user.connect()
+    print("🔄 Loading Telegram waifus via USER SESSION...")
+    await wm.load_channel_waifus(user, CHANNEL_ID)
+    await user.stop()
+    print("✅ Telegram waifus loaded!")
     # ============================
-    
-    # Send startup notification
-    await send_startup_notification(me, loaded, failed, waifu_count)
+
+    await send_startup_notification(me, loaded, failed)
 
     logger.info("🟢 Bot is now idle and ready.")
     await idle()
 
-    # Shutdown
     await send_shutdown_notification(me)
     await app.stop()
     logger.info("🔴 Bot stopped!")
-
-
 # ============================
 # RUN BOT
 # ============================
