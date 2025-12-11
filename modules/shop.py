@@ -30,10 +30,10 @@ __HELP__ = """
 
 # Rarity points system (for sell value)
 RARITY_POINTS = {
-    "common": 10,
-    "epic": 25,
-    "legendary": 50,
-    "rare": 100
+    "common": 150,
+    "epic": 750,
+    "legendary": 1500,
+    "rare": 3750
 }
 
 # Shop items configuration - Based on your rarity points
@@ -42,28 +42,28 @@ SHOP_ITEMS = {
         "name": "Common Box",
         "price": 500,
         "emoji": "📦",
-        "description": "Contains Common waifu (Value: 10)",
+        "description": "Contains Common waifu (Value: 500)",
         "rarity": "common"
     },
     "epic_box": {
         "name": "Epic Box",
         "price": 1500,
         "emoji": "🟣",
-        "description": "Contains Epic waifu (Value: 25)",
+        "description": "Contains Epic waifu (Value: 1500)",
         "rarity": "epic"
     },
     "legendary_box": {
         "name": "Legendary Box",
         "price": 3000,
         "emoji": "🟡",
-        "description": "Contains Legendary waifu (Value: 50)",
+        "description": "Contains Legendary waifu (Value: 3000)",
         "rarity": "legendary"
     },
     "rare_box": {
         "name": "Rare Box",
         "price": 5000,
         "emoji": "💎",
-        "description": "Contains Rare waifu (Value: 100) - Best!",
+        "description": "Contains Rare waifu (Value: 5000) - Best!",
         "rarity": "rare"
     },
     "premium_box": {
@@ -270,10 +270,7 @@ async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
     text = f"""
 🎉 **{item['name']} OPENED!**
 
-━━━━━━━━━━━━━━━━━━━━
 {emoji} **{waifu['name']}**
-━━━━━━━━━━━━━━━━━━━━
-
 📺 **Anime:** {waifu.get('anime', 'Unknown')}
 ⭐ **Rarity:** {waifu.get('rarity', 'common').title()}
 💰 **Sell Value:** {value} coins
@@ -508,11 +505,11 @@ async def buy_cmd(client: Client, message: Message):
         return await message.reply_text(
             "❌ **Usage:** `.buy <item_name>`\n\n"
             "**Available Boxes (Low to High):**\n"
-            "• `common` - 50 coins (⚪ Common - 10 pts)\n"
-            "• `epic` - 150 coins (🟣 Epic - 25 pts)\n"
-            "• `legendary` - 300 coins (🟡 Legendary - 50 pts)\n"
-            "• `rare` - 500 coins (🔵 Rare - 100 pts)\n"
-            "• `premium` - 750 coins (💎 Guaranteed Rare!)"
+            "• `common` - 500 coins (⚪ Common - 10 pts)\n"
+            "• `epic` - 1500 coins (🟣 Epic - 25 pts)\n"
+            "• `legendary` - 3000 coins (🟡 Legendary - 50 pts)\n"
+            "• `rare` - 5000 coins (🔵 Rare - 100 pts)\n"
+            "• `premium` - 7500 coins (💎 Guaranteed Rare!)"
         )
 
     item_id = message.command[1].lower().replace(" ", "_")
@@ -603,10 +600,10 @@ async def sell_cmd(client: Client, message: Message):
         return await message.reply_text(
             "❌ **Usage:** `.sell <waifu_id>`\n\n"
             "**Sell Values:**\n"
-            "• ⚪ Common - 5 coins (50%)\n"
-            "• 🟣 Epic - 12 coins (50%)\n"
-            "• 🟡 Legendary - 25 coins (50%)\n"
-            "• 🔵 Rare - 50 coins (50%)"
+            "• ⚪ Common - 250 coins (50%)\n"
+            "• 🟣 Epic - 750 coins (50%)\n"
+            "• 🟡 Legendary - 1500 coins (50%)\n"
+            "• 🔵 Rare - 3750 coins (50%)"
         )
 
     try:
