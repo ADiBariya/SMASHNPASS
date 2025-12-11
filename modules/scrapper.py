@@ -205,11 +205,7 @@ async def get_anime_info(name):
     return await loop.run_in_executor(None, get_anime_info_sync, name)
 
 def update_db(name, anime, rarity, image_url):
-    # Generate a simple time-based ID since we aren't using the file anymore
-    next_id = int(time.time())
-        
     new_entry = {
-        "id": next_id,
         "name": name,
         "anime": anime,
         "rarity": rarity,
@@ -219,7 +215,7 @@ def update_db(name, anime, rarity, image_url):
     # Sync to MongoDB (Live Update)
     try:
         db.upsert_waifu(new_entry)
-        print(f"✅ [DB] Upserted waifu {next_id} to MongoDB")
+        print(f"✅ [DB] Upserted waifu to MongoDB")
     except Exception as e:
         print(f"❌ [DB] Failed to upsert to Mongo: {e}")
 
@@ -486,14 +482,7 @@ async def handle_rarity(client: Client, callback_query: CallbackQuery):
         
         file_path, temp_dir = result
         
-        # 2. Upload to Catbox
-    try:
-        # 1. Download Image
-        result = await download_image(source_url)
-        if not result:
-            return await status_msg.edit_text("❌ Failed to download media.")
-        
-        file_path, temp_dir = result
+
         
         try:
             # 2. Clean Name & Get Anime Info
@@ -544,7 +533,6 @@ async def handle_rarity(client: Client, callback_query: CallbackQuery):
             
                 await status_msg.edit_text(
                     f"✅ **Processed!**\n\n"
-                    f"🆔 ID: `{new_entry['id']}`\n"
                     f"👤 Name: `{final_name}`\n"
                     f"📺 Anime: `{final_anime}`\n"
                     f"✨ Rarity: `{rarity.capitalize()}`\n\n"
