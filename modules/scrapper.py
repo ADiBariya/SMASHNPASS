@@ -205,7 +205,17 @@ async def get_anime_info(name):
     return await loop.run_in_executor(None, get_anime_info_sync, name)
 
 def update_db(name, anime, rarity, image_url):
+    # Generate sequential ID
+    try:
+        # Find the waifu with the highest ID
+        last_entry = db.waifus.find_one(sort=[("id", -1)])
+        next_id = (last_entry.get("id", 0) if last_entry else 0) + 1
+    except Exception as e:
+        print(f"❌ [DB] Error getting next ID: {e}")
+        next_id = 1
+
     new_entry = {
+        "id": next_id,
         "name": name,
         "anime": anime,
         "rarity": rarity,
