@@ -415,10 +415,6 @@ async def send_random_command(client: Client, message: Message):
     print(f"🎁 [SENDRANDOM] {user.first_name} sent random waifu {waifu.get('name')} to {target_user_id}")
 
 
-# ═══════════════════════════════════════════════════════════════════
-#  /takewaifu Command - Remove Waifu from User
-# ═══════════════════════════════════════════════════════════════════
-
 @Client.on_message(filters.command(["takewaifu", "removewaifu"]))
 async def take_waifu_command(client: Client, message: Message):
     """Remove a waifu from user's collection"""
@@ -477,28 +473,27 @@ async def take_waifu_command(client: Client, message: Message):
             await message.reply_text("❌ Invalid waifu ID!")
             return
     
-    # Remove waifu from collection
+    # ✅ FIX: Use db.collections instead of db.users
     try:
-        result = db.users.update_one(
-            {"user_id": target_user_id},
-            {"$pull": {"collection": {"id": waifu_id}}}
-        )
+        # Use the database method
+        success = db.remove_from_collection(target_user_id, waifu_id)
         
-        if result.modified_count > 0:
+        if success:
             await message.reply_text(
                 f"✅ **Waifu Removed!**\n\n"
                 f"🗑️ Waifu ID: `{waifu_id}`\n"
                 f"👤 From: `{target_user_id}`"
             )
         else:
-            await message.reply_text("❌ Waifu not found in user's collection!")
+            await message.reply_text(
+                f"❌ **Waifu Not Found!**\n\n"
+                f"User `{target_user_id}` doesn't have waifu ID `{waifu_id}`"
+            )
             
     except Exception as e:
         await message.reply_text(f"❌ Error: {e}")
-
-
 # ═══════════════════════════════════════════════════════════════════
-#  /clearwaifus Command - Clear All Waifus
+#  /clearwaifus Command - Clear All Waifus (FIXED)
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_message(filters.command(["clearwaifus", "clearall"]))
@@ -538,22 +533,37 @@ async def clear_waifus_command(client: Client, message: Message):
             await message.reply_text(error)
             return
     
-    # Clear collection
+    # ✅ FIX: Delete from 'collections' collection, NOT 'users'
     try:
-        db.users.update_one(
-            {"user_id": target_user_id},
-            {"$set": {"collection": []}}
-        )
+        # First count how many waifus user has
+        waifu_count = db.collections.count_documents({"user_id": target_user_id})
         
-        await message.reply_text(
-            f"✅ **Collection Cleared!**\n\n"
-            f"🗑️ All waifus removed from `{target_user_id}`"
-        )
+        if waifu_count == 0:
+            await message.reply_text(
+                f"ℹ️ **No Waifus to Clear!**\n\n"
+                f"User `{target_user_id}` has 0 waifus."
+            )
+            return
         
+        # Delete all waifus from collections
+        result = db.collections.delete_many({"user_id": target_user_id})
+        
+        if result.deleted_count > 0:
+            await message.reply_text(
+                f"✅ **Collection Cleared!**\n\n"
+                f"🗑️ Removed **{result.deleted_count}** waifus\n"
+                f"👤 From: `{target_user_id}`"
+            )
+            print(f"🗑️ [CLEAR] {user.first_name} cleared {result.deleted_count} waifus from {target_user_id}")
+        else:
+            await message.reply_text(
+                f"⚠️ **Nothing Cleared**\n\n"
+                f"User `{target_user_id}` - deletion failed"
+            )
+            
     except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-
+        await message.reply_text(f"❌ **Error:** `{e}`")
+        print(f"❌ [CLEAR ERROR] {e}")
 # ═══════════════════════════════════════════════════════════════════
 #  /waifulist Command - List All Waifus
 # ═══════════════════════════════════════════════════════════════════
