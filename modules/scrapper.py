@@ -487,55 +487,76 @@ async def handle_rarity(client: Client, callback_query: CallbackQuery):
         file_path, temp_dir = result
         
         # 2. Upload to Catbox
+    try:
+        # 1. Download Image
+        result = await download_image(source_url)
+        if not result:
+            return await status_msg.edit_text("❌ Failed to download media.")
+        
+        file_path, temp_dir = result
+        
         try:
-            await status_msg.edit_text("⏳ Uploading to Catbox...")
-            catbox_url = await upload_to_catbox(file_path)
-            if not catbox_url.startswith("http"):
-                 return await status_msg.edit_text(f"❌ Catbox Upload Failed: {catbox_url}")
-        finally:
-            shutil.rmtree(temp_dir)
+            # 2. Clean Name & Get Anime Info
+            await status_msg.edit_text(f"⏳ Fetching info for `{tag_name}`...")
             
-        # 3. Clean Name & Get Anime Info
-        await status_msg.edit_text(f"⏳ Fetching info for `{tag_name}`...")
-        
-        clean_name = re.sub(r'\(.*?\)', '', tag_name).replace('_', ' ').strip()
-        
-        anime_info = await get_anime_info(clean_name)
-        
-        if anime_info:
-            final_name = anime_info["character"]
-            final_anime = anime_info["anime"]
-        else:
-            final_name = clean_name.title()
-            final_anime = "Unknown"
+            clean_name = re.sub(r'\(.*?\)', '', tag_name).replace('_', ' ').strip()
             
-        # 4. Update Database (Live Mongo only)
-        new_entry = update_db(final_name, final_anime, rarity, catbox_url)
-        
-        # 5. Send to Channel
-        try:
+            anime_info = await get_anime_info(clean_name)
+            
+            if anime_info:
+                final_name = anime_info["character"]
+                final_anime = anime_info["anime"]
+            else:
+                final_name = clean_name.title()
+                final_anime = "Unknown"
+
+            # 3. Send to Channel
+            await status_msg.edit_text("⏳ Uploading to Channel...")
             caption = (
                 f"Name: {final_name}\n"
                 f"Anime: {final_anime}\n"
                 f"Rarity: {rarity.capitalize()}"
             )
-            await client.send_photo(
-                chat_id=TG_WAIFU_CHANNEL,
-                photo=catbox_url,
-                caption=caption
-            )
-            channel_text = f"✅ Posted to Channel ({TG_WAIFU_CHANNEL})!"
-        except Exception as ch_e:
-            channel_text = f"❌ Failed to post to channel: {ch_e}"
+            
+            try:
+                sent_msg = await client.send_photo(
+                    chat_id=TG_WAIFU_CHANNEL,
+                    photo=file_path,
+                    caption=caption
+                )
+                
+                image_link = None
+                if sent_msg and sent_msg.id:
+                    # Construct link manually if needed or use .link if available
+                    # For private channels -100..., remove -100 and use /c/
+                    req_chat_id = str(TG_WAIFU_CHANNEL)
+                    if req_chat_id.startswith("-100"):
+                         chat_code = req_chat_id[4:]
+                         image_link = f"https://t.me/c/{chat_code}/{sent_msg.id}"
+                    else:
+                         image_link = sent_msg.link
 
-        await status_msg.edit_text(
-            f"✅ **Processed!**\n\n"
-            f"🆔 ID: `{new_entry['id']}`\n"
-            f"👤 Name: `{final_name}`\n"
-            f"📺 Anime: `{final_anime}`\n"
-            f"✨ Rarity: `{rarity.capitalize()}`\n\n"
-            f"{channel_text}"
-        )
+                if not image_link:
+                    image_link = "https://t.me/unknown_link"
+
+                # 4. Update Database (Live Mongo only) - ONLY ON SUCCESS
+                new_entry = update_db(final_name, final_anime, rarity, image_link)
+            
+                await status_msg.edit_text(
+                    f"✅ **Processed!**\n\n"
+                    f"🆔 ID: `{new_entry['id']}`\n"
+                    f"👤 Name: `{final_name}`\n"
+                    f"📺 Anime: `{final_anime}`\n"
+                    f"✨ Rarity: `{rarity.capitalize()}`\n\n"
+                    f"✅ Posted to Channel!"
+                )
+
+            except Exception as ch_e:
+                 await status_msg.edit_text(f"❌ Failed to post to channel: {ch_e}")
+                 # Do not update DB, do not proceed
+
+        finally:
+            shutil.rmtree(temp_dir)
         
     except Exception as e:
         await status_msg.edit_text(f"❌ Critical Error: {str(e)}")
