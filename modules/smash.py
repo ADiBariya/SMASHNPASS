@@ -1,8 +1,11 @@
 # modules/smash.py - Main Game Module with Strict Force Sub & Sexy Captions
+# FIXED AUTO-DELETE SYSTEM
 
 import random
 import asyncio
 import time
+import json
+import os
 from pyrogram import Client, filters
 from pyrogram.types import (
     Message,
@@ -42,13 +45,112 @@ active_games = {}
 # Track recently shown waifus per user
 recent_waifus = {}
 
-# Auto-delete settings per group
-auto_delete_settings = {}
-
 # Track last pass time to prevent spam
 last_pass_time = {}
 
+# Default auto-delete time
 DEFAULT_AUTO_DELETE = 30
+
+# Auto-delete settings file
+AUTO_DELETE_FILE = "auto_delete_settings.json"
+
+# In-memory cache for auto-delete settings
+auto_delete_cache = {}
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  🗑️ AUTO-DELETE SYSTEM (FIXED WITH FILE PERSISTENCE)
+# ═══════════════════════════════════════════════════════════════════
+
+def load_auto_delete_settings():
+    """Load auto-delete settings from file on startup"""
+    global auto_delete_cache
+    try:
+        if os.path.exists(AUTO_DELETE_FILE):
+            with open(AUTO_DELETE_FILE, 'r') as f:
+                data = json.load(f)
+                # Convert string keys back to int (JSON only supports string keys)
+                auto_delete_cache = {int(k): v for k, v in data.items()}
+                print(f"✅ [AUTO-DEL] Loaded {len(auto_delete_cache)} settings from file")
+        else:
+            auto_delete_cache = {}
+            print("📁 [AUTO-DEL] No settings file found, starting fresh")
+    except Exception as e:
+        print(f"⚠️ [AUTO-DEL] Error loading settings: {e}")
+        auto_delete_cache = {}
+
+
+def save_auto_delete_settings():
+    """Save auto-delete settings to file"""
+    try:
+        with open(AUTO_DELETE_FILE, 'w') as f:
+            # Convert int keys to string for JSON compatibility
+            json.dump({str(k): v for k, v in auto_delete_cache.items()}, f, indent=2)
+        print(f"💾 [AUTO-DEL] Saved {len(auto_delete_cache)} settings to file")
+        return True
+    except Exception as e:
+        print(f"❌ [AUTO-DEL] Error saving settings: {e}")
+        return False
+
+
+def get_auto_delete_time(chat_id: int) -> int:
+    """Get auto-delete time for a chat"""
+    return auto_delete_cache.get(chat_id, DEFAULT_AUTO_DELETE)
+
+
+def set_auto_delete_time(chat_id: int, seconds: int) -> bool:
+    """Set auto-delete time for a chat and save to file"""
+    try:
+        auto_delete_cache[chat_id] = seconds
+        save_auto_delete_settings()
+        print(f"✅ [AUTO-DEL] Set chat {chat_id} to {seconds}s")
+        return True
+    except Exception as e:
+        print(f"❌ [AUTO-DEL] Error setting time: {e}")
+        return False
+
+
+async def auto_delete_message(message: Message, delay: int):
+    """Delete message after delay with proper error handling"""
+    if delay <= 0:
+        return
+    
+    try:
+        print(f"🗑️ [AUTO-DEL] Scheduling delete in {delay}s for message {message.id}")
+        await asyncio.sleep(delay)
+        await message.delete()
+        print(f"✅ [AUTO-DEL] Deleted message {message.id} successfully")
+    except Exception as e:
+        print(f"⚠️ [AUTO-DEL] Could not delete message {message.id}: {e}")
+
+
+async def schedule_auto_delete(message: Message, chat_id: int) -> int:
+    """Schedule auto-delete for a message and return the delay"""
+    delete_time = get_auto_delete_time(chat_id)
+    
+    if delete_time > 0:
+        asyncio.create_task(auto_delete_message(message, delete_time))
+        return delete_time
+    
+    return 0
+
+
+def format_delete_time(seconds: int) -> str:
+    """Format seconds into readable time string"""
+    if seconds <= 0:
+        return "Disabled"
+    elif seconds >= 60:
+        mins = seconds // 60
+        secs = seconds % 60
+        if secs:
+            return f"{mins}m {secs}s"
+        return f"{mins} minute(s)"
+    else:
+        return f"{seconds} seconds"
+
+
+# Load settings on module import
+load_auto_delete_settings()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -378,30 +480,18 @@ async def safe_edit_message(callback: CallbackQuery, text: str = None, caption: 
 #  Helper Functions
 # ═══════════════════════════════════════════════════════════════════
 
-def get_auto_delete_time(chat_id: int) -> int:
-    """Get auto-delete time for a chat"""
-    return auto_delete_settings.get(chat_id, DEFAULT_AUTO_DELETE)
-
-
 async def is_group_admin(client: Client, chat_id: int, user_id: int) -> bool:
-    """Check if user is admin"""
+    """Check admin with FULL Telegram status support"""
     try:
         member = await client.get_chat_member(chat_id, user_id)
-        return member.status in ["administrator", "creator"]
+        return member.status in [
+            "administrator",
+            "creator",
+            "owner",
+            "chat_administrator"
+        ]
     except:
         return False
-
-
-async def auto_delete_message(message: Message, delay: int):
-    """Delete message after delay"""
-    if delay <= 0:
-        return
-    
-    try:
-        await asyncio.sleep(delay)
-        await message.delete()
-    except Exception as e:
-        print(f"⚠️ [AUTO-DEL] Could not delete: {e}")
 
 
 def get_unique_waifu(wm, user_id: int):
@@ -414,7 +504,9 @@ def get_unique_waifu(wm, user_id: int):
     max_attempts = 50
     
     for _ in range(max_attempts):
-        waifu = wm.get_random_waifu()
+        all_waifus = wm.get_all_waifus()       # ✅ merged JSON + TG waifus
+        waifu = random.choice(all_waifus)
+
         if not waifu:
             return None
         
@@ -429,7 +521,7 @@ def get_unique_waifu(wm, user_id: int):
     return wm.get_random_waifu()
 
 
-def can_pass_again(user_id: int) -> tuple[bool, int]:
+def can_pass_again(user_id: int) -> tuple:
     """Check if user can pass again (anti-spam)"""
     current_time = time.time()
     
@@ -441,7 +533,139 @@ def can_pass_again(user_id: int) -> tuple[bool, int]:
     return True, 0
 
 
-# [Auto-delete commands same as before...]
+# ═══════════════════════════════════════════════════════════════════
+#  🔧 AUTO-DELETE ADMIN COMMANDS (FIXED)
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_message(filters.command(["autodel", "autodelete"]) & filters.group)
+async def set_auto_delete_cmd(client: Client, message: Message):
+    """Set auto-delete time for the group with Robust Admin Check"""
+    user = message.from_user
+    chat_id = message.chat.id
+
+    if not user: # Handle anonymous admins
+        return
+
+    # 🛡️ ROBUST ADMIN CHECK
+    try:
+        member = await client.get_chat_member(chat_id, user.id)
+        
+        # Convert status to string and lowercase to be safe
+        status = str(member.status).split('.')[-1].lower() 
+        
+        # Check against all possible admin strings
+        is_admin = status in ["administrator", "creator", "owner"]
+        
+        if not is_admin:
+            print(f"🚫 [ADMIN CHECK] Denied: User {user.id} status is {status}")
+            reply = await message.reply_text("❌ **Only admins can change auto-delete settings!**")
+            await asyncio.sleep(5)
+            try:
+                await reply.delete()
+                await message.delete()
+            except: pass
+            return
+            
+    except Exception as e:
+        print(f"⚠️ [AUTODEL] Admin verify failed: {e}")
+        # Fallback: if we can't verify, don't allow changes
+        await message.reply_text("❌ **Unable to verify your admin status. Please make sure I have permission to see members!**")
+        return
+# Get arguments
+    args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+
+    if not args:
+        current = get_auto_delete_time(chat_id)
+        status = format_delete_time(current)
+        
+        await message.reply_text(
+            f"🗑️ **Auto-Delete Settings**\n\n"
+            f"**Current:** {status}\n\n"
+            f"**Usage:**\n"
+            f"• `/autodel <10-300>` - Set seconds\n"
+            f"• `/autodel off` - Disable auto-delete\n\n"
+            f"**Examples:**\n"
+            f"• `/autodel 30` - Delete after 30s\n"
+            f"• `/autodel 60` - Delete after 1 min\n"
+            f"• `/autodel off` - Keep messages"
+        )
+        return
+
+    value = args[0].lower()
+
+    # Handle disable
+    if value in ["off", "0", "disable", "no", "false"]:
+        success = set_auto_delete_time(chat_id, 0)
+        
+        if success:
+            await message.reply_text(
+                "🗑️ **Auto-Delete Disabled!**\n\n"
+                "Game messages will no longer be deleted automatically."
+            )
+        else:
+            await message.reply_text("❌ **Failed to update settings!**")
+        return
+
+    # Handle number
+    try:
+        seconds = int(value)
+    except ValueError:
+        await message.reply_text(
+            "❌ **Invalid value!**\n\n"
+            "Use a number between 10-300 or `off`"
+        )
+        return
+
+    # Validate range
+    if seconds < 10 or seconds > 300:
+        await message.reply_text(
+            "❌ **Value out of range!**\n\n"
+            "Must be between **10 - 300 seconds**\n"
+            "Use `/autodel off` to disable"
+        )
+        return
+
+    # Set the value
+    success = set_auto_delete_time(chat_id, seconds)
+    
+    if success:
+        time_str = format_delete_time(seconds)
+        await message.reply_text(
+            f"✅ **Auto-Delete Enabled!**\n\n"
+            f"🗑️ Game messages will be deleted after **{time_str}**"
+        )
+    else:
+        await message.reply_text("❌ **Failed to update settings!**")
+
+
+@Client.on_message(filters.command(["autodelstatus", "delstatus", "adstatus"]) & filters.group)
+async def auto_delete_status_cmd(client: Client, message: Message):
+    """Check current auto-delete status"""
+    chat_id = message.chat.id
+    current = get_auto_delete_time(chat_id)
+
+    if current == 0:
+        status_text = (
+            "🗑️ **Auto-Delete Status**\n\n"
+            "**Status:** ❌ Disabled\n\n"
+            "Use `/autodel <seconds>` to enable"
+        )
+    else:
+        time_str = format_delete_time(current)
+        status_text = (
+            f"🗑️ **Auto-Delete Status**\n\n"
+            f"**Status:** ✅ Enabled\n"
+            f"**Time:** {time_str}\n\n"
+            f"Use `/autodel off` to disable"
+        )
+    
+    reply = await message.reply_text(status_text)
+    
+    # Auto-delete this status message too
+    if current > 0:
+        asyncio.create_task(auto_delete_message(reply, current))
+        asyncio.create_task(auto_delete_message(message, current))
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  /smash Command with Initial Sub Check
@@ -451,8 +675,9 @@ def can_pass_again(user_id: int) -> tuple[bool, int]:
 async def smash_command(client: Client, message: Message):
     """Start a new smash or pass game"""
     user = message.from_user
+    chat_id = message.chat.id
     
-    print(f"🎮 [SMASH] /smash from {user.first_name} ({user.id})")
+    print(f"🎮 [SMASH] /smash from {user.first_name} ({user.id}) in chat {chat_id}")
     
     # 🔒 CHECK SUBSCRIPTION FIRST
     is_subscribed = await check_subscription(client, user.id)
@@ -470,7 +695,13 @@ async def smash_command(client: Client, message: Message):
             ]
         ])
         
-        await message.reply_text(force_sub_text, reply_markup=force_sub_buttons)
+        sent = await message.reply_text(force_sub_text, reply_markup=force_sub_buttons)
+        
+        # Auto-delete force sub message after some time
+        delete_time = get_auto_delete_time(chat_id)
+        if delete_time > 0:
+            asyncio.create_task(auto_delete_message(sent, delete_time))
+            asyncio.create_task(auto_delete_message(message, delete_time))
         return
     
     # Continue with normal game flow if subscribed
@@ -490,10 +721,15 @@ async def smash_command(client: Client, message: Message):
     try:
         on_cooldown, remaining = db.check_cooldown(user.id, "smash")
         if on_cooldown:
-            await message.reply_text(
+            cooldown_msg = await message.reply_text(
                 f"⏳ **Chill bro!**\n\n"
                 f"Wait **{Utils.format_time(remaining)}** before hunting again! 🔥"
             )
+            # Auto-delete cooldown message
+            delete_time = get_auto_delete_time(chat_id)
+            if delete_time > 0:
+                asyncio.create_task(auto_delete_message(cooldown_msg, min(delete_time, 10)))
+                asyncio.create_task(auto_delete_message(message, min(delete_time, 10)))
             return
     except Exception as e:
         print(f"⚠️ [SMASH] Cooldown error: {e}")
@@ -525,16 +761,23 @@ async def smash_command(client: Client, message: Message):
     
     try:
         if image_url:
-            await message.reply_photo(
+            sent = await message.reply_photo(
                 photo=image_url,
                 caption=text,
                 reply_markup=buttons
             )
         else:
-            await message.reply_text(text, reply_markup=buttons)
+            sent = await message.reply_text(text, reply_markup=buttons)
+        
+        # Delete the command message
+        try:
+            await message.delete()
+        except:
+            pass
+            
     except Exception as e:
         print(f"⚠️ [SMASH] Image failed: {e}")
-        await message.reply_text(text, reply_markup=buttons)
+        sent = await message.reply_text(text, reply_markup=buttons)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -562,10 +805,14 @@ async def check_and_start_callback(client: Client, callback: CallbackQuery):
         return
     
     # Start the game
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except:
+        pass
+    
     await callback.answer("✅ Starting game...")
     
-    # Trigger smash command
+    # Create a fake message object to trigger smash command
     callback.message.from_user = callback.from_user
     callback.message.text = "/smash"
     await smash_command(client, callback.message)
@@ -590,6 +837,7 @@ async def smash_callback(client: Client, callback: CallbackQuery):
         return
     
     user = callback.from_user
+    chat_id = callback.message.chat.id
     
     # 🔒 ALWAYS CHECK SUBSCRIPTION ON EVERY SMASH
     is_subscribed = await check_subscription(client, user.id)
@@ -623,7 +871,6 @@ async def smash_callback(client: Client, callback: CallbackQuery):
         return
     
     # Continue with game if subscribed
-    chat_id = callback.message.chat.id
     wm = get_waifu_manager()
     
     if user.id not in active_games:
@@ -678,8 +925,9 @@ async def smash_callback(client: Client, callback: CallbackQuery):
     
     print(f"🎲 [SMASH] Chance: {win_chance}%, Result: {'WIN' if is_win else 'LOSE'}")
     
+    # Get delete time and format notice
     delete_time = get_auto_delete_time(chat_id)
-    delete_notice = f"\n\n🗑️ _Deleting in {delete_time}s_" if delete_time > 0 else ""
+    delete_notice = f"\n\n🗑️ _Auto-deleting in {format_delete_time(delete_time)}_" if delete_time > 0 else ""
     
     if is_win:
         try:
@@ -737,8 +985,10 @@ async def smash_callback(client: Client, callback: CallbackQuery):
         reply_markup=buttons
     )
     
+    # Schedule auto-delete
     if result and delete_time > 0:
         asyncio.create_task(auto_delete_message(callback.message, delete_time))
+        print(f"🗑️ [SMASH] Scheduled delete in {delete_time}s for chat {chat_id}")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -773,8 +1023,6 @@ async def retry_smash_callback(client: Client, callback: CallbackQuery):
     
     # Restore the game if waifu still in active_games
     if user.id not in active_games:
-        # Try to restore from waifu_id
-        wm = get_waifu_manager()
         # Since we can't get exact waifu back, just start new game
         callback.data = "play_smash"
         await play_smash_callback(client, callback)
@@ -785,7 +1033,7 @@ async def retry_smash_callback(client: Client, callback: CallbackQuery):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Pass Button Callback (No Force Sub Required for Pass)
+#  Pass Button Callback (Check sub for next waifu)
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex(r"^pass_(\d+)_(\d+)$"))
@@ -803,6 +1051,7 @@ async def pass_callback(client: Client, callback: CallbackQuery):
         return
     
     user = callback.from_user
+    chat_id = callback.message.chat.id
     
     # Anti-spam check
     can_pass, wait_time = can_pass_again(user.id)
@@ -888,6 +1137,7 @@ async def pass_callback(client: Client, callback: CallbackQuery):
 async def play_smash_callback(client: Client, callback: CallbackQuery):
     """Handle play smash button with sub check"""
     user = callback.from_user
+    chat_id = callback.message.chat.id
     
     print(f"🎮 [PLAY] Callback from {user.first_name}")
     
@@ -956,12 +1206,20 @@ async def play_smash_callback(client: Client, callback: CallbackQuery):
     image_url = waifu.get("image") or waifu.get("file_id")
     
     # Try to edit with flood handling
-    result = await safe_edit_message(
-        callback,
-        caption=text if callback.message.photo else None,
-        text=text if not callback.message.photo else None,
-        reply_markup=buttons
-    )
+    if callback.message.photo and image_url:
+        # Edit media
+        result = await safe_edit_message(
+            callback,
+            media=InputMediaPhoto(media=image_url, caption=text),
+            reply_markup=buttons
+        )
+    else:
+        result = await safe_edit_message(
+            callback,
+            caption=text if callback.message.photo else None,
+            text=text if not callback.message.photo else None,
+            reply_markup=buttons
+        )
     
     if result:
         start_responses = [
@@ -1022,3 +1280,67 @@ async def check_play_callback(client: Client, callback: CallbackQuery):
     # Continue with play_smash
     callback.data = "play_smash"
     await play_smash_callback(client, callback)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  View Collection Callback
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_callback_query(filters.regex("^view_collection$"))
+async def view_collection_callback(client: Client, callback: CallbackQuery):
+    """Handle view collection button"""
+    user = callback.from_user
+    
+    try:
+        # Get user's collection from database
+        collection = db.get_user_collection(user.id)
+        
+        if not collection or len(collection) == 0:
+            await callback.answer("📦 Your collection is empty! Start smashing!", show_alert=True)
+            return
+        
+        # Format collection message
+        collection_text = f"📦 **{user.first_name}'s Collection**\n\n"
+        collection_text += f"**Total Waifus:** {len(collection)}\n\n"
+        
+        # Show last 5 waifus
+        recent = collection[-5:] if len(collection) > 5 else collection
+        collection_text += "**Recent Catches:**\n"
+        
+        for waifu in reversed(recent):
+            rarity_emojis = {"common": "⚪", "rare": "🔵", "epic": "🟣", "legendary": "🟡"}
+            emoji = rarity_emojis.get(waifu.get('rarity', 'common'), "⚪")
+            collection_text += f"{emoji} {waifu.get('name', 'Unknown')}\n"
+        
+        collection_text += f"\nUse `/collection` for full list!"
+        
+        await callback.answer("📦 Opening collection...", show_alert=False)
+        
+        # Edit message to show collection
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔥 Hunt More", callback_data="play_smash"),
+                InlineKeyboardButton("🔙 Back", callback_data="play_smash")
+            ]
+        ])
+        
+        await safe_edit_message(
+            callback,
+            caption=collection_text if callback.message.photo else None,
+            text=collection_text if not callback.message.photo else None,
+            reply_markup=buttons
+        )
+        
+    except Exception as e:
+        print(f"❌ [COLLECTION] Error: {e}")
+        await callback.answer("❌ Error loading collection!", show_alert=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Module Initialization
+# ═══════════════════════════════════════════════════════════════════
+
+print("✅ [SMASH] Module loaded successfully!")
+print(f"📁 [SMASH] Auto-delete settings file: {AUTO_DELETE_FILE}")
+print(f"🗑️ [SMASH] Default auto-delete: {DEFAULT_AUTO_DELETE}s")
+print(f"💬 [SMASH] Support chat: {SUPPORT_CHAT}")
