@@ -1673,6 +1673,71 @@ class Database:
             logger.error(f"Error backing up user data: {e}")
             return {"error": str(e)}
 
+def mark_group_inactive(self, chat_id: int):
+    """Mark a group as inactive (bot removed)"""
+    try:
+        self.groups.update_one(
+            {"chat_id": chat_id},
+            {
+                "$set": {
+                    "is_active": False,
+                    "left_at": datetime.now()
+                }
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error marking group inactive: {e}")
+
+def update_group_member_count(self, chat_id: int, count: int):
+    """Update group member count"""
+    try:
+        self.groups.update_one(
+            {"chat_id": chat_id},
+            {"$set": {"member_count": count, "last_updated": datetime.now()}}
+        )
+    except Exception as e:
+        logger.error(f"Error updating member count: {e}")
+
+def update_group_info(self, chat_id: int, title: str = None, username: str = None, member_count: int = None):
+    """Update group information"""
+    try:
+        update_data = {"last_updated": datetime.now(), "is_active": True}
+        
+        if title:
+            update_data["title"] = title
+        if username:
+            update_data["username"] = username
+        if member_count:
+            update_data["member_count"] = member_count
+            
+        self.groups.update_one(
+            {"chat_id": chat_id},
+            {"$set": update_data}
+        )
+    except Exception as e:
+        logger.error(f"Error updating group info: {e}")
+
+def get_active_groups_count(self, hours: int = 24) -> int:
+    """Get count of active groups in last X hours"""
+    try:
+        cutoff = datetime.now() - timedelta(hours=hours)
+        return self.groups.count_documents({
+            "last_active": {"$gte": cutoff},
+            "is_active": {"$ne": False}
+        })
+    except Exception as e:
+        logger.error(f"Error getting active groups: {e}")
+        return 0
+
+def update_user_activity(self, user_id: int):
+    """Update user's last active timestamp"""
+    try:
+        self.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"last_active": datetime.now()}}
+        )
+    except Exception as e:
+        logger.error(f"Error updating user activity: {e}")
 
 # Create global instance
 db = Database()
