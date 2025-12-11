@@ -3,6 +3,7 @@ import sys
 import asyncio
 import importlib
 import logging
+import config
 from pathlib import Path
 from datetime import datetime
 from pyrogram import Client, idle, filters
