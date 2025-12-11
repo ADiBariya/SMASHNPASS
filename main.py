@@ -1,4 +1,3 @@
-
 import os
 import sys
 import asyncio
@@ -55,12 +54,80 @@ BOT_START_TIME = datetime.now()
 STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"
 HELP_IMAGE_URL = "https://files.catbox.moe/9lkbyr.jpg"
 
-
 try:
     from config import LOG_GROUP_ID
 except ImportError:
     LOG_GROUP_ID = None
     logger.warning("⚠️ LOG_GROUP_ID missing — log notifications disabled.")
+
+
+# ============================
+# GROUP SCANNER FUNCTION
+# ============================
+async def scan_all_groups(client: Client):
+    """
+    Scan all dialogs to find groups bot is in.
+    Called on startup to sync all groups to database.
+    """
+    from pyrogram.enums import ChatType
+    
+    logger.info("🔍 Starting group scan...")
+    
+    groups_found = 0
+    supergroups_found = 0
+    errors = 0
+    
+    try:
+        async for dialog in client.get_dialogs():
+            try:
+                chat = dialog.chat
+                
+                # Only process groups and supergroups
+                if chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
+                    # Get member count if possible
+                    try:
+                        member_count = await client.get_chat_members_count(chat.id)
+                    except:
+                        member_count = 0
+                    
+                    # Save to database
+                    db.get_or_create_group(
+                        chat_id=chat.id,
+                        title=chat.title,
+                        username=getattr(chat, 'username', None)
+                    )
+                    
+                    # Update member count
+                    db.update_group_member_count(chat.id, member_count)
+                    
+                    if chat.type == ChatType.SUPERGROUP:
+                        supergroups_found += 1
+                    else:
+                        groups_found += 1
+                    
+                    logger.debug(f"📌 Found group: {chat.title} ({chat.id})")
+                    
+                    # Small delay to avoid flood
+                    await asyncio.sleep(0.1)
+                    
+            except Exception as e:
+                errors += 1
+                logger.warning(f"Error processing dialog: {e}")
+                continue
+                
+    except Exception as e:
+        logger.error(f"Error scanning dialogs: {e}")
+    
+    total = groups_found + supergroups_found
+    logger.info(f"✅ Group scan complete! Found {total} groups ({groups_found} groups, {supergroups_found} supergroups)")
+    
+    return {
+        "total": total,
+        "groups": groups_found,
+        "supergroups": supergroups_found,
+        "errors": errors
+    }
+
 
 # ============================
 # MODULE LOADER
@@ -93,6 +160,7 @@ def load_modules():
     logger.info(f"📦 Modules loaded: {loaded} | Failed: {failed}")
     return loaded, failed
 
+
 # ============================
 # HELP SYSTEM
 # ============================
@@ -103,12 +171,24 @@ def get_full_help():
         text += f"**{info['name']}**\n{info['help']}\n\n"
     return text
 
+
 # ============================
 # STARTUP NOTIFICATION
 # ============================
-async def send_startup_notification(me, loaded, failed):
+async def send_startup_notification(me, loaded, failed, group_stats=None):
     """Send startup notification to log group and owner"""
     startup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Group stats section
+    group_section = ""
+    if group_stats:
+        group_section = f"""
+**Group Sync:**
+├ 💬 **Groups:** {group_stats.get('groups', 0)}
+├ 🔷 **Supergroups:** {group_stats.get('supergroups', 0)}
+├ 📊 **Total:** {group_stats.get('total', 0)}
+└ ⚠️ **Errors:** {group_stats.get('errors', 0)}
+"""
 
     caption = f"""
 🚀 **Bot Started Successfully!**
@@ -123,7 +203,7 @@ async def send_startup_notification(me, loaded, failed):
 ├ ✅ **Loaded:** {loaded}
 ├ ❌ **Failed:** {failed}
 └ 📊 **Total:** {loaded + failed}
-
+{group_section}
 **System Status:**
 ├ 🗄️ **Database:** Connected
 ├ 🔧 **Plugins:** Active
@@ -152,6 +232,7 @@ async def send_startup_notification(me, loaded, failed):
     except Exception as e:
         logger.warning(f"⚠️ Couldn't send startup DM to owner: {e}")
 
+
 # ============================
 # SHUTDOWN NOTIFICATION
 # ============================
@@ -166,11 +247,20 @@ async def send_shutdown_notification(me):
     minutes, seconds = divmod(remainder, 60)
     uptime_str = f"{days}d {hours}h {minutes}m {seconds}s" if days > 0 else f"{hours}h {minutes}m {seconds}s"
 
+    # Get final stats
+    total_users = db.get_total_users()
+    total_groups = db.get_total_groups()
+
     text = f"""
 🛑 **Bot Stopped**
 
 **Bot:** @{me.username}
 **Uptime:** `{uptime_str}`
+
+**Final Stats:**
+├ 👥 **Users:** {total_users:,}
+└ 💬 **Groups:** {total_groups:,}
+
 ━━━━━━━━━━━━━━━━━━━━
 👋 Bot has been shut down.
 """
@@ -179,6 +269,7 @@ async def send_shutdown_notification(me):
         logger.info("🛑 Sent shutdown message to LOG_GROUP_ID")
     except Exception as e:
         logger.error(f"❌ Failed to send shutdown message: {e}")
+
 
 # ============================
 # HELP COMMAND
@@ -205,6 +296,7 @@ Select a module to view its commands:
     except Exception as e:
         logger.warning(f"⚠️ Failed to send help image: {e}")
         await message.reply_text(caption, reply_markup=InlineKeyboardMarkup(buttons))
+
 
 # ============================
 # HELP CALLBACK
@@ -238,6 +330,7 @@ async def help_callback(client, cb):
         await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", "help_back")]]))
 
     await cb.answer()
+
 
 # ============================
 # LOGS COMMAND (Owner & Sudo Only)
@@ -294,6 +387,102 @@ async def logs_handler(client, message: Message):
         logger.warning(f"⚠️ DM logs failed to send: {e}")
         await message.reply_text("⚠️ Could not send to your DM. Make sure you've started the bot in private.")
 
+
+# ============================
+# MANUAL GROUP SCAN COMMAND
+# ============================
+@app.on_message(filters.command(["scangroups", "syncgroups"], [".", "/", "!"]))
+async def scan_groups_cmd(client, message: Message):
+    """Manually trigger group scan - Owner/Sudo only"""
+    user_id = message.from_user.id
+    
+    if user_id not in SUDO_USERS and user_id != OWNER_ID:
+        return await message.reply_text("❌ **Access Denied!**")
+    
+    status_msg = await message.reply_text("🔍 **Scanning all groups...** This may take a while.")
+    
+    try:
+        stats = await scan_all_groups(client)
+        
+        await status_msg.edit_text(
+            f"✅ **Group Scan Complete!**\n\n"
+            f"📊 **Results:**\n"
+            f"├ 💬 Groups: {stats['groups']}\n"
+            f"├ 🔷 Supergroups: {stats['supergroups']}\n"
+            f"├ 📊 Total: {stats['total']}\n"
+            f"└ ⚠️ Errors: {stats['errors']}\n\n"
+            f"All groups have been synced to database!"
+        )
+        
+        # Log to log group
+        if LOG_GROUP_ID:
+            await client.send_message(
+                LOG_GROUP_ID,
+                f"🔍 **Manual Group Scan Triggered**\n\n"
+                f"**By:** {message.from_user.mention}\n"
+                f"**Total Groups Found:** {stats['total']}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in group scan: {e}")
+        await status_msg.edit_text(f"❌ **Error:** {str(e)}")
+
+
+# ============================
+# BOT STATS QUICK COMMAND
+# ============================
+@app.on_message(filters.command(["ping", "alive"], [".", "/", "!"]))
+async def ping_cmd(client, message: Message):
+    """Quick ping/alive check"""
+    import time
+    
+    start = time.time()
+    msg = await message.reply_text("🏓 **Pong!**")
+    end = time.time()
+    
+    latency = (end - start) * 1000
+    uptime = datetime.now() - BOT_START_TIME
+    
+    days = uptime.days
+    hours, remainder = divmod(uptime.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    if days > 0:
+        uptime_str = f"{days}d {hours}h {minutes}m"
+    elif hours > 0:
+        uptime_str = f"{hours}h {minutes}m {seconds}s"
+    else:
+        uptime_str = f"{minutes}m {seconds}s"
+    
+    await msg.edit_text(
+        f"🏓 **Pong!**\n\n"
+        f"⚡ **Latency:** `{latency:.2f}ms`\n"
+        f"⏰ **Uptime:** `{uptime_str}`\n"
+        f"🟢 **Status:** Online"
+    )
+
+
+# ============================
+# RESTART COMMAND (Owner Only)
+# ============================
+@app.on_message(filters.command(["restart", "reboot"], [".", "/", "!"]))
+async def restart_cmd(client, message: Message):
+    """Restart the bot - Owner only"""
+    if message.from_user.id != OWNER_ID:
+        return await message.reply_text("❌ **Owner only command!**")
+    
+    await message.reply_text("🔄 **Restarting bot...**")
+    
+    # Send shutdown notification
+    me = await client.get_me()
+    await send_shutdown_notification(me)
+    
+    logger.info("🔄 Restart initiated by owner")
+    
+    # Restart the script
+    os.execl(sys.executable, sys.executable, *sys.argv)
+
+
 # ============================
 # START BOT TASK
 # ============================
@@ -308,28 +497,39 @@ async def start_bot():
     me = await app.get_me()
 
     logger.info(f"🤖 Logged in as @{me.username}")
+    
+    # ============================
+    # SCAN ALL GROUPS ON STARTUP
+    # ============================
+    logger.info("🔍 Scanning all groups...")
+    group_stats = await scan_all_groups(app)
+    logger.info(f"📊 Group scan complete: {group_stats['total']} groups found")
+    
+    # ============================
+    # LOAD WAIFU MANAGER
+    # ============================
     wm = get_waifu_manager()
-
     CHANNEL_ID = -1003322377810
 
     # ============================
     # USER SESSION LOADER (IMPORTANT)
     # ============================
     user = Client(
-    name="userbot",
-    api_id=config.USERBOT_API_ID,
-    api_hash=config.USERBOT_API_HASH,
-    session_string=config.USER_SESSION
+        name="userbot",
+        api_id=config.USERBOT_API_ID,
+        api_hash=config.USERBOT_API_HASH,
+        session_string=config.USER_SESSION
     )
 
-
     await user.connect()
-    print("🔄 Loading Telegram waifus via USER SESSION...")
+    logger.info("🔄 Loading Telegram waifus via USER SESSION...")
     await wm.load_channel_waifus(user, CHANNEL_ID)
-    print("✅ Telegram waifus loaded!")
+    logger.info("✅ Telegram waifus loaded!")
+    
     # ============================
-
-    await send_startup_notification(me, loaded, failed)
+    # SEND STARTUP NOTIFICATION WITH GROUP STATS
+    # ============================
+    await send_startup_notification(me, loaded, failed, group_stats)
 
     logger.info("🟢 Bot is now idle and ready.")
     await idle()
@@ -337,6 +537,8 @@ async def start_bot():
     await send_shutdown_notification(me)
     await app.stop()
     logger.info("🔴 Bot stopped!")
+
+
 # ============================
 # RUN BOT
 # ============================
