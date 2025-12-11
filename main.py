@@ -326,7 +326,6 @@ async def start_bot():
     await user.connect()
     print("🔄 Loading Telegram waifus via USER SESSION...")
     await wm.load_channel_waifus(user, CHANNEL_ID)
-    await user.stop()
     print("✅ Telegram waifus loaded!")
     # ============================
 
