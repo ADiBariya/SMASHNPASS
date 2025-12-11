@@ -1,16 +1,557 @@
-# shau.py - Enhanced Group Tracking & Logging
+# shau.py - Enhanced Group Tracking, Logging & Report System
 
 from pyrogram import Client, filters
-from pyrogram.types import Message, ChatMemberUpdated
+from pyrogram.types import Message, ChatMemberUpdated, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.enums import ChatMemberStatus, ChatType
 from database import db
-from config import LOG_GROUP_ID
+from config import LOG_GROUP_ID, OWNER_ID
 from datetime import datetime
 import asyncio
 import logging
+import random
 
 # Setup logger
 logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════
+#  MODULE INFO FOR HELP
+# ═══════════════════════════════════════════════════════════════════
+
+__MODULE__ = "Report & Tracking"
+__HELP__ = """
+📝 **Report & Tracking Commands**
+
+**🐛 Bug Reports:**
+`/report <description>` - Report a bug or issue
+• Reply to a message with `/report` to include context
+• Be descriptive for faster resolution!
+
+**📊 Group Tracking:**
+`/scangroups` - Scan all groups (Owner only)
+`/syncgroups` - Sync groups to database (Owner only)
+
+**Example:**
+`/report The /daily command gives 0 coins instead of reward`
+
+✨ _Your feedback helps us improve!_ 💕
+"""
+
+# Store pending reports for tracking
+pending_reports = {}
+
+# ═══════════════════════════════════════════════════════════════════
+#  SEXY REPORT SYSTEM 🔥
+# ═══════════════════════════════════════════════════════════════════
+
+def generate_report_id():
+    """Generate a unique report ID"""
+    return f"RPT{random.randint(10000, 99999)}"
+
+
+def get_report_type_emoji(report_type: str) -> str:
+    """Get emoji for report type"""
+    types = {
+        "bug": "🐛",
+        "feature": "💡",
+        "issue": "⚠️",
+        "feedback": "💭",
+        "other": "📝"
+    }
+    return types.get(report_type.lower(), "📝")
+
+
+@Client.on_message(filters.command(["report", "bug", "feedback", "issue"]))
+async def report_cmd(client: Client, message: Message):
+    """
+    Sexy report system for users to report bugs/issues
+    """
+    user = message.from_user
+    
+    if not user:
+        return await message.reply_text("❌ Could not identify user!")
+    
+    # Get the report content
+    report_text = None
+    replied_msg_info = None
+    
+    # Check if replying to a message
+    if message.reply_to_message:
+        replied = message.reply_to_message
+        replied_msg_info = {
+            "text": replied.text or replied.caption or "[Media/Sticker]",
+            "from_user": replied.from_user.first_name if replied.from_user else "Unknown",
+            "message_id": replied.id
+        }
+        # Get additional description from command
+        if len(message.command) > 1:
+            report_text = message.text.split(None, 1)[1]
+        else:
+            report_text = "No additional description provided"
+    elif len(message.command) > 1:
+        report_text = message.text.split(None, 1)[1]
+    else:
+        return await message.reply_text(
+            "╔══════════════════════════════════╗\n"
+            "║     📝 **HOW TO REPORT**         ║\n"
+            "╚══════════════════════════════════╝\n\n"
+            "**Usage:**\n"
+            "`/report <description of the bug/issue>`\n\n"
+            "**Or reply to a message:**\n"
+            "`/report <additional context>`\n\n"
+            "**Examples:**\n"
+            "• `/report Daily command not working`\n"
+            "• `/report Can't claim waifu, shows error`\n"
+            "• Reply to error message + `/report`\n\n"
+            "💕 _Your reports help us improve!_"
+        )
+    
+    # Validate report length
+    if len(report_text) < 10:
+        return await message.reply_text(
+            "❌ **Report too short!**\n\n"
+            "Please provide more details about the issue.\n"
+            "Minimum 10 characters required."
+        )
+    
+    if len(report_text) > 1000:
+        return await message.reply_text(
+            "❌ **Report too long!**\n\n"
+            "Please keep your report under 1000 characters."
+        )
+    
+    # Generate report ID
+    report_id = generate_report_id()
+    
+    # Determine chat info
+    chat_info = "Private Chat"
+    chat_id_info = message.chat.id
+    if message.chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
+        chat_info = message.chat.title or "Unknown Group"
+        chat_id_info = message.chat.id
+    
+    # Store report
+    pending_reports[report_id] = {
+        "user_id": user.id,
+        "username": user.username,
+        "first_name": user.first_name,
+        "report_text": report_text,
+        "replied_msg": replied_msg_info,
+        "chat_id": chat_id_info,
+        "chat_title": chat_info,
+        "timestamp": datetime.now(),
+        "status": "pending",
+        "message_link": message.link if hasattr(message, 'link') else None
+    }
+    
+    # Create sexy report message for owner/log
+    report_message = f"""
+╔══════════════════════════════════════════╗
+║  🚨 **NEW BUG REPORT RECEIVED!**         ║
+╚══════════════════════════════════════════╝
+
+🔖 **Report ID:** `{report_id}`
+
+┌─────────────────────────────────────────┐
+│           👤 **REPORTER INFO**          │
+└─────────────────────────────────────────┘
+│ 📛 **Name:** {user.first_name} {user.last_name or ''}
+│ 🆔 **User ID:** `{user.id}`
+│ 🔗 **Username:** @{user.username or 'None'}
+│ 💬 **From:** {chat_info}
+│ 🆔 **Chat ID:** `{chat_id_info}`
+└─────────────────────────────────────────┘
+
+┌─────────────────────────────────────────┐
+│           📝 **REPORT DETAILS**         │
+└─────────────────────────────────────────┘
+{report_text}
+└─────────────────────────────────────────┘"""
+
+    # Add replied message context if exists
+    if replied_msg_info:
+        replied_text = replied_msg_info['text']
+        if len(replied_text) > 200:
+            replied_text = replied_text[:197] + "..."
+        report_message += f"""
+
+┌─────────────────────────────────────────┐
+│        💬 **REPLIED MESSAGE**           │
+└─────────────────────────────────────────┘
+│ 👤 **From:** {replied_msg_info['from_user']}
+│ 📄 **Content:** {replied_text}
+└─────────────────────────────────────────┘"""
+
+    report_message += f"""
+
+⏰ **Reported At:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+🔥 _Please review and take action!_ 🔥
+"""
+
+    # Create resolve buttons
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Resolve", callback_data=f"report_resolve_{report_id}"),
+            InlineKeyboardButton("🔍 Investigating", callback_data=f"report_investigate_{report_id}")
+        ],
+        [
+            InlineKeyboardButton("💬 Reply to User", callback_data=f"report_reply_{report_id}"),
+            InlineKeyboardButton("🚫 Spam/Invalid", callback_data=f"report_spam_{report_id}")
+        ],
+        [
+            InlineKeyboardButton("📋 View User Info", callback_data=f"report_userinfo_{report_id}")
+        ]
+    ])
+    
+    # Send to owner DM
+    try:
+        await client.send_message(
+            OWNER_ID,
+            report_message,
+            reply_markup=keyboard
+        )
+        logger.info(f"Report {report_id} sent to owner DM")
+    except Exception as e:
+        logger.error(f"Failed to send report to owner DM: {e}")
+    
+    # Send to log group
+    if LOG_GROUP_ID:
+        try:
+            await client.send_message(
+                LOG_GROUP_ID,
+                report_message,
+                reply_markup=keyboard
+            )
+            logger.info(f"Report {report_id} sent to log group")
+        except Exception as e:
+            logger.error(f"Failed to send report to log group: {e}")
+    
+    # Save to database
+    try:
+        db.save_report({
+            "report_id": report_id,
+            "user_id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "report_text": report_text,
+            "replied_msg": replied_msg_info,
+            "chat_id": chat_id_info,
+            "chat_title": chat_info,
+            "timestamp": datetime.now(),
+            "status": "pending"
+        })
+    except Exception as e:
+        logger.warning(f"Could not save report to DB: {e}")
+    
+    # Send confirmation to user
+    confirm_message = f"""
+╔══════════════════════════════════════╗
+║  ✅ **REPORT SUBMITTED!**            ║
+╚══════════════════════════════════════╝
+
+🎫 **Your Report ID:** `{report_id}`
+
+📝 **Issue:**
+{report_text[:200]}{'...' if len(report_text) > 200 else ''}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ **What happens next?**
+• Our team will review your report
+• You'll be notified when it's resolved
+• Use your Report ID for follow-ups
+
+💕 _Thank you for helping us improve!_
+
+⏰ Submitted at: {datetime.now().strftime('%H:%M:%S')}
+"""
+    
+    await message.reply_text(confirm_message)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  REPORT CALLBACK HANDLERS
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_callback_query(filters.regex(r"^report_resolve_"))
+async def resolve_report_callback(client: Client, callback: CallbackQuery):
+    """Handle report resolution"""
+    if callback.from_user.id != OWNER_ID:
+        return await callback.answer("❌ Only owner can resolve reports!", show_alert=True)
+    
+    report_id = callback.data.split("_")[2]
+    
+    if report_id not in pending_reports:
+        # Try to get from database
+        report_data = db.get_report(report_id) if hasattr(db, 'get_report') else None
+        if not report_data:
+            return await callback.answer("❌ Report not found or expired!", show_alert=True)
+        pending_reports[report_id] = report_data
+    
+    report = pending_reports[report_id]
+    user_id = report.get("user_id")
+    
+    # Update status
+    report["status"] = "resolved"
+    report["resolved_at"] = datetime.now()
+    report["resolved_by"] = callback.from_user.id
+    
+    # Update database
+    try:
+        db.update_report_status(report_id, "resolved")
+    except:
+        pass
+    
+    # Update the message
+    new_text = callback.message.text + f"\n\n✅ **RESOLVED** by {callback.from_user.first_name}\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    await callback.message.edit_text(
+        new_text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Resolved", callback_data="none")],
+            [InlineKeyboardButton("📤 Notify User", callback_data=f"report_notify_resolved_{report_id}")]
+        ])
+    )
+    
+    # Notify user
+    try:
+        await client.send_message(
+            user_id,
+            f"╔══════════════════════════════════════╗\n"
+            f"║  ✅ **REPORT RESOLVED!**             ║\n"
+            f"╚══════════════════════════════════════╝\n\n"
+            f"🎫 **Report ID:** `{report_id}`\n\n"
+            f"Your reported issue has been resolved! ✨\n\n"
+            f"If you're still experiencing problems,\n"
+            f"feel free to submit a new report.\n\n"
+            f"💕 _Thanks for your patience!_"
+        )
+    except Exception as e:
+        logger.warning(f"Could not notify user about resolution: {e}")
+    
+    await callback.answer("✅ Report marked as resolved! User notified.", show_alert=True)
+
+
+@Client.on_callback_query(filters.regex(r"^report_investigate_"))
+async def investigate_report_callback(client: Client, callback: CallbackQuery):
+    """Mark report as under investigation"""
+    if callback.from_user.id != OWNER_ID:
+        return await callback.answer("❌ Only owner can manage reports!", show_alert=True)
+    
+    report_id = callback.data.split("_")[2]
+    
+    if report_id not in pending_reports:
+        return await callback.answer("❌ Report not found!", show_alert=True)
+    
+    report = pending_reports[report_id]
+    report["status"] = "investigating"
+    user_id = report.get("user_id")
+    
+    # Update database
+    try:
+        db.update_report_status(report_id, "investigating")
+    except:
+        pass
+    
+    # Update message
+    new_text = callback.message.text + f"\n\n🔍 **INVESTIGATING** - {callback.from_user.first_name}\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    await callback.message.edit_text(
+        new_text,
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Resolve", callback_data=f"report_resolve_{report_id}"),
+                InlineKeyboardButton("🔍 Investigating", callback_data="none")
+            ],
+            [
+                InlineKeyboardButton("💬 Reply to User", callback_data=f"report_reply_{report_id}"),
+                InlineKeyboardButton("🚫 Spam/Invalid", callback_data=f"report_spam_{report_id}")
+            ]
+        ])
+    )
+    
+    # Notify user
+    try:
+        await client.send_message(
+            user_id,
+            f"╔══════════════════════════════════════╗\n"
+            f"║  🔍 **REPORT UNDER REVIEW!**         ║\n"
+            f"╚══════════════════════════════════════╝\n\n"
+            f"🎫 **Report ID:** `{report_id}`\n\n"
+            f"Our team is investigating your issue! 🔧\n\n"
+            f"We'll notify you once it's resolved.\n\n"
+            f"💕 _Thanks for your patience!_"
+        )
+    except:
+        pass
+    
+    await callback.answer("🔍 Marked as investigating! User notified.", show_alert=True)
+
+
+@Client.on_callback_query(filters.regex(r"^report_spam_"))
+async def spam_report_callback(client: Client, callback: CallbackQuery):
+    """Mark report as spam/invalid"""
+    if callback.from_user.id != OWNER_ID:
+        return await callback.answer("❌ Only owner can manage reports!", show_alert=True)
+    
+    report_id = callback.data.split("_")[2]
+    
+    if report_id in pending_reports:
+        pending_reports[report_id]["status"] = "spam"
+    
+    # Update database
+    try:
+        db.update_report_status(report_id, "spam")
+    except:
+        pass
+    
+    # Update message
+    new_text = callback.message.text + f"\n\n🚫 **MARKED AS SPAM/INVALID**\n⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    await callback.message.edit_text(
+        new_text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚫 Spam/Invalid", callback_data="none")]
+        ])
+    )
+    
+    await callback.answer("🚫 Report marked as spam!", show_alert=True)
+
+
+@Client.on_callback_query(filters.regex(r"^report_reply_"))
+async def reply_to_reporter_callback(client: Client, callback: CallbackQuery):
+    """Send reply to the reporter"""
+    if callback.from_user.id != OWNER_ID:
+        return await callback.answer("❌ Only owner can reply!", show_alert=True)
+    
+    report_id = callback.data.split("_")[2]
+    
+    if report_id not in pending_reports:
+        return await callback.answer("❌ Report not found!", show_alert=True)
+    
+    report = pending_reports[report_id]
+    user_id = report.get("user_id")
+    
+    await callback.message.reply_text(
+        f"💬 **Reply to Reporter**\n\n"
+        f"Send your message now. It will be forwarded to:\n"
+        f"👤 **User ID:** `{user_id}`\n"
+        f"📛 **Name:** {report.get('first_name', 'Unknown')}\n\n"
+        f"_Reply to this message with your response..._"
+    )
+    
+    await callback.answer("Send your reply now!", show_alert=True)
+
+
+@Client.on_callback_query(filters.regex(r"^report_userinfo_"))
+async def view_reporter_info_callback(client: Client, callback: CallbackQuery):
+    """View reporter's detailed info"""
+    if callback.from_user.id != OWNER_ID:
+        return await callback.answer("❌ Only owner can view!", show_alert=True)
+    
+    report_id = callback.data.split("_")[2]
+    
+    if report_id not in pending_reports:
+        return await callback.answer("❌ Report not found!", show_alert=True)
+    
+    report = pending_reports[report_id]
+    user_id = report.get("user_id")
+    
+    # Get user data from database
+    try:
+        user_data = db.get_user(user_id)
+        if user_data:
+            coins = user_data.get("coins", 0)
+            collection_count = db.get_collection_count(user_id)
+            total_reports = db.get_user_report_count(user_id) if hasattr(db, 'get_user_report_count') else "N/A"
+            
+            info_text = f"""
+👤 **Reporter Details**
+
+📛 **Name:** {report.get('first_name', 'Unknown')}
+🆔 **ID:** `{user_id}`
+🔗 **Username:** @{report.get('username') or 'None'}
+
+💰 **Coins:** {coins:,}
+🎴 **Collection:** {collection_count}
+📝 **Total Reports:** {total_reports}
+
+📅 **Report Date:** {report.get('timestamp', 'Unknown')}
+"""
+            await callback.message.reply_text(info_text)
+        else:
+            await callback.answer("User not found in database!", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"Error: {str(e)[:50]}", show_alert=True)
+
+
+@Client.on_callback_query(filters.regex(r"^report_notify_resolved_"))
+async def notify_resolved_callback(client: Client, callback: CallbackQuery):
+    """Manually notify user about resolution"""
+    if callback.from_user.id != OWNER_ID:
+        return await callback.answer("❌ Only owner!", show_alert=True)
+    
+    report_id = callback.data.split("_")[3]
+    
+    if report_id not in pending_reports:
+        return await callback.answer("❌ Report not found!", show_alert=True)
+    
+    report = pending_reports[report_id]
+    user_id = report.get("user_id")
+    
+    try:
+        await client.send_message(
+            user_id,
+            f"✅ **Your report `{report_id}` has been resolved!**\n\n"
+            f"Thanks for helping us improve! 💕"
+        )
+        await callback.answer("✅ User notified!", show_alert=True)
+    except Exception as e:
+        await callback.answer(f"❌ Failed: {str(e)[:30]}", show_alert=True)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  VIEW ALL REPORTS (Owner Command)
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_message(filters.command(["reports", "allreports", "pendingbugs"]) & filters.user(OWNER_ID))
+async def view_all_reports_cmd(client: Client, message: Message):
+    """View all pending reports"""
+    
+    # Get from memory first
+    pending = [r for r in pending_reports.values() if r.get("status") == "pending"]
+    investigating = [r for r in pending_reports.values() if r.get("status") == "investigating"]
+    
+    if not pending and not investigating:
+        return await message.reply_text(
+            "📭 **No pending reports!**\n\n"
+            "All clear! No bugs reported. ✨"
+        )
+    
+    text = "╔══════════════════════════════════════╗\n"
+    text += "║       📋 **PENDING REPORTS**         ║\n"
+    text += "╚══════════════════════════════════════╝\n\n"
+    
+    if pending:
+        text += "**🔴 Pending:**\n"
+        for rid, report in list(pending_reports.items())[:10]:
+            if report.get("status") == "pending":
+                text += f"• `{rid}` - {report.get('first_name', 'Unknown')}\n"
+                text += f"  └ {report.get('report_text', '')[:50]}...\n\n"
+    
+    if investigating:
+        text += "\n**🔍 Investigating:**\n"
+        for rid, report in list(pending_reports.items())[:10]:
+            if report.get("status") == "investigating":
+                text += f"• `{rid}` - {report.get('first_name', 'Unknown')}\n"
+    
+    text += f"\n📊 **Stats:**\n"
+    text += f"• Pending: {len(pending)}\n"
+    text += f"• Investigating: {len(investigating)}\n"
+    text += f"• Total in memory: {len(pending_reports)}"
+    
+    await message.reply_text(text)
+
 
 # ═══════════════════════════════════════════════════════════════════
 #  GROUP ACTIVITY TRACKER
@@ -140,6 +681,8 @@ Hey everyone! I'm your new Waifu Bot! 💕
 • Use `/help` to see all commands
 • Play `/smash` or `/pass` game
 • Collect waifus and compete!
+
+**Found a bug?** Use `/report` to let us know!
 
 **Admin:** Make sure I have permission to send messages!
 
@@ -273,7 +816,7 @@ async def scan_all_groups(client: Client):
 #  MANUAL GROUP SYNC COMMAND
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command(["scangroups", "syncgroups"]) & filters.user([int(id) for id in [1737646273]]))  # Add your owner ID
+@Client.on_message(filters.command(["scangroups", "syncgroups"]) & filters.user(OWNER_ID))
 async def scan_groups_cmd(client: Client, message: Message):
     """Manually trigger group scan"""
     status_msg = await message.reply_text("🔍 Scanning all groups... This may take a while.")
