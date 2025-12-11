@@ -159,7 +159,7 @@ async def send_waifu_command(client: Client, message: Message):
     
     # Find the waifu
     waifu = None
-    all_waifus = wm.waifus if hasattr(wm, 'waifus') else []
+    all_waifus = wm.get_all_waifus() if hasattr(wm, 'waifus') else []
     
     for w in all_waifus:
         if w.get("id") == waifu_id:
@@ -374,7 +374,7 @@ async def send_random_command(client: Client, message: Message):
     
     # Get waifu
     import random
-    all_waifus = wm.waifus if hasattr(wm, 'waifus') else []
+    all_waifus = wm.get_all_waifus() if hasattr(wm, 'waifus') else []
     
     if target_rarity:
         matching = [w for w in all_waifus if w.get("rarity", "common") == target_rarity]
@@ -574,7 +574,7 @@ async def waifu_list_command(client: Client, message: Message):
         await message.reply_text(f"❌ Error: {e}")
         return
     
-    all_waifus = wm.waifus if hasattr(wm, 'waifus') else []
+    all_waifus = wm.get_all_waifus() if hasattr(wm, 'waifus') else []
     
     if not all_waifus:
         await message.reply_text("❌ No waifus available!")
