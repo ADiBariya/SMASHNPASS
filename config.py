@@ -25,6 +25,12 @@ DB_NAME = os.environ.get("DB_NAME", "smashpassbot")
 #Commands
 COMMAND_PREFIX = ["!", "/", "."]
 
+#Ma chud jayegi hatya to 
+USER_SESSION = "BQGMv38AGjmk7s_QraPH1WBvhUqLx5B6I7jwMG3Uj2jtoM4u1JlWTyKMtVnS56SkI1iLwc6moDCqc2LkcNwGo_9fPSbQEs2lFiiMQgJEfMNZ99DmRFrKjyRYPiHEDKDi-tpE2g4LkM5LmYnptR8SvyCJHlHSIHqVUI0mNznw-jLGgRL7cdY6WNYhZVkWolG0OCZtEot2X5Hxh4nebfBK16hpEmbzNMVV70XUp7ahNFbD3lzE2SKeUh4wacQnkD8mb7T5rBW2afOA_rp-5-voVo7H5gBliRCdZiYVUJMj2HoY8Yui78WEoIw01NY_LSvv8KuK7izvf0CrhCKguTRrWWdZp2ryfAAAAAHU_2psAA"
+USERBOT_API_ID = 26001279
+USERBOT_API_HASH = "78f002fc6769c951880b0938e498936a"
+
+
 # Bot Settings
 BOT_NAME = "WaifuSmash"
 BOT_USERNAME = "Waifusmashbot"
