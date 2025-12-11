@@ -8,7 +8,9 @@ from datetime import datetime
 from pyrogram import Client, idle, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from config import API_ID, API_HASH, BOT_TOKEN
+from pyrogram import Client as UserClient
 from database import db
+from helpers.utils import get_waifu_manager
 
 # ============================
 #  CONFIG + GLOBALS
@@ -50,6 +52,7 @@ LOADED_MODULES = {}
 BOT_START_TIME = datetime.now()
 STARTUP_IMAGE_URL = "https://files.catbox.moe/wfekbj.jpg"
 HELP_IMAGE_URL = "https://files.catbox.moe/9lkbyr.jpg"
+
 
 try:
     from config import LOG_GROUP_ID
@@ -300,15 +303,28 @@ async def start_bot():
     loaded, failed = load_modules()
 
     await app.start()
-    
-    # Sync Waifus
-    try:
-        db.sync_waifus_from_json("data/waifus.json")
-    except Exception as e:
-        logger.error(f"❌ Failed to sync waifus on startup: {e}")
-
     me = await app.get_me()
+
     logger.info(f"🤖 Logged in as @{me.username}")
+    wm = get_waifu_manager()
+
+    CHANNEL_ID = -1003322377810
+
+    # ============================
+    # USER SESSION LOADER (IMPORTANT)
+    # ============================
+    user = UserClient(
+        "user_session",
+        api_id=API_ID,
+        api_hash=API_HASH
+    )
+
+    await user.start()
+    print("🔄 Loading Telegram waifus via USER SESSION...")
+    await wm.load_channel_waifus(user, CHANNEL_ID)
+    await user.stop()
+    print("✅ Telegram waifus loaded!")
+    # ============================
 
     await send_startup_notification(me, loaded, failed)
 
@@ -318,7 +334,6 @@ async def start_bot():
     await send_shutdown_notification(me)
     await app.stop()
     logger.info("🔴 Bot stopped!")
-
 # ============================
 # RUN BOT
 # ============================
