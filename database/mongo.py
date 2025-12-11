@@ -1739,5 +1739,36 @@ def update_user_activity(self, user_id: int):
     except Exception as e:
         logger.error(f"Error updating user activity: {e}")
 
+def save_report(self, report_data: dict):
+    """Save a bug report"""
+    self.reports.update_one(
+        {"report_id": report_data["report_id"]},
+        {"$set": report_data},
+        upsert=True
+    )
+
+def get_report(self, report_id: str) -> dict:
+    """Get a report by ID"""
+    return self.reports.find_one({"report_id": report_id})
+
+def update_report_status(self, report_id: str, status: str):
+    """Update report status"""
+    self.reports.update_one(
+        {"report_id": report_id},
+        {"$set": {"status": status, "updated_at": datetime.now()}}
+    )
+
+def get_user_report_count(self, user_id: int) -> int:
+    """Get total reports by a user"""
+    return self.reports.count_documents({"user_id": user_id})
+
+def get_pending_reports(self) -> list:
+    """Get all pending reports"""
+    return list(self.reports.find({"status": "pending"}).sort("timestamp", -1))
+
+def get_all_reports(self, limit: int = 50) -> list:
+    """Get all reports"""
+    return list(self.reports.find().sort("timestamp", -1).limit(limit))
+
 # Create global instance
 db = Database()
