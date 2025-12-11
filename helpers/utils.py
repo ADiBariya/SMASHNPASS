@@ -1,294 +1,196 @@
 # helpers/utils.py - Utility Functions
+# helpers/utils.py - FINAL FIXED VERSION
+
 import json
 import random
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from datetime import datetime
 
 
 class WaifuManager:
-    """Manages waifu data from JSON file"""
-    
+    """Manages waifu data from JSON + Telegram channel"""
+
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-    
+
     def __init__(self):
         if self._initialized:
             return
+
         self._initialized = True
+        self.waifus = []
+        self.channel_waifus = []
+        self.rarity_colors = {}
+        self.rarity_weights = {}
+
         self._load_waifus()
-    
+
+    # ---------------- LOAD JSON ----------------
     def _load_waifus(self):
-        """Load waifus from JSON file"""
-        # ✅ FIXED: Correct path to data folder
         json_path = Path("data/waifus.json")
-        
-        print(f"📂 Looking for waifus at: {json_path.absolute()}")
-        
+
         if not json_path.exists():
-            print(f"⚠️ waifus.json not found! Creating default waifus...")
             self.waifus = self._get_default_waifus()
-            self.rarity_colors = {
-                "common": "⚪",
-                "epic": "🟣",
-                "legendary": "🟡",
-                "rare": "🔵"
-            }
-            self.rarity_weights = {
-                "common": 50,
-                "epic": 15,
-                "legendary": 5,
-                "rare": 30
-            }
-            # Save default waifus
             self._save_waifus()
             return
-        
+
         try:
             with open(json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
-            self.waifus = data.get("waifus", [])
-            self.rarity_colors = data.get("rarity_colors", {
-                "common": "⚪",
-                "epic": "🟣",
-                "legendary": "🟡",
-                "rare": "🔵"
-            })
-            self.rarity_weights = data.get("rarity_weights", {
-                "common": 50,
-                "epic": 15,
-                "legendary": 5,
-                "rare": 30
-            })
-            print(f"✅ Loaded {len(self.waifus)} waifus successfully!")
-            
-        except json.JSONDecodeError as e:
-            print(f"❌ JSON Error: {e}")
-            self.waifus = self._get_default_waifus()
-            self.rarity_colors = {"common": "⚪", "epic": "🟣", "legendary": "🟡", "rare": "🔵"}
-            self.rarity_weights = {"common": 50, "epic": 15, "legendary": 5, "rare": 30}
-        except Exception as e:
-            print(f"❌ Error loading waifus: {e}")
-            self.waifus = []
-            self.rarity_colors = {}
-            self.rarity_weights = {}
-    
-    def _get_default_waifus(self) -> List[Dict]:
-        """Return default waifus if file not found"""
+        except:
+            data = {}
+
+        self.waifus = data.get("waifus", [])
+        self.rarity_colors = data.get("rarity_colors", {})
+        self.rarity_weights = data.get("rarity_weights", {})
+
+    # ---------------- LOAD TG CHANNEL ----------------
+    async def load_channel_waifus(self, client, channel_id: int):
+        messages = []
+
+        # Telegram returns NEWEST → OLDEST
+        async for msg in client.get_chat_history(channel_id, limit=300):
+            if msg.photo and msg.caption:
+                messages.append(msg)
+
+        # Reverse → OLDEST → NEWEST
+        messages.reverse()
+
+        waifus = []
+
+        # Continue ID after JSON
+        last_id = max([w.get("id", 0) for w in self.waifus], default=0)
+
+        for msg in messages:
+            try:
+                lines = msg.caption.splitlines()
+                name = lines[0].replace("Name:", "").strip()
+                anime = lines[1].replace("Anime:", "").strip()
+                rarity = lines[2].replace("Rarity:", "").strip().lower()
+
+                # Download image
+                photo_path = await client.download_media(msg.photo.file_id)
+
+                last_id += 1
+
+                waifus.append({
+                    "id": last_id,
+                    "name": name,
+                    "anime": anime,
+                    "rarity": rarity,
+                    "image": photo_path
+                })
+
+            except Exception as e:
+                print("TG Load Error:", e)
+                continue
+
+        self.channel_waifus = waifus
+        print(f"Loaded {len(waifus)} TG waifus")
+    # ---------------- GET BY ID ----------------
+    def get_waifu_by_id(self, waifu_id: int):
+        try:
+            wid = int(waifu_id)
+        except:
+            return None
+
+        for w in self.waifus + self.channel_waifus:
+            if int(w.get("id", 0)) == wid:
+                return w
+        return None
+
+    # ---------------- GET ALL ----------------
+    def get_all_waifus(self):
+        return self.waifus + self.channel_waifus
+
+    # ---------------- RARITY EMOJI ----------------
+    def get_rarity_emoji(self, rarity: str) -> str:
+        rarity = (rarity or "").lower()
+
+        # Try to read from JSON
+        if rarity in self.rarity_colors:
+            return self.rarity_colors.get(rarity, "❓")
+
+        default = {
+            "common": "⚪",
+            "rare": "🔵",
+            "epic": "🟣",
+            "legendary": "🟡"
+        }
+        return default.get(rarity, "❓")
+
+    # ---------------- DEFAULT WAIFUS ----------------
+    def _get_default_waifus(self):
         return [
             {
                 "id": 1,
-                "name": "Boa hancock",
+                "name": "Boa Hancock",
                 "anime": "One Piece",
                 "rarity": "legendary",
                 "image": "https://files.catbox.moe/iu35t6.jpg"
-            },
-            {
-                "id": 2,
-                "name": "Nami",
-                "anime": "One Piece",
-                "rarity": "legendary",
-                "image": "https://files.catbox.moe/reh8mz.jpg"
-            },
-            {
-                "id": 3,
-                "name": "Robin",
-                "anime": "One piece",
-                "rarity": "epic",
-                "image": "https://files.catbox.moe/0oqwqt.jpg"
-            },
-            {
-                "id": 4,
-                "name": "Yamato",
-                "anime": "One piece",
-                "rarity": "epic",
-                "image": "https://files.catbox.moe/5rnwlt.jpg"
-            },
-            {
-                "id": 5,
-                "name": "Marin",
-                "anime": "My Dress up Darling",
-                "rarity": "legendary",
-                "image": "https://files.catbox.moe/86wqd9.jpg"
             }
         ]
-    
-    def reload_waifus(self):
-        """Reload waifus from JSON file"""
-        self._load_waifus()
-    
-    def get_random_waifu(self) -> Optional[Dict]:
-        """Get a random waifu based on rarity weights"""
-        if not self.waifus:
-            print("❌ No waifus in list!")
-            return None
-        
-        # Group waifus by rarity
-        rarity_groups = {}
-        for waifu in self.waifus:
-            rarity = waifu.get("rarity", "common")
-            if rarity not in rarity_groups:
-                rarity_groups[rarity] = []
-            rarity_groups[rarity].append(waifu)
-        
-        # Select rarity based on weights
-        rarities = list(self.rarity_weights.keys())
-        weights = list(self.rarity_weights.values())
-        
-        if not rarities or not weights:
-            return random.choice(self.waifus)
-        
-        selected_rarity = random.choices(rarities, weights=weights, k=1)[0]
-        
-        # Get random waifu from selected rarity
-        if selected_rarity in rarity_groups and rarity_groups[selected_rarity]:
-            return random.choice(rarity_groups[selected_rarity])
-        
-        return random.choice(self.waifus)
-    
-    def get_waifu_by_id(self, waifu_id: int) -> Optional[Dict]:
-        """Get waifu by ID"""
-        for waifu in self.waifus:
-            if waifu.get("id") == waifu_id:
-                return waifu
-        return None
-    
-    def get_waifu_by_name(self, name: str) -> Optional[Dict]:
-        """Get waifu by name (case insensitive)"""
-        name_lower = name.lower()
-        for waifu in self.waifus:
-            if waifu.get("name", "").lower() == name_lower:
-                return waifu
-        return None
-    
-    def search_waifus(self, query: str) -> List[Dict]:
-        """Search waifus by name or anime"""
-        query_lower = query.lower()
-        results = []
-        
-        for waifu in self.waifus:
-            if (query_lower in waifu.get("name", "").lower() or 
-                query_lower in waifu.get("anime", "").lower()):
-                results.append(waifu)
-        
-        return results
-    
-    def get_all_waifus(self) -> List[Dict]:
-        """Get all waifus"""
-        return self.waifus
-    
-    def get_waifus_by_rarity(self, rarity: str) -> List[Dict]:
-        """Get all waifus of a specific rarity"""
-        return [w for w in self.waifus if w.get("rarity") == rarity]
-    
-    def get_waifus_by_anime(self, anime: str) -> List[Dict]:
-        """Get all waifus from a specific anime"""
-        anime_lower = anime.lower()
-        return [w for w in self.waifus if anime_lower in w.get("anime", "").lower()]
-    
-    def get_rarity_emoji(self, rarity: str) -> str:
-        """Get emoji for rarity"""
-        default_emojis = {
-            "common": "⚪",
-            "epic": "🟣",
-            "legendary": "🟡",
-            "rare": "🔵"
-        }
-        return self.rarity_colors.get(rarity, default_emojis.get(rarity, "⚪"))
-    
-    def get_total_count(self) -> int:
-        """Get total number of waifus"""
-        return len(self.waifus)
-    
-    def add_waifu(self, waifu_data: Dict) -> bool:
-        """Add a new waifu to the list"""
-        if not waifu_data.get("id"):
-            waifu_data["id"] = max([w.get("id", 0) for w in self.waifus], default=0) + 1
-        
-        self.waifus.append(waifu_data)
-        self._save_waifus()
-        return True
-    
+
+    # ---------------- SAVE ----------------
     def _save_waifus(self):
-        """Save waifus to JSON file"""
-        # ✅ FIXED: Correct path
         json_path = Path("data/waifus.json")
-        
-        # Create data folder if not exists
         json_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        data = {
-            "waifus": self.waifus,
-            "rarity_colors": self.rarity_colors,
-            "rarity_weights": self.rarity_weights
-        }
-        
+
         try:
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4, ensure_ascii=False)
-            print(f"✅ Saved {len(self.waifus)} waifus to {json_path}")
+                json.dump({
+                    "waifus": self.waifus,
+                    "rarity_colors": self.rarity_colors,
+                    "rarity_weights": self.rarity_weights
+                }, f, indent=4, ensure_ascii=False)
+
+            print("Saved waifus.json")
         except Exception as e:
-            print(f"❌ Error saving waifus: {e}")
+            print("Save error:", e)
 
 
-# Singleton getter function
+# SINGLETON
 def get_waifu_manager() -> WaifuManager:
-    """Get WaifuManager instance"""
     return WaifuManager()
 
 
 class Utils:
     """General utility functions"""
-    
+
     @staticmethod
     def format_number(num: int) -> str:
-        """Format number with commas"""
         return "{:,}".format(num)
-    
+
     @staticmethod
     def format_time(seconds: int) -> str:
-        """Format seconds into readable time"""
         if seconds < 60:
             return f"{seconds}s"
         elif seconds < 3600:
-            minutes = seconds // 60
-            secs = seconds % 60
-            return f"{minutes}m {secs}s"
+            return f"{seconds//60}m {seconds%60}s"
         else:
             hours = seconds // 3600
             minutes = (seconds % 3600) // 60
             return f"{hours}h {minutes}m"
-    
+
     @staticmethod
     def get_progress_bar(current: int, total: int, length: int = 10) -> str:
-        """Generate a progress bar"""
-        if total == 0:
-            percentage = 0
-        else:
-            percentage = current / total
-        
+        percentage = 0 if total == 0 else current / total
         filled = int(length * percentage)
-        empty = length - filled
-        
-        bar = "█" * filled + "░" * empty
-        percent_text = f"{percentage * 100:.1f}%"
-        
-        return f"[{bar}] {percent_text}"
-    
+        bar = "█" * filled + "░" * (length - filled)
+        return f"[{bar}] {percentage*100:.1f}%"
+
     @staticmethod
     def calculate_win(win_chance: int = 50) -> bool:
-        """Calculate if user wins based on win chance"""
         return random.randint(1, 100) <= win_chance
-    
+
     @staticmethod
     def get_streak_bonus(streak: int) -> int:
-        """Calculate bonus coins based on win streak"""
         if streak < 3:
             return 0
         elif streak < 5:
@@ -297,22 +199,22 @@ class Utils:
             return 25
         else:
             return 50
-    
+
     @staticmethod
     def format_waifu_card(waifu: Dict, wm: WaifuManager = None) -> str:
-        """Format waifu data into a nice card text (without power)"""
-        if wm is None:
-            wm = get_waifu_manager()
+        wm = wm or get_waifu_manager()
         rarity_emoji = wm.get_rarity_emoji(waifu.get("rarity", "common"))
-        
-        text = f"""
-{rarity_emoji} **{waifu.get('name', 'Unknown')}**
+        return f"""
+{rarity_emoji} **{waifu.get('name','Unknown')}**
 
-📺 **Anime:** {waifu.get('anime', 'Unknown')}
-💎 **Rarity:** {waifu.get('rarity', 'common').title()}
-"""
-        return text.strip()
-    
+📺 **Anime:** {waifu.get('anime','Unknown')}
+💎 **Rarity:** {waifu.get('rarity','common').title()}
+""".strip()
+
+    @staticmethod
+    def mention_user(uid: int, name: str) -> str:
+        return f"[{name}](tg://user?id={uid})"
+
     @staticmethod
     def format_collection_card(waifu: Dict, wm: WaifuManager = None) -> str:
         """Format collection waifu data (without power)"""
@@ -383,6 +285,13 @@ def get_random_waifu() -> Optional[Dict]:
     wm = _get_manager()
     return wm.get_random_waifu()
 
+    # ---------------- RANDOM WAIFU ----------------
+def get_random_waifu(self):
+        """Return a random waifu from merged JSON + TG waifus"""
+        all_waifus = self.get_all_waifus()
+        if not all_waifus:
+            return None
+        return random.choice(all_waifus)
 
 def get_waifu_by_id(waifu_id: int) -> Optional[Dict]:
     """Get waifu by ID"""
