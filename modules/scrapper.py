@@ -9,8 +9,9 @@ import requests
 from PIL import Image
 from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InputMediaPhoto
-from config import OWNER_ID, GIT_REPO, GIT_BRANCH, GIT_TOKEN
+from config import OWNER_ID, GIT_REPO, GIT_BRANCH, GIT_TOKEN, TG_WAIFU_CHANNEL
 from database import db
+import time
 
 __MODULE__ = "Scrapper"
 __HELP__ = "/search <value> - Search Rule34 autocomplete (Owner Only)"
@@ -204,15 +205,8 @@ async def get_anime_info(name):
     return await loop.run_in_executor(None, get_anime_info_sync, name)
 
 def update_db(name, anime, rarity, image_url):
-    db_path = "data/waifus.json"
-    with open(db_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    # Calculate next ID
-    waifus = data.get("waifus", [])
-    next_id = 1
-    if waifus:
-        next_id = max(w["id"] for w in waifus) + 1
+    # Generate a simple time-based ID since we aren't using the file anymore
+    next_id = int(time.time())
         
     new_entry = {
         "id": next_id,
@@ -222,12 +216,6 @@ def update_db(name, anime, rarity, image_url):
         "image": image_url
     }
     
-    waifus.append(new_entry)
-    data["waifus"] = waifus
-    
-    with open(db_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
-        
     # Sync to MongoDB (Live Update)
     try:
         db.upsert_waifu(new_entry)
@@ -237,47 +225,9 @@ def update_db(name, anime, rarity, image_url):
 
     return new_entry
 
-async def push_to_github(waifu_name, waifu_id):
-    try:
-        print(f"🔄 [GIT] Pushing update for {waifu_name}...")
-        repo_url = GIT_REPO.replace("https://", f"https://{GIT_TOKEN}@")
-        
-        # 1. Add file
-        proc = await asyncio.create_subprocess_shell(
-            "git add data/waifus.json",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        await proc.communicate()
-        
-        # 2. Commit
-        commit_msg = f"Add Waifu: {waifu_name} (ID: {waifu_id})"
-        proc = await asyncio.create_subprocess_shell(
-            f'git commit -m "{commit_msg}"',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        await proc.communicate()
-        
-        # 3. Push
-        proc = await asyncio.create_subprocess_shell(
-            f"git push {repo_url} {GIT_BRANCH}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await proc.communicate()
-        
-        if proc.returncode == 0:
-            print(f"✅ [GIT] Pushed successfully!")
-        else:
-            print(f"❌ [GIT] Push failed: {stderr.decode().strip()}")
-            
-    except Exception as e:
-        print(f"❌ [GIT] Error: {e}")
-
 # --- Handlers ---
 
-@Client.on_message(filters.command("search") & filters.user([OWNER_ID, 5162885921]))
+@Client.on_message(filters.command("search") & filters.user([OWNER_ID, 5162885921, 1737646273]))
 async def search_handler(client: Client, message: Message):
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: `/search <value>`")
@@ -375,7 +325,7 @@ async def handle_click(client: Client, callback_query: CallbackQuery):
                 InlineKeyboardButton("Next Page", callback_data="nav_page_next")
             ],
             [
-                InlineKeyboardButton("Add To Database", callback_data="nav_add_db")
+                InlineKeyboardButton("Upload to Channel", callback_data="nav_add_db")
             ]
         ]
         
@@ -497,7 +447,7 @@ async def handle_pagination(client: Client, callback_query: CallbackQuery):
             InlineKeyboardButton("Next Page", callback_data="nav_page_next")
         ],
         [
-            InlineKeyboardButton("Add To Database", callback_data="nav_add_db")
+            InlineKeyboardButton("Upload to Channel", callback_data="nav_add_db")
         ]
     ]
     
@@ -548,8 +498,6 @@ async def handle_rarity(client: Client, callback_query: CallbackQuery):
         # 3. Clean Name & Get Anime Info
         await status_msg.edit_text(f"⏳ Fetching info for `{tag_name}`...")
         
-        # clean_name = tag_name.replace('_', ' ').split('(')[0].strip() # Simple cleanup
-        # User requested: "remove underscores", dont include text in ().
         clean_name = re.sub(r'\(.*?\)', '', tag_name).replace('_', ' ').strip()
         
         anime_info = await get_anime_info(clean_name)
@@ -561,19 +509,32 @@ async def handle_rarity(client: Client, callback_query: CallbackQuery):
             final_name = clean_name.title()
             final_anime = "Unknown"
             
-        # 4. Update Database
+        # 4. Update Database (Live Mongo only)
         new_entry = update_db(final_name, final_anime, rarity, catbox_url)
         
-        # 5. Push to GitHub
-        await push_to_github(final_name, new_entry['id'])
-        
+        # 5. Send to Channel
+        try:
+            caption = (
+                f"Name: {final_name}\n"
+                f"Anime: {final_anime}\n"
+                f"Rarity: {rarity.capitalize()}"
+            )
+            await client.send_photo(
+                chat_id=TG_WAIFU_CHANNEL,
+                photo=catbox_url,
+                caption=caption
+            )
+            channel_text = f"✅ Posted to Channel ({TG_WAIFU_CHANNEL})!"
+        except Exception as ch_e:
+            channel_text = f"❌ Failed to post to channel: {ch_e}"
+
         await status_msg.edit_text(
-            f"✅ **Added to Database!**\n\n"
+            f"✅ **Processed!**\n\n"
             f"🆔 ID: `{new_entry['id']}`\n"
             f"👤 Name: `{final_name}`\n"
             f"📺 Anime: `{final_anime}`\n"
-            f"✨ Rarity: `{rarity.capitalize()}`\n"
-            f"🔗 Image: [Link]({catbox_url})"
+            f"✨ Rarity: `{rarity.capitalize()}`\n\n"
+            f"{channel_text}"
         )
         
     except Exception as e:
