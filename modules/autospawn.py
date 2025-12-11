@@ -13,6 +13,7 @@ from pyrogram.types import (
 from database import db
 from helpers import get_waifu_manager, Utils
 import config
+from helpers import get_waifu_manager
 
 # Module info
 __MODULE__ = "AutoSpawn"
@@ -430,9 +431,11 @@ def get_waifu_by_rarity(wm, target_rarity: str):
         
         if matching:
             return random.choice(matching)
-        return wm.get_random_waifu()
+        return random.choice(wm.get_all_waifus())
+
     except:
-        return wm.get_random_waifu()
+        return random.choice(wm.get_all_waifus())
+
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -618,7 +621,8 @@ async def spawn_waifu_in_group(client: Client, chat):
     waifu = get_waifu_by_rarity(wm, target_rarity)
     
     if not waifu:
-        waifu = wm.get_random_waifu()
+        waifu = random.choice(wm.get_all_waifus())
+
     
     if not waifu:
         print(f"❌ [AUTO-SPAWN] No waifu available!")
