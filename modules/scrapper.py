@@ -537,7 +537,7 @@ async def handle_rarity(client: Client, callback_query: CallbackQuery):
                          image_link = sent_msg.link
 
                 if not image_link:
-                    image_link = "https://t.me/unknown_link"
+                    raise Exception("Failed to retrieve image link from channel post.")
 
                 # 4. Update Database (Live Mongo only) - ONLY ON SUCCESS
                 new_entry = update_db(final_name, final_anime, rarity, image_link)
