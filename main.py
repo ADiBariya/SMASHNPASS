@@ -431,9 +431,9 @@ async def scan_groups_cmd(client, message: Message):
 # ============================
 # BOT STATS QUICK COMMAND
 # ============================
-@app.on_message(filters.command(["ping", "alive"], [".", "/", "!"]))
+@app.on_message(filters.command(["ping"], [".", "/", "!"]))
 async def ping_cmd(client, message: Message):
-    """Quick ping/alive check"""
+    """Quick ping check"""
     import time
     
     start = time.time()
