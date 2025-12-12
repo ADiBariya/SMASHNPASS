@@ -1,4 +1,4 @@
-# modules/alive.py - Sexy Alive Module (Clean Version)
+# modules/alive.py - 💫 Sexy Awake Module (Professional Edition)
 
 from pyrogram import Client, filters
 from pyrogram.types import (
@@ -14,16 +14,18 @@ import config
 from database import db
 
 # Module info
-__MODULE__ = "Alive"
+__MODULE__ = "Awake"
 __HELP__ = """
-💗 **Alive Commands**
-/alive - Check if bot is alive with sexy stats
-/status - Detailed bot status
-/uptime - Bot uptime info
+✨ **Awake Commands**
+
+┃ /awake - Check bot status with sexy stats
+┃ /status - Detailed system status  
+┃ /uptime - Quick uptime check
+┃ /ping - Response time check
 """
 
-# Use the same START_IMAGE
-ALIVE_IMAGE = "https://files.catbox.moe/zm8c7y.jpg"
+# Sexy Image
+AWAKE_IMAGE = "https://files.catbox.moe/zm8c7y.jpg"
 
 # Bot start time
 BOT_START_TIME = datetime.now()
@@ -32,8 +34,12 @@ BOT_START_TIME = datetime.now()
 DEBUG = True
 def debug(msg):
     if DEBUG:
-        print(f"💗 [ALIVE] {msg}")
+        print(f"✨ [AWAKE] {msg}")
 
+
+# ═══════════════════════════════════════════════════════════════════
+#  UTILITY FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
 
 def get_size(bytes_val):
     """Convert bytes to human readable format"""
@@ -45,10 +51,10 @@ def get_size(bytes_val):
 
 
 def get_uptime():
-    """Get formatted uptime"""
-    uptime_delta = datetime.now() - BOT_START_TIME
-    days = uptime_delta.days
-    hours, remainder = divmod(uptime_delta.seconds, 3600)
+    """Get formatted uptime - compact"""
+    delta = datetime.now() - BOT_START_TIME
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     
     parts = []
@@ -65,9 +71,9 @@ def get_uptime():
 
 def get_uptime_detailed():
     """Get detailed uptime string"""
-    uptime_delta = datetime.now() - BOT_START_TIME
-    days = uptime_delta.days
-    hours, remainder = divmod(uptime_delta.seconds, 3600)
+    delta = datetime.now() - BOT_START_TIME
+    days = delta.days
+    hours, remainder = divmod(delta.seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     
     parts = []
@@ -76,9 +82,9 @@ def get_uptime_detailed():
     if hours > 0:
         parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
     if minutes > 0:
-        parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
+        parts.append(f"{minutes} min{'s' if minutes > 1 else ''}")
     if seconds > 0 or not parts:
-        parts.append(f"{seconds} second{'s' if seconds > 1 else ''}")
+        parts.append(f"{seconds} sec{'s' if seconds > 1 else ''}")
     
     return ", ".join(parts)
 
@@ -103,15 +109,40 @@ def get_system_stats():
         return None
 
 
+def create_progress_bar(percent, length=10):
+    """Create sexy progress bar"""
+    filled = int(percent / (100 / length))
+    empty = length - filled
+    
+    if percent >= 80:
+        bar = "🔴" * filled + "⚫" * empty
+    elif percent >= 50:
+        bar = "🟡" * filled + "⚫" * empty
+    else:
+        bar = "🟢" * filled + "⚫" * empty
+    
+    return bar
+
+
+def get_status_emoji(percent):
+    """Get status emoji based on usage"""
+    if percent >= 80:
+        return "🔴"
+    elif percent >= 50:
+        return "🟡"
+    else:
+        return "🟢"
+
+
 # ═══════════════════════════════════════════════════════════════════
-#  /alive Command - Main Sexy Alive
+#  /awake Command - Main Sexy Status
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command(["alive", "awake", "online"], config.COMMAND_PREFIX))
-async def alive_command(client: Client, message: Message):
-    """Sexy alive command with full stats"""
+@Client.on_message(filters.command(["awake", "online", "alive", "hello"], config.COMMAND_PREFIX))
+async def awake_command(client: Client, message: Message):
+    """Sexy awake command with premium stats"""
     user = message.from_user
-    debug(f"Alive command from {user.first_name} ({user.id})")
+    debug(f"Awake command from {user.first_name} ({user.id})")
     
     # Get stats
     uptime = get_uptime()
@@ -125,72 +156,77 @@ async def alive_command(client: Client, message: Message):
         total_smashes = global_stats.get("total_smashes", 0)
         total_passes = global_stats.get("total_passes", 0)
     except:
-        total_users = "N/A"
-        total_waifus = "N/A"
-        total_smashes = "N/A"
-        total_passes = "N/A"
-    
-    # Sexy alive text
+        total_users = 0
+        total_waifus = 0
+        total_smashes = 0
+        total_passes = 0
+
+    # Sexy premium text
     text = f"""
-╔═══════════════════════════════╗
-       💗 **I'M ALIVE BABY!** 💗
-╚═══════════════════════════════╝
+〔 ✦ **{config.BOT_NAME.upper()}** ✦ 〕
 
-✨ **{config.BOT_NAME}** is online and ready!
+┏━━━━━━━━━━━━━━━━━━━━━┓
+┃      ✨ **I'M AWAKE!** ✨
+┗━━━━━━━━━━━━━━━━━━━━━┛
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏰ **UPTIME**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🕐 Running for: `{uptime}`
-┃ 📅 Since: `{BOT_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+▸ **Status:** 🟢 Online & Ready
+▸ **Uptime:** ⏱️ `{uptime}`
+▸ **Mode:** 💫 Smashing Waifus
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 **BOT STATISTICS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 👥 Total Users: `{total_users:,}` 
-┃ 📦 Waifus Collected: `{total_waifus:,}`
-┃ 💥 Total Smashes: `{total_smashes:,}`
-┃ 👋 Total Passes: `{total_passes:,}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **STATISTICS**
+
+  ╭───────────────────╮
+  │ 👥  Users    ›  `{total_users:,}`
+  │ 🎴  Waifus   ›  `{total_waifus:,}`
+  │ 💥  Smashes  ›  `{total_smashes:,}`
+  │ 👋  Passes   ›  `{total_passes:,}`
+  ╰───────────────────╯
+
 """
 
     # Add system stats if available
     if sys_stats:
-        text += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-💻 **SYSTEM STATUS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🖥️ CPU: `{sys_stats['cpu']}%`
-┃ 💾 RAM: `{sys_stats['ram_used']}/{sys_stats['ram_total']}` ({sys_stats['ram_percent']}%)
-┃ 📀 Disk: `{sys_stats['disk_used']}/{sys_stats['disk_total']}` ({sys_stats['disk_percent']}%)
-┃ 🐍 Python: `{platform.python_version()}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+        cpu_status = get_status_emoji(sys_stats['cpu'])
+        ram_status = get_status_emoji(sys_stats['ram_percent'])
+        
+        text += f"""━━━━━━━━━━━━━━━━━━━━━━━━
+
+💻 **SYSTEM**
+
+  ╭───────────────────╮
+  │ {cpu_status} CPU    ›  `{sys_stats['cpu']}%`
+  │ {ram_status} RAM    ›  `{sys_stats['ram_percent']}%`
+  │ 🐍 Python ›  `{platform.python_version()}`
+  ╰───────────────────╯
+
 """
 
-    text += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔗 **QUICK LINKS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 👨‍💻 Owner:{config.OWNER_USERNAME}
-┃ 🤖 Bot: @{config.BOT_USERNAME}
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+    text += f"""━━━━━━━━━━━━━━━━━━━━━━━━
 
-💖 **Thanks for using me!** 💖
+🔗 **CONNECT**
+
+  ▸ Owner: {config.OWNER_USERNAME}
+  ▸ Bot: @{config.BOT_USERNAME}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+     💖 _Thanks for using me!_
 """
 
-    # Clean Buttons
+    # Premium Buttons
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_alive")
+            InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
+            InlineKeyboardButton("📊 Stats", callback_data="refresh_status"),
+            InlineKeyboardButton("🔄", callback_data="refresh_awake")
         ],
         [
-            InlineKeyboardButton("🆕 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
+            InlineKeyboardButton("📢 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
             InlineKeyboardButton("💬 Support", url=f"https://t.me/{config.SUPPORT_GROUP}")
         ],
         [
-            InlineKeyboardButton("➕ Add to Group", 
+            InlineKeyboardButton("➕ Add Me to Your Group", 
                 url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
         ]
     ])
@@ -198,23 +234,23 @@ async def alive_command(client: Client, message: Message):
     # Send with image
     try:
         await message.reply_photo(
-            photo=ALIVE_IMAGE,
+            photo=AWAKE_IMAGE,
             caption=text,
             reply_markup=buttons
         )
-        debug("Alive message sent with image!")
+        debug("Awake message sent!")
     except Exception as e:
-        debug(f"Image failed: {e}, sending text only")
+        debug(f"Image failed: {e}")
         await message.reply_text(text, reply_markup=buttons)
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  /status Command - Detailed Status
+#  /status Command - Detailed System Status
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command(["status", "sys", "system"], config.COMMAND_PREFIX))
+@Client.on_message(filters.command(["status", "sys", "system", "stats"], config.COMMAND_PREFIX))
 async def status_command(client: Client, message: Message):
-    """Detailed system status"""
+    """Detailed system status with sexy layout"""
     user = message.from_user
     debug(f"Status command from {user.first_name}")
     
@@ -222,51 +258,57 @@ async def status_command(client: Client, message: Message):
     uptime = get_uptime_detailed()
     
     text = f"""
-🖥️ **SYSTEM STATUS**
+〔 💻 **SYSTEM STATUS** 〕
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+┏━━━━━━━━━━━━━━━━━━━━━┓
+┃   🟢 All Systems Operational
+┗━━━━━━━━━━━━━━━━━━━━━┛
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
 ⏰ **UPTIME**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🕐 {uptime}
-┃ 📅 Started: {BOT_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+╭─────────────────────────╮
+│ 🕐 {uptime}
+│ 📅 Since: {BOT_START_TIME.strftime('%d %b %Y, %H:%M')}
+╰─────────────────────────╯
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━
+
 🔧 **ENVIRONMENT**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🐍 Python: `{platform.python_version()}`
-┃ 💿 OS: `{platform.system()} {platform.release()}`
-┃ 🏗️ Architecture: `{platform.machine()}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+╭─────────────────────────╮
+│ 🐍 Python  ›  `{platform.python_version()}`
+│ 💿 OS      ›  `{platform.system()}`
+│ 🏗️ Arch    ›  `{platform.machine()}`
+╰─────────────────────────╯
 """
     
     if sys_stats:
-        # Progress bars
-        cpu_bar = "█" * int(sys_stats['cpu'] / 10) + "░" * (10 - int(sys_stats['cpu'] / 10))
-        ram_bar = "█" * int(sys_stats['ram_percent'] / 10) + "░" * (10 - int(sys_stats['ram_percent'] / 10))
-        disk_bar = "█" * int(sys_stats['disk_percent'] / 10) + "░" * (10 - int(sys_stats['disk_percent'] / 10))
+        cpu_bar = create_progress_bar(sys_stats['cpu'])
+        ram_bar = create_progress_bar(sys_stats['ram_percent'])
+        disk_bar = create_progress_bar(sys_stats['disk_percent'])
         
         text += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━
+
 📊 **RESOURCE USAGE**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 
-┃ 🖥️ **CPU Usage**
-┃ [{cpu_bar}] {sys_stats['cpu']}%
-┃ 
-┃ 💾 **RAM Usage**
-┃ [{ram_bar}] {sys_stats['ram_percent']}%
-┃ Used: {sys_stats['ram_used']} / {sys_stats['ram_total']}
-┃ 
-┃ 📀 **Disk Usage**
-┃ [{disk_bar}] {sys_stats['disk_percent']}%
-┃ Used: {sys_stats['disk_used']} / {sys_stats['disk_total']}
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**🖥️ CPU**
+{cpu_bar} `{sys_stats['cpu']}%`
+
+**💾 RAM**
+{ram_bar} `{sys_stats['ram_percent']}%`
+↳ {sys_stats['ram_used']} / {sys_stats['ram_total']}
+
+**📀 DISK**
+{disk_bar} `{sys_stats['disk_percent']}%`
+↳ {sys_stats['disk_used']} / {sys_stats['disk_total']}
 """
     
-    text += "\n✅ **All systems operational!**"
+    text += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 _Updated: {datetime.now().strftime('%H:%M:%S')}_
+"""
     
-    # Only Refresh and Back buttons
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🔄 Refresh", callback_data="refresh_status"),
@@ -278,42 +320,75 @@ async def status_command(client: Client, message: Message):
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  /uptime Command - Simple Uptime (No Buttons)
+#  /uptime Command - Quick Uptime Check
 # ═══════════════════════════════════════════════════════════════════
 
 @Client.on_message(filters.command(["uptime", "up"], config.COMMAND_PREFIX))
 async def uptime_command(client: Client, message: Message):
-    """Simple uptime command - No buttons"""
+    """Quick uptime command - Clean & Simple"""
     uptime = get_uptime_detailed()
     
     text = f"""
-⏰ **BOT UPTIME**
+〔 ⏰ **UPTIME** 〕
 
-━━━━━━━━━━━━━━━━━━━━━
-🤖 **{config.BOT_NAME}**
-━━━━━━━━━━━━━━━━━━━━━
-
-🕐 **Running for:**
-`{uptime}`
-
-📅 **Started at:**
-`{BOT_START_TIME.strftime('%Y-%m-%d %H:%M:%S UTC')}`
-
-✅ Status: **ONLINE**
+╭───────────────────────────╮
+│
+│  🤖 **{config.BOT_NAME}**
+│
+│  🟢 Status: **ONLINE**
+│  
+│  ⏱️ Running for:
+│  `{uptime}`
+│  
+│  📅 Started:
+│  `{BOT_START_TIME.strftime('%d %b %Y at %H:%M:%S')}`
+│
+╰───────────────────────────╯
 """
     
-    # No buttons
     await message.reply_text(text)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  /ping Command - Response Time
+# ═══════════════════════════════════════════════════════════════════
+
+@Client.on_message(filters.command(["ping", "speed"], config.COMMAND_PREFIX))
+async def ping_command(client: Client, message: Message):
+    """Check bot response time"""
+    start = datetime.now()
+    msg = await message.reply_text("🏓 Pinging...")
+    end = datetime.now()
+    
+    ping_ms = (end - start).microseconds / 1000
+    
+    if ping_ms < 100:
+        status = "🟢 Excellent"
+    elif ping_ms < 300:
+        status = "🟡 Good"
+    else:
+        status = "🔴 Slow"
+    
+    text = f"""
+〔 🏓 **PONG!** 〕
+
+╭────────────────────╮
+│  ⚡ `{ping_ms:.2f}ms`
+│  📶 {status}
+╰────────────────────╯
+"""
+    
+    await msg.edit_text(text)
 
 
 # ═══════════════════════════════════════════════════════════════════
 #  CALLBACKS
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_callback_query(filters.regex("^refresh_alive$"))
-async def refresh_alive_callback(client: Client, callback: CallbackQuery):
-    """Refresh alive stats"""
-    debug(f"Refresh alive from {callback.from_user.first_name}")
+@Client.on_callback_query(filters.regex("^refresh_awake$"))
+async def refresh_awake_callback(client: Client, callback: CallbackQuery):
+    """Refresh awake stats"""
+    debug(f"Refresh awake from {callback.from_user.first_name}")
     
     uptime = get_uptime()
     sys_stats = get_system_stats()
@@ -325,71 +400,76 @@ async def refresh_alive_callback(client: Client, callback: CallbackQuery):
         total_smashes = global_stats.get("total_smashes", 0)
         total_passes = global_stats.get("total_passes", 0)
     except:
-        total_users = "N/A"
-        total_waifus = "N/A"
-        total_smashes = "N/A"
-        total_passes = "N/A"
+        total_users = 0
+        total_waifus = 0
+        total_smashes = 0
+        total_passes = 0
     
     text = f"""
-╔═══════════════════════════════╗
-       💗 **I'M ALIVE BABY!** 💗
-╚═══════════════════════════════╝
+〔 ✦ **{config.BOT_NAME.upper()}** ✦ 〕
 
-✨ **{config.BOT_NAME}** is online and ready!
+┏━━━━━━━━━━━━━━━━━━━━━┓
+┃      ✨ **I'M AWAKE!** ✨
+┗━━━━━━━━━━━━━━━━━━━━━┛
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏰ **UPTIME**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🕐 Running for: `{uptime}`
-┃ 📅 Since: `{BOT_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+▸ **Status:** 🟢 Online & Ready
+▸ **Uptime:** ⏱️ `{uptime}`
+▸ **Mode:** 💫 Smashing Waifus
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 **BOT STATISTICS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 👥 Total Users: `{total_users:,}` 
-┃ 📦 Waifus Collected: `{total_waifus:,}`
-┃ 💥 Total Smashes: `{total_smashes:,}`
-┃ 👋 Total Passes: `{total_passes:,}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **STATISTICS**
+
+  ╭───────────────────╮
+  │ 👥  Users    ›  `{total_users:,}`
+  │ 🎴  Waifus   ›  `{total_waifus:,}`
+  │ 💥  Smashes  ›  `{total_smashes:,}`
+  │ 👋  Passes   ›  `{total_passes:,}`
+  ╰───────────────────╯
+
 """
 
     if sys_stats:
-        text += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-💻 **SYSTEM STATUS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🖥️ CPU: `{sys_stats['cpu']}%`
-┃ 💾 RAM: `{sys_stats['ram_used']}/{sys_stats['ram_total']}` ({sys_stats['ram_percent']}%)
-┃ 📀 Disk: `{sys_stats['disk_used']}/{sys_stats['disk_total']}` ({sys_stats['disk_percent']}%)
-┃ 🐍 Python: `{platform.python_version()}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+        cpu_status = get_status_emoji(sys_stats['cpu'])
+        ram_status = get_status_emoji(sys_stats['ram_percent'])
+        
+        text += f"""━━━━━━━━━━━━━━━━━━━━━━━━
+
+💻 **SYSTEM**
+
+  ╭───────────────────╮
+  │ {cpu_status} CPU    ›  `{sys_stats['cpu']}%`
+  │ {ram_status} RAM    ›  `{sys_stats['ram_percent']}%`
+  │ 🐍 Python ›  `{platform.python_version()}`
+  ╰───────────────────╯
+
 """
 
-    text += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔗 **QUICK LINKS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 👨‍💻 Owner: @{config.OWNER_USERNAME}
-┃ 🤖 Bot: @{config.BOT_USERNAME}
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+    text += f"""━━━━━━━━━━━━━━━━━━━━━━━━
 
-💖 **Thanks for using me!** 💖
+🔗 **CONNECT**
 
-🔄 _Last refreshed: {datetime.now().strftime('%H:%M:%S')}_
+  ▸ Owner: {config.OWNER_USERNAME}
+  ▸ Bot: @{config.BOT_USERNAME}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+  💖 _Thanks for using me!_
+  
+🔄 _Refreshed: {datetime.now().strftime('%H:%M:%S')}_
 """
 
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_alive")
+            InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
+            InlineKeyboardButton("📊 Stats", callback_data="refresh_status"),
+            InlineKeyboardButton("🔄", callback_data="refresh_awake")
         ],
         [
-            InlineKeyboardButton("🆕 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
+            InlineKeyboardButton("📢 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
             InlineKeyboardButton("💬 Support", url=f"https://t.me/{config.SUPPORT_GROUP}")
         ],
         [
-            InlineKeyboardButton("➕ Add to Group", 
+            InlineKeyboardButton("➕ Add Me to Your Group", 
                 url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
         ]
     ])
@@ -402,13 +482,13 @@ async def refresh_alive_callback(client: Client, callback: CallbackQuery):
         await callback.answer("✅ Refreshed!", show_alert=False)
     except Exception as e:
         debug(f"Refresh error: {e}")
-        await callback.answer("❌ Error refreshing", show_alert=True)
+        await callback.answer("❌ No changes", show_alert=False)
 
 
-@Client.on_callback_query(filters.regex("^show_alive$"))
-async def show_alive_callback(client: Client, callback: CallbackQuery):
-    """Show alive from callback"""
-    debug(f"Show alive callback from {callback.from_user.first_name}")
+@Client.on_callback_query(filters.regex("^show_awake$"))
+async def show_awake_callback(client: Client, callback: CallbackQuery):
+    """Show awake from callback"""
+    debug(f"Show awake callback from {callback.from_user.first_name}")
     
     uptime = get_uptime()
     sys_stats = get_system_stats()
@@ -420,68 +500,74 @@ async def show_alive_callback(client: Client, callback: CallbackQuery):
         total_smashes = global_stats.get("total_smashes", 0)
         total_passes = global_stats.get("total_passes", 0)
     except:
-        total_users = "N/A"
-        total_waifus = "N/A"
-        total_smashes = "N/A"
-        total_passes = "N/A"
+        total_users = 0
+        total_waifus = 0
+        total_smashes = 0
+        total_passes = 0
     
     text = f"""
-╔═══════════════════════════════╗
-       💗 **I'M ALIVE BABY!** 💗
-╚═══════════════════════════════╝
+〔 ✦ **{config.BOT_NAME.upper()}** ✦ 〕
 
-✨ **{config.BOT_NAME}** is online and ready!
+┏━━━━━━━━━━━━━━━━━━━━━┓
+┃      ✨ **I'M AWAKE!** ✨
+┗━━━━━━━━━━━━━━━━━━━━━┛
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-⏰ **UPTIME**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🕐 Running for: `{uptime}`
-┃ 📅 Since: `{BOT_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+▸ **Status:** 🟢 Online & Ready
+▸ **Uptime:** ⏱️ `{uptime}`
+▸ **Mode:** 💫 Smashing Waifus
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 **BOT STATISTICS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 👥 Total Users: `{total_users:,}` 
-┃ 📦 Waifus Collected: `{total_waifus:,}`
-┃ 💥 Total Smashes: `{total_smashes:,}`
-┃ 👋 Total Passes: `{total_passes:,}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **STATISTICS**
+
+  ╭───────────────────╮
+  │ 👥  Users    ›  `{total_users:,}`
+  │ 🎴  Waifus   ›  `{total_waifus:,}`
+  │ 💥  Smashes  ›  `{total_smashes:,}`
+  │ 👋  Passes   ›  `{total_passes:,}`
+  ╰───────────────────╯
+
 """
 
     if sys_stats:
-        text += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-💻 **SYSTEM STATUS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🖥️ CPU: `{sys_stats['cpu']}%`
-┃ 💾 RAM: `{sys_stats['ram_used']}/{sys_stats['ram_total']}` ({sys_stats['ram_percent']}%)
-┃ 🐍 Python: `{platform.python_version()}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+        cpu_status = get_status_emoji(sys_stats['cpu'])
+        ram_status = get_status_emoji(sys_stats['ram_percent'])
+        
+        text += f"""━━━━━━━━━━━━━━━━━━━━━━━━
+
+💻 **SYSTEM**
+
+  ╭───────────────────╮
+  │ {cpu_status} CPU    ›  `{sys_stats['cpu']}%`
+  │ {ram_status} RAM    ›  `{sys_stats['ram_percent']}%`
+  │ 🐍 Python ›  `{platform.python_version()}`
+  ╰───────────────────╯
+
 """
 
-    text += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔗 **QUICK LINKS**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 👨‍💻 Owner: @{config.OWNER_USERNAME}
-┃ 🤖 Bot: @{config.BOT_USERNAME}
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+    text += f"""━━━━━━━━━━━━━━━━━━━━━━━━
 
-💖 **Thanks for using me!** 💖
+🔗 **CONNECT**
+
+  ▸ Owner: {config.OWNER_USERNAME}
+  ▸ Bot: @{config.BOT_USERNAME}
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+     💖 _Thanks for using me!_
 """
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("🔄 Refresh", callback_data="refresh_alive")
+            InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
+            InlineKeyboardButton("📊 Stats", callback_data="refresh_status"),
+            InlineKeyboardButton("🔄", callback_data="refresh_awake")
         ],
         [
-            InlineKeyboardButton("🆕 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
+            InlineKeyboardButton("📢 Updates", url=f"https://t.me/{config.UPDATES_CHANNEL}"),
             InlineKeyboardButton("💬 Support", url=f"https://t.me/{config.SUPPORT_GROUP}")
         ],
         [
-            InlineKeyboardButton("➕ Add to Group", 
+            InlineKeyboardButton("➕ Add Me to Your Group", 
                 url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
         ]
     ])
@@ -492,7 +578,7 @@ async def show_alive_callback(client: Client, callback: CallbackQuery):
         else:
             await callback.message.edit_text(text, reply_markup=buttons)
     except Exception as e:
-        debug(f"Show alive error: {e}")
+        debug(f"Show awake error: {e}")
     
     await callback.answer()
 
@@ -506,47 +592,57 @@ async def refresh_status_callback(client: Client, callback: CallbackQuery):
     uptime = get_uptime_detailed()
     
     text = f"""
-🖥️ **SYSTEM STATUS**
+〔 💻 **SYSTEM STATUS** 〕
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+┏━━━━━━━━━━━━━━━━━━━━━┓
+┃   🟢 All Systems Operational
+┗━━━━━━━━━━━━━━━━━━━━━┛
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
 ⏰ **UPTIME**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🕐 {uptime}
-┃ 📅 Started: {BOT_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+╭─────────────────────────╮
+│ 🕐 {uptime}
+│ 📅 Since: {BOT_START_TIME.strftime('%d %b %Y, %H:%M')}
+╰─────────────────────────╯
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━
+
 🔧 **ENVIRONMENT**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 🐍 Python: `{platform.python_version()}`
-┃ 💿 OS: `{platform.system()} {platform.release()}`
-┃ 🏗️ Architecture: `{platform.machine()}`
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+╭─────────────────────────╮
+│ 🐍 Python  ›  `{platform.python_version()}`
+│ 💿 OS      ›  `{platform.system()}`
+│ 🏗️ Arch    ›  `{platform.machine()}`
+╰─────────────────────────╯
 """
     
     if sys_stats:
-        cpu_bar = "█" * int(sys_stats['cpu'] / 10) + "░" * (10 - int(sys_stats['cpu'] / 10))
-        ram_bar = "█" * int(sys_stats['ram_percent'] / 10) + "░" * (10 - int(sys_stats['ram_percent'] / 10))
-        disk_bar = "█" * int(sys_stats['disk_percent'] / 10) + "░" * (10 - int(sys_stats['disk_percent'] / 10))
+        cpu_bar = create_progress_bar(sys_stats['cpu'])
+        ram_bar = create_progress_bar(sys_stats['ram_percent'])
+        disk_bar = create_progress_bar(sys_stats['disk_percent'])
         
         text += f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━
+
 📊 **RESOURCE USAGE**
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ 
-┃ 🖥️ **CPU:** [{cpu_bar}] {sys_stats['cpu']}%
-┃ 
-┃ 💾 **RAM:** [{ram_bar}] {sys_stats['ram_percent']}%
-┃ {sys_stats['ram_used']} / {sys_stats['ram_total']}
-┃ 
-┃ 📀 **Disk:** [{disk_bar}] {sys_stats['disk_percent']}%
-┃ {sys_stats['disk_used']} / {sys_stats['disk_total']}
-━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**🖥️ CPU**
+{cpu_bar} `{sys_stats['cpu']}%`
+
+**💾 RAM**
+{ram_bar} `{sys_stats['ram_percent']}%`
+↳ {sys_stats['ram_used']} / {sys_stats['ram_total']}
+
+**📀 DISK**
+{disk_bar} `{sys_stats['disk_percent']}%`
+↳ {sys_stats['disk_used']} / {sys_stats['disk_total']}
 """
     
-    text += f"\n✅ All systems operational!\n\n🔄 _Refreshed: {datetime.now().strftime('%H:%M:%S')}_"
+    text += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 _Refreshed: {datetime.now().strftime('%H:%M:%S')}_
+"""
     
-    # Only Refresh and Back buttons
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🔄 Refresh", callback_data="refresh_status"),
@@ -559,4 +655,4 @@ async def refresh_status_callback(client: Client, callback: CallbackQuery):
         await callback.answer("✅ Refreshed!", show_alert=False)
     except Exception as e:
         debug(f"Status refresh error: {e}")
-        await callback.answer("❌ Error", show_alert=True)
+        await callback.answer("❌ No changes", show_alert=False)
