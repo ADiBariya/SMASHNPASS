@@ -284,10 +284,10 @@ async def profile_command(client: Client, message: Message):
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📊 Detailed Stats", callback_data=f"pstats_{target.id}")
+            InlineKeyboardButton("📊 DETAILED STATS", callback_data=f"pstats_{target.id}")
         ],
         [
-            InlineKeyboardButton("🎮 Play", callback_data="play_smash")
+            InlineKeyboardButton("📈 LEADERBOARD", callback_data="lb_main")
         ]
     ])
     
@@ -418,10 +418,10 @@ async def profile_stats_callback(client: Client, callback: CallbackQuery):
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📊 Main Profile", callback_data=f"profile_{user_id}")
+            InlineKeyboardButton("👤 MAIN PROFILE", callback_data=f"profile_{user_id}")
         ],
         [
-            InlineKeyboardButton("🎮 Play", callback_data="play_smash")
+            InlineKeyboardButton("📊STATS", callback_data="View_stats")
         ]
     ])
     
