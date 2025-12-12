@@ -148,9 +148,8 @@ async def report_cmd(client: Client, message: Message):
         report_text = message.text.split(None, 1)[1]
     else:
         return await message.reply_text(
-            "╔══════════════════════════════════════╗\n"
-            "║       📝 **HOW TO REPORT**           ║\n"
-            "╚══════════════════════════════════════╝\n\n"
+        
+            "📝 **HOW TO REPORT**\n\n"
             "**📌 Usage:**\n"
             "`/report <description of the bug/issue>`\n\n"
             "**💬 Or reply to a message:**\n"
@@ -223,30 +222,28 @@ async def report_cmd(client: Client, message: Message):
     type_emoji = get_report_type_emoji(cmd)
     
     report_message = f"""
-╔══════════════════════════════════════════════╗
-║  🚨 **NEW {report_type.upper()} RECEIVED!**  ║
-╚══════════════════════════════════════════════╝
+
+  🚨 **NEW {report_type.upper()} RECEIVED!**  
+
 
 🔖 **Report ID:** `{report_id}`
 {type_emoji} **Type:** {report_type}
 {priority_emoji} **Priority:** {priority_level}
 
-┌──────────────────────────────────────────────┐
-│             👤 **REPORTER INFO**             │
-└──────────────────────────────────────────────┘
-│ 📛 **Name:** {user.first_name} {user.last_name or ''}
-│ 🆔 **User ID:** `{user.id}`
-│ 🔗 **Username:** @{user.username or 'None'}
-│ 💬 **From:** {chat_info}
-│ 🆔 **Chat ID:** `{chat_id_info}`
-│ 🔗 **Chat Link:** {chat_link or 'Private/No Link'}
-└──────────────────────────────────────────────┘
 
-┌──────────────────────────────────────────────┐
-│             📝 **REPORT DETAILS**            │
-└──────────────────────────────────────────────┘
-{report_text}
-└──────────────────────────────────────────────┘"""
+             👤 **REPORTER INFO**             
+ 📛 **Name:** {user.first_name} {user.last_name or ''}
+🆔 **User ID:** `{user.id}`
+🔗 **Username:** @{user.username or 'None'}
+💬 **From:** {chat_info}
+🆔 **Chat ID:** `{chat_id_info}`
+🔗 **Chat Link:** {chat_link or 'Private/No Link'}
+
+
+             📝 **REPORT DETAILS**            
+
+{report_text} 
+"""
 
     # Add replied message context if exists
     if replied_msg_info:
@@ -255,14 +252,14 @@ async def report_cmd(client: Client, message: Message):
             replied_text = replied_text[:197] + "..."
         report_message += f"""
 
-┌──────────────────────────────────────────────┐
-│          💬 **REPLIED MESSAGE CONTEXT**      │
-└──────────────────────────────────────────────┘
-│ 👤 **From:** {replied_msg_info['from_user']}
-│ 🆔 **User ID:** `{replied_msg_info.get('from_user_id', 'Unknown')}`
-│ 📄 **Content:** 
+
+          💬 **REPLIED MESSAGE CONTEXT**     │
+
+👤 **From:** {replied_msg_info['from_user']}
+🆔 **User ID:** `{replied_msg_info.get('from_user_id', 'Unknown')}`
+📄 **Content:** 
 {replied_text}
-└──────────────────────────────────────────────┘"""
+"""
 
     report_message += f"""
 
@@ -344,9 +341,9 @@ async def report_cmd(client: Client, message: Message):
     
     # Send confirmation to user
     confirm_message = f"""
-╔══════════════════════════════════════╗
-║     ✅ **REPORT SUBMITTED!**         ║
-╚══════════════════════════════════════╝
+
+    ✅ **REPORT SUBMITTED!**         
+
 
 🎫 **Your Report ID:** `{report_id}`
 {type_emoji} **Type:** {report_type}
@@ -433,9 +430,7 @@ async def resolve_report_callback(client: Client, callback: CallbackQuery):
     try:
         await client.send_message(
             user_id,
-            f"╔══════════════════════════════════════╗\n"
-            f"║     ✅ **REPORT RESOLVED!**          ║\n"
-            f"╚══════════════════════════════════════╝\n\n"
+            f"✅ **REPORT RESOLVED!**\n\n"
             f"🎫 **Report ID:** `{report_id}`\n\n"
             f"🎉 Your reported issue has been resolved!\n\n"
             f"👤 **Resolved by:** {callback.from_user.first_name}\n"
@@ -500,9 +495,9 @@ async def investigate_report_callback(client: Client, callback: CallbackQuery):
     try:
         await client.send_message(
             user_id,
-            f"╔══════════════════════════════════════╗\n"
-            f"║   🔍 **REPORT UNDER REVIEW!**        ║\n"
-            f"╚══════════════════════════════════════╝\n\n"
+           
+               
+            f"🔍 **REPORT UNDER REVIEW!**\n\n"
             f"🎫 **Report ID:** `{report_id}`\n\n"
             f"🔧 Our team is investigating your issue!\n\n"
             f"👤 **Assigned to:** {callback.from_user.first_name}\n"
@@ -664,9 +659,9 @@ async def view_reporter_info_callback(client: Client, callback: CallbackQuery):
                 full_name = report.get("first_name", "Unknown")
             
             info_text = f"""
-╔══════════════════════════════════════╗
-║        👤 **REPORTER DETAILS**       ║
-╚══════════════════════════════════════╝
+
+        👤 **REPORTER DETAILS**       
+
 
 📛 **Name:** {full_name}
 🆔 **ID:** `{user_id}`
@@ -823,9 +818,7 @@ async def reply_to_user_cmd(client: Client, message: Message):
     try:
         await client.send_message(
             user_id,
-            f"╔══════════════════════════════════════╗\n"
-            f"║   💬 **MESSAGE FROM SUPPORT**        ║\n"
-            f"╚══════════════════════════════════════╝\n\n"
+            f"💬 **MESSAGE FROM SUPPORT**\n\n"
             f"🎫 **Regarding Report:** `{report_id}`\n\n"
             f"📝 **Message:**\n"
             f"{reply_text}\n\n"
@@ -855,9 +848,7 @@ async def view_all_reports_cmd(client: Client, message: Message):
     
     if not pending and not investigating:
         return await message.reply_text(
-            "╔══════════════════════════════════════╗\n"
-            "║      📭 **NO PENDING REPORTS!**      ║\n"
-            "╚══════════════════════════════════════╝\n\n"
+            "📭 **NO PENDING REPORTS!**\n\n"
             "✨ All clear! No bugs reported.\n"
             "🎉 Great job keeping things running smoothly!"
         )
@@ -1007,9 +998,9 @@ async def handle_bot_added(client: Client, chat, added_by):
         
         # Create sexy log message 😏
         log_message = f"""
-╔══════════════════════════════════════╗
-║  🎉 **BOT ADDED TO NEW GROUP!**      ║
-╚══════════════════════════════════════╝
+
+ 🎉 **BOT ADDED TO NEW GROUP!**
+
 
 💬 **Group Info:**
 ┌─────────────────────────────────────
@@ -1075,9 +1066,9 @@ async def handle_bot_removed(client: Client, chat, removed_by):
         
         # Create log message
         log_message = f"""
-╔══════════════════════════════════════╗
-║  😢 **BOT REMOVED FROM GROUP**       ║
-╚══════════════════════════════════════╝
+
+   😢 **BOT REMOVED FROM GROUP**
+
 
 💬 **Group Info:**
 ┌─────────────────────────────────────
