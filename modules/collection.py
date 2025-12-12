@@ -244,14 +244,10 @@ async def show_collection(target, user_id: int, page: int = 1, is_callback: bool
         text = """
 📦 **Your Collection**
 
-Your collection is empty! 😢
+Your collection is empty!
 
 Use /smash to start collecting waifus!
-"""
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🎮 Play Now", callback_data="play_smash")]
-        ])
-        
+"""     
         if is_callback:
             try:
                 if target.message.photo:
@@ -262,7 +258,7 @@ Use /smash to start collecting waifus!
                 pass
             await target.answer()
         else:
-            await target.reply_text(text, reply_markup=buttons)
+            await target.reply_text(text)
         return
     
     # Apply rarity filter if specified
@@ -370,13 +366,11 @@ Use /smash to start collecting waifus!
     # Bottom buttons
     if rarity_filter:
         buttons.append([
-            InlineKeyboardButton("📦 All", callback_data="view_collection"),
-            InlineKeyboardButton("🎮 Play", callback_data="play_smash")
+            InlineKeyboardButton("📦 ALL", callback_data="view_collection")
         ])
     else:
         buttons.append([
-            InlineKeyboardButton("🎮 Play", callback_data="play_smash"),
-            InlineKeyboardButton("🔙 Back", callback_data="start_back")
+            InlineKeyboardButton("📊 LEADEROARD", callback_data="lb_collection")
         ])
     
     # Get image for display
