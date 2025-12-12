@@ -101,26 +101,6 @@ Tap **Play Now** to begin.
         await message.reply_text(text, reply_markup=buttons)
     
 
-# ═══════════════════════════════════════════════════════════════════
-#  /ping Command
-# ═══════════════════════════════════════════════════════════════════
-
-@Client.on_message(filters.command("ping", config.COMMAND_PREFIX))
-async def ping_command(client: Client, message: Message):
-    """Check bot latency and uptime"""
-    start = time.time()
-    msg = await message.reply_text("🏓 Pinging...")
-    end = time.time()
-    
-    latency = (end - start) * 1000
-    uptime = get_formatted_uptime()
-    
-    await msg.edit_text(
-        f"🏓 **Pong!**\n\n"
-        f"⚡ **Latency:** `{latency:.2f}ms`\n"
-        f"⏳ **Uptime:** `{uptime}`"
-    )
-
 
 # ═══════════════════════════════════════════════════════════════════
 #  /help Command
