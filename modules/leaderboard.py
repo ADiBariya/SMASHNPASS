@@ -1,8 +1,3 @@
-
-# modules/leaderboard.py - Fixed Leaderboard Module
-
-
-
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
@@ -264,3 +259,4 @@ async def toprich_command(client: Client, message: Message):
     await message.reply_text(text)
 
 print("LEADERBOARD MODULE LOADED SUCCESSFULLY")
+
