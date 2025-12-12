@@ -138,7 +138,7 @@ def get_status_emoji(percent):
 #  /awake Command - Main Sexy Status
 # ═══════════════════════════════════════════════════════════════════
 
-@Client.on_message(filters.command(["awake", "online"], config.COMMAND_PREFIX))
+@Client.on_message(filters.command(["awake", "alive"], config.COMMAND_PREFIX))
 async def awake_command(client: Client, message: Message):
     """Sexy awake command with premium stats"""
     user = message.from_user
