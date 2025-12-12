@@ -1584,8 +1584,11 @@ class Database:
     #  DEBUG & MAINTENANCE METHODS
     # ═══════════════════════════════════════════════════════════════════
     
+    # ═══════════════════════════════════════════════════════════════════
+    #  DEBUG & MAINTENANCE METHODS
+    # ═══════════════════════════════════════════════════════════════════
+
     def debug_check_data(self) -> Dict:
-        """Debug method to check database state"""
         try:
             users_count = self.users.count_documents({})
             groups_count = self.groups.count_documents({})
@@ -1617,21 +1620,17 @@ class Database:
         except Exception as e:
             logger.error(f"Error in debug check: {e}")
             return {"error": str(e)}
-    
+
     def vacuum_database(self) -> Dict:
-        """Clean up old/unnecessary data"""
         try:
             results = {}
             
-            # Clean expired trades
             expired_trades = self.cleanup_expired_trades()
             results["expired_trades_cleaned"] = expired_trades
             
-            # Clean invalid waifus
             invalid_waifus = self.cleanup_invalid_waifus()
             results["invalid_waifus_cleaned"] = invalid_waifus
             
-            # Clean old cooldowns (should auto-expire, but just in case)
             old_cooldowns = self.cooldowns.delete_many({
                 "expires_at": {"$lt": datetime.now() - timedelta(days=1)}
             })
@@ -1642,9 +1641,8 @@ class Database:
         except Exception as e:
             logger.error(f"Error during vacuum: {e}")
             return {"error": str(e)}
-    
+
     def get_database_size(self) -> Dict:
-        """Get size of each collection"""
         try:
             stats = {}
             for collection_name in ["users", "collections", "trades", "cooldowns", "waifus", "groups", "stats"]:
@@ -1657,9 +1655,8 @@ class Database:
         except Exception as e:
             logger.error(f"Error getting database size: {e}")
             return {"error": str(e)}
-    
+
     def backup_user_data(self, user_id: int) -> Dict:
-        """Export all user data for backup"""
         try:
             user = self.get_user(user_id)
             collection = self.get_full_collection(user_id)
@@ -1675,159 +1672,136 @@ class Database:
             logger.error(f"Error backing up user data: {e}")
             return {"error": str(e)}
 
-def mark_group_inactive(self, chat_id: int):
-    """Mark a group as inactive (bot removed)"""
-    try:
-        self.groups.update_one(
-            {"chat_id": chat_id},
-            {
-                "$set": {
+    def mark_group_inactive(self, chat_id: int):
+        try:
+            self.groups.update_one(
+                {"chat_id": chat_id},
+                {"$set": {
                     "is_active": False,
                     "left_at": datetime.now()
-                }
-            }
-        )
-    except Exception as e:
-        logger.error(f"Error marking group inactive: {e}")
+                }}
+            )
+        except Exception as e:
+            logger.error(f"Error marking group inactive: {e}")
 
-def update_group_member_count(self, chat_id: int, count: int):
-    """Update group member count"""
-    try:
-        self.groups.update_one(
-            {"chat_id": chat_id},
-            {"$set": {"member_count": count, "last_updated": datetime.now()}}
-        )
-    except Exception as e:
-        logger.error(f"Error updating member count: {e}")
+    def update_group_member_count(self, chat_id: int, count: int):
+        try:
+            self.groups.update_one(
+                {"chat_id": chat_id},
+                {"$set": {"member_count": count, "last_updated": datetime.now()}}
+            )
+        except Exception as e:
+            logger.error(f"Error updating member count: {e}")
 
-def update_group_info(self, chat_id: int, title: str = None, username: str = None, member_count: int = None):
-    """Update group information"""
-    try:
-        update_data = {"last_updated": datetime.now(), "is_active": True}
-        
-        if title:
-            update_data["title"] = title
-        if username:
-            update_data["username"] = username
-        if member_count:
-            update_data["member_count"] = member_count
+    def update_group_info(self, chat_id: int, title: str = None, username: str = None, member_count: int = None):
+        try:
+            update_data = {"last_updated": datetime.now(), "is_active": True}
             
-        self.groups.update_one(
-            {"chat_id": chat_id},
-            {"$set": update_data}
-        )
-    except Exception as e:
-        logger.error(f"Error updating group info: {e}")
+            if title:
+                update_data["title"] = title
+            if username:
+                update_data["username"] = username
+            if member_count:
+                update_data["member_count"] = member_count
+                
+            self.groups.update_one(
+                {"chat_id": chat_id},
+                {"$set": update_data}
+            )
+        except Exception as e:
+            logger.error(f"Error updating group info: {e}")
 
-def get_active_groups_count(self, hours: int = 24) -> int:
-    """Get count of active groups in last X hours"""
-    try:
-        cutoff = datetime.now() - timedelta(hours=hours)
-        return self.groups.count_documents({
-            "last_active": {"$gte": cutoff},
-            "is_active": {"$ne": False}
-        })
-    except Exception as e:
-        logger.error(f"Error getting active groups: {e}")
-        return 0
+    def get_active_groups_count(self, hours: int = 24) -> int:
+        try:
+            cutoff = datetime.now() - timedelta(hours=hours)
+            return self.groups.count_documents({
+                "last_active": {"$gte": cutoff},
+                "is_active": {"$ne": False}
+            })
+        except Exception as e:
+            logger.error(f"Error getting active groups: {e}")
+            return 0
 
-def update_user_activity(self, user_id: int):
-    """Update user's last active timestamp"""
-    try:
-        self.users.update_one(
-            {"user_id": user_id},
-            {"$set": {"last_active": datetime.now()}}
-        )
-    except Exception as e:
-        logger.error(f"Error updating user activity: {e}")
+    def update_user_activity(self, user_id: int):
+        try:
+            self.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"last_active": datetime.now()}}
+            )
+        except Exception as e:
+            logger.error(f"Error updating user activity: {e}")
 
-def save_report(self, report_data: dict):
-    """Save a bug report"""
-    self.reports.update_one(
-        {"report_id": report_data["report_id"]},
-        {"$set": report_data},
-        upsert=True
-    )
-
-def get_report(self, report_id: str) -> dict:
-    """Get a report by ID"""
-    return self.reports.find_one({"report_id": report_id})
-
-def update_report_status(self, report_id: str, status: str):
-    """Update report status"""
-    self.reports.update_one(
-        {"report_id": report_id},
-        {"$set": {"status": status, "updated_at": datetime.now()}}
-    )
-
-def get_user_report_count(self, user_id: int) -> int:
-    """Get total reports by a user"""
-    return self.reports.count_documents({"user_id": user_id})
-
-def get_pending_reports(self) -> list:
-    """Get all pending reports"""
-    return list(self.reports.find({"status": "pending"}).sort("timestamp", -1))
-
-def get_all_reports(self, limit: int = 50) -> list:
-    """Get all reports"""
-    return list(self.reports.find().sort("timestamp", -1).limit(limit))
-
-def save_report(self, report_data: dict):
-    """Save a bug report"""
-    try:
+    def save_report(self, report_data: dict):
         self.reports.update_one(
             {"report_id": report_data["report_id"]},
             {"$set": report_data},
             upsert=True
         )
-        return True
-    except Exception as e:
-        logger.error(f"Error saving report: {e}")
-        return False
 
-def get_report(self, report_id: str) -> dict:
-    """Get a report by ID"""
-    return self.reports.find_one({"report_id": report_id})
+    def get_report(self, report_id: str) -> dict:
+        return self.reports.find_one({"report_id": report_id})
 
-def update_report_status(self, report_id: str, status: str, updated_by: int = None):
-    """Update report status"""
-    update_data = {
-        "status": status,
-        "updated_at": datetime.now()
-    }
-    if updated_by:
-        update_data["updated_by"] = updated_by
-    
-    self.reports.update_one(
-        {"report_id": report_id},
-        {"$set": update_data}
-    )
+    def update_report_status(self, report_id: str, status: str):
+        self.reports.update_one(
+            {"report_id": report_id},
+            {"$set": {"status": status, "updated_at": datetime.now()}}
+        )
 
-def get_user_report_count(self, user_id: int) -> int:
-    """Get total reports by a user"""
-    return self.reports.count_documents({"user_id": user_id})
+    def get_user_report_count(self, user_id: int) -> int:
+        return self.reports.count_documents({"user_id": user_id})
 
-def get_pending_reports(self) -> list:
-    """Get all pending reports"""
-    return list(self.reports.find({"status": "pending"}).sort("timestamp", -1))
+    def get_pending_reports(self) -> list:
+        return list(self.reports.find({"status": "pending"}).sort("timestamp", -1))
 
-def get_all_reports(self, limit: int = 50) -> list:
-    """Get all reports"""
-    return list(self.reports.find().sort("timestamp", -1).limit(limit))
+    def get_all_reports(self, limit: int = 50) -> list:
+        return list(self.reports.find().sort("timestamp", -1).limit(limit))
 
-def get_reports_by_status(self, status: str, limit: int = 20) -> list:
-    """Get reports by status"""
-    return list(self.reports.find({"status": status}).sort("timestamp", -1).limit(limit))
+    def save_report(self, report_data: dict):
+        try:
+            self.reports.update_one(
+                {"report_id": report_data["report_id"]},
+                {"$set": report_data},
+                upsert=True
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error saving report: {e}")
+            return False
 
-def delete_old_reports(self, days: int = 30) -> int:
-    """Delete reports older than X days"""
-    from datetime import timedelta
-    cutoff = datetime.now() - timedelta(days=days)
-    result = self.reports.delete_many({
-        "timestamp": {"$lt": cutoff},
-        "status": {"$in": ["resolved", "spam"]}
-    })
-    return result.deleted_count
-    
-# Create global instance
+    def get_report(self, report_id: str) -> dict:
+        return self.reports.find_one({"report_id": report_id})
+
+    def update_report_status(self, report_id: str, status: str, updated_by: int = None):
+        update_data = {
+            "status": status,
+            "updated_at": datetime.now()
+        }
+        if updated_by:
+            update_data["updated_by"] = updated_by
+        
+        self.reports.update_one(
+            {"report_id": report_id},
+            {"$set": update_data}
+        )
+
+    def get_user_report_count(self, user_id: int) -> int:
+        return self.reports.count_documents({"user_id": user_id})
+
+    def get_pending_reports(self) -> list:
+        return list(self.reports.find({"status": "pending"}).sort("timestamp", -1))
+
+    def get_all_reports(self, limit: int = 50) -> list:
+        return list(self.reports.find().sort("timestamp", -1).limit(limit))
+
+    def get_reports_by_status(self, status: str, limit: int = 20) -> list:
+        return list(self.reports.find({"status": status}).sort("timestamp", -1).limit(limit))
+
+    def delete_old_reports(self, days: int = 30) -> int:
+        cutoff = datetime.now() - timedelta(days=days)
+        result = self.reports.delete_many({
+            "timestamp": {"$lt": cutoff},
+            "status": {"$in": ["resolved", "spam"]}
+        })
+        return result.deleted_count
+
 db = Database()
