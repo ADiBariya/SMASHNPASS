@@ -348,12 +348,20 @@ async def sell_waifu_cmd(client: Client, message: Message):
 
     user_id = message.from_user.id
 
-    # Check if user owns this waifu
     waifu = find_waifu_by_id(user_id, waifu_id)
     if not waifu:
         return await message.reply_text("❌ You don't own this waifu!")
 
-    value = waifu.get("waifu_power", 100) * 10  # Base value on power
+    RARITY_VALUES = {
+        "common": 500,
+        "epic": 1000,
+        "legendary": 2500,
+        "rare": 5000
+    }
+
+    rarity = waifu.get("waifu_rarity", "common").lower()
+    
+    value = RARITY_VALUES.get(rarity, 500)
     sell_price = value // 2
 
     emoji = get_rarity_emoji(waifu.get("waifu_rarity", "Common"))
@@ -373,7 +381,6 @@ async def sell_waifu_cmd(client: Client, message: Message):
         f"Sell Price: {sell_price:,}\n",
         reply_markup=buttons
     )
-
 # =============================================================
 #  CONFIRM SELL
 # =============================================================
