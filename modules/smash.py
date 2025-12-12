@@ -57,11 +57,21 @@ AUTO_DELETE_FILE = "auto_delete_settings.json"
 # In-memory cache for auto-delete settings
 auto_delete_cache = {}
 
+#ye jo bhi ho tuje kya bhai
+async def smash_active(message: Message, pending: bool = True) -> bool:
+    """Check if user already has an active smash game"""
+    user_id = message.from_user.id
 
-# ═══════════════════════════════════════════════════════════════════
-#  🗑️ AUTO-DELETE SYSTEM (FIXED WITH FILE PERSISTENCE)
-# ═══════════════════════════════════════════════════════════════════
-
+    if user_id in active_games:
+        if pending:
+            await message.reply_text(
+                "❗ **You already have an active Smash game!**\n"
+                "Finish it first before starting a new one."
+            )
+        return True
+    
+    return False
+#han han le 
 def load_auto_delete_settings():
     """Load auto-delete settings from file on startup"""
     global auto_delete_cache
@@ -667,15 +677,15 @@ async def auto_delete_status_cmd(client: Client, message: Message):
         asyncio.create_task(auto_delete_message(message, current))
 
 
-# ═══════════════════════════════════════════════════════════════════
-#  /smash Command with Initial Sub Check
-# ═══════════════════════════════════════════════════════════════════
+#smash Command
 
 @Client.on_message(filters.command(["smash", "waifu", "sp"], config.COMMAND_PREFIX))
 async def smash_command(client: Client, message: Message):
     """Start a new smash or pass game"""
     user = message.from_user
     chat_id = message.chat.id
+    if await smash_active(message):
+        return
     
     print(f"🎮 [SMASH] /smash from {user.first_name} ({user.id}) in chat {chat_id}")
     
