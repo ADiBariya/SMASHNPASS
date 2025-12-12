@@ -207,13 +207,13 @@ async def bonus_cmd(client: Client, message: Message):
 
     # rarity weights (same as your code)
     if bonus_tier >= 4:
-        weights = {"Legendary": 30, "Epic": 40, "Rare": 20, "Uncommon": 10, "Common": 0}
+        weights = {"Rare": 30, "Legendary": 25, "Epic": 25, "Common": 0}
     elif bonus_tier >= 3:
-        weights = {"Legendary": 20, "Epic": 35, "Rare": 30, "Uncommon": 15, "Common": 0}
+        weights = {"Rare": 25, "Legendary": 20, "Epic": 30, "Common": 5}
     elif bonus_tier >= 2:
-        weights = {"Legendary": 10, "Epic": 25, "Rare": 35, "Uncommon": 25, "Common": 5}
+        weights = {"Rare": 20, "Legendary": 15, "Epic": 35, "Common": 10}
     else:
-        weights = {"Legendary": 5, "Epic": 15, "Rare": 30, "Uncommon": 30, "Common": 20}
+        weights = {"Rare": 10, "Legendary": 10, "Epic": 30, "Common": 50}
 
     rarities = [r for r, w in weights.items() if w > 0]
     rarity_weights = [weights[r] for r in rarities]
