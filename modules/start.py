@@ -44,7 +44,7 @@ __HELP__ = """
 """
 
 # Welcome Image
-START_IMAGE = "https://files.catbox.moe/jcy3qf.jpg"
+START_VID = "https://files.catbox.moe/ccwzol.mp4"
 
 # Debug
 DEBUG = True
@@ -59,59 +59,39 @@ def debug(msg):
 
 @Client.on_message(filters.command("start", config.COMMAND_PREFIX))
 async def start_command(client: Client, message: Message):
-    """Handle /start command"""
     user = message.from_user
-    debug(f"Start command from {user.first_name} ({user.id})")
     
-    # Database
-    try:
-        db.get_or_create_user(user.id, user.username, user.first_name)
-    except Exception as e:
-        debug(f"DB error: {e}")
-    
-    # Welcome text
     text = f"""
 ✨ **Welcome {user.first_name}!** ✨
 
-━━━━━━━━━━━━━━━━━━━━━
 🎮 **Smash or Pass Waifu Game**
-━━━━━━━━━━━━━━━━━━━━━
-
 Collect your favorite anime waifus!
 
-🎯 **How to Play:**
-├ Use /smash to get a random waifu
-├ Choose **💥 Smash** to try winning her
-├ Choose **👋 Pass** to skip
-└ If you win, she joins your collection!
-
-✨ **Ready? Tap Play Now!**
+Tap **Play Now** to begin.
 """
-    
-    # Buttons
+
+   
+
+    # THEN: Send MENU BUTTONS in a SEPARATE message
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection")
+          InlineKeyboardButton("HELP", callback_data="show_help")
         ],
         [
-            InlineKeyboardButton("📖 Help", callback_data="show_help"),
-            InlineKeyboardButton("📊 Stats", callback_data="view_stats")
+            
+            InlineKeyboardButton("PLAY HERE", url=f"https://t.me/Waifusmashsupport"),
+            InlineKeyboardButton("UPDATE", url=f"https://t.me/Waifusmashupdates")
         ],
         [
-            InlineKeyboardButton("👤 Profile", callback_data="view_profile"),
-            InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb")
-        ],
-        [
-            InlineKeyboardButton("➕ Add to Group", 
+            InlineKeyboardButton("ADD TO GROUP",
                 url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
         ]
     ])
     
-    # Send with image
+     # Send with image
     try:
-        await message.reply_photo(
-            photo=START_IMAGE,
+        await message.reply_video(
+            video=START_VID,
             caption=text,
             reply_markup=buttons
         )
@@ -119,7 +99,7 @@ Collect your favorite anime waifus!
     except Exception as e:
         debug(f"Image failed: {e}, sending text only")
         await message.reply_text(text, reply_markup=buttons)
-
+    
 
 # ═══════════════════════════════════════════════════════════════════
 #  /ping Command
@@ -183,11 +163,7 @@ async def help_command(client: Client, message: Message):
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back", callback_data="back_start")
+            InlineKeyboardButton("🔙 BACK", callback_data="back_start")
         ]
     ])
     
@@ -233,11 +209,7 @@ async def stats_command(client: Client, message: Message):
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection"),
-            InlineKeyboardButton("🎮 Play", callback_data="play_smash")
-        ],
-        [
-            InlineKeyboardButton("👤 Profile", callback_data="view_profile")
+            InlineKeyboardButton("🔙 BACK", callback_data="back_start")
         ]
     ])
     
@@ -286,16 +258,12 @@ async def help_callback(client: Client, callback: CallbackQuery):
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back", callback_data="back_start")
+            InlineKeyboardButton("🔙 BACK", callback_data="back_start")
         ]
     ])
     
     try:
-        if callback.message.photo:
+        if callback.message.video:
             await callback.message.edit_caption(caption=text, reply_markup=buttons)
         else:
             await callback.message.edit_text(text, reply_markup=buttons)
@@ -345,16 +313,12 @@ async def view_stats_callback(client: Client, callback: CallbackQuery):
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection"),
-            InlineKeyboardButton("👤 Profile", callback_data="view_profile")
-        ],
-        [
             InlineKeyboardButton("🔙 Back", callback_data="back_start")
         ]
     ])
     
     try:
-        if callback.message.photo:
+        if callback.message.video:
             await callback.message.edit_caption(caption=text, reply_markup=buttons)
         else:
             await callback.message.edit_text(text, reply_markup=buttons)
@@ -382,218 +346,26 @@ Use the buttons below to navigate!
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection")
+          InlineKeyboardButton("HELP", callback_data="show_help")
         ],
         [
-            InlineKeyboardButton("📖 Help", callback_data="show_help"),
-            InlineKeyboardButton("📊 Stats", callback_data="view_stats")
+            
+            InlineKeyboardButton("PLAY HERE", url=f"https://t.me/Waifusmashsupport"),
+            InlineKeyboardButton("UPDATE", url=f"https://t.me/Waifusmashupdate")
         ],
         [
-            InlineKeyboardButton("👤 Profile", callback_data="view_profile"),
-            InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb")
+            InlineKeyboardButton("ADD TO GROUP",
+                url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
         ]
+
     ])
     
     try:
-        if callback.message.photo:
+        if callback.message.video:
             await callback.message.edit_caption(caption=text, reply_markup=buttons)
         else:
             await callback.message.edit_text(text, reply_markup=buttons)
     except Exception as e:
         debug(f"Back edit error: {e}")
-    
-    await callback.answer()
-
-
-@Client.on_callback_query(filters.regex("^view_collection$"))
-async def view_collection_callback(client: Client, callback: CallbackQuery):
-    """View collection callback"""
-    user = callback.from_user
-    debug(f"Collection callback from {user.first_name}")
-    
-    try:
-        collection = db.get_user_collection(user.id)
-    except Exception as e:
-        debug(f"Collection DB error: {e}")
-        await callback.answer("❌ Database error!", show_alert=True)
-        return
-    
-    rarity_emojis = {
-        "common": "⚪",
-        "rare": "🔵",
-        "epic": "🟣",
-        "legendary": "🟡"
-    }
-    
-    if not collection:
-        text = f"""
-📦 **{user.first_name}'s Collection**
-
-━━━━━━━━━━━━━━━━━━━━━
-😢 **Your collection is empty!**
-━━━━━━━━━━━━━━━━━━━━━
-
-Play /smash to win waifus!
-"""
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🎮 Play Now", callback_data="play_smash"),
-                InlineKeyboardButton("🔙 Back", callback_data="back_start")
-            ]
-        ])
-    else:
-        text = f"""
-📦 **{user.first_name}'s Collection**
-
-━━━━━━━━━━━━━━━━━━━━━
-📊 **Total Waifus:** {len(collection)}
-━━━━━━━━━━━━━━━━━━━━━
-
-"""
-        for i, waifu in enumerate(collection[:5], 1):
-            rarity = waifu.get("waifu_rarity") or waifu.get("rarity", "common")
-            emoji = rarity_emojis.get(str(rarity).lower(), "⚪")
-            name = waifu.get("waifu_name") or waifu.get("name", "Unknown")
-            power = waifu.get("waifu_power") or waifu.get("power", 0)
-            text += f"{i}. {emoji} **{name}** (⚔️ {power})\n"
-        
-        if len(collection) > 5:
-            text += f"\n... and {len(collection) - 5} more!"
-        
-        text += "\n\n📝 Use `/collection` for full list!"
-        
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🎮 Play More", callback_data="play_smash"),
-                InlineKeyboardButton("🔙 Back", callback_data="back_start")
-            ]
-        ])
-    
-    try:
-        if callback.message.photo:
-            await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            await callback.message.edit_text(text, reply_markup=buttons)
-        debug("Collection displayed!")
-    except Exception as e:
-        debug(f"Collection edit error: {e}")
-    
-    await callback.answer()
-
-
-@Client.on_callback_query(filters.regex("^view_profile$"))
-async def view_profile_callback(client: Client, callback: CallbackQuery):
-    """View profile callback"""
-    user = callback.from_user
-    debug(f"Profile callback from {user.first_name}")
-    
-    try:
-        user_data = db.get_or_create_user(user.id, user.username, user.first_name)
-        collection = db.get_user_collection(user.id)
-        collection_count = len(collection) if collection else 0
-    except Exception as e:
-        debug(f"Profile DB error: {e}")
-        await callback.answer("❌ Error!", show_alert=True)
-        return
-    
-    coins = user_data.get('coins', 0)
-    wins = user_data.get('total_wins', 0)
-    losses = user_data.get('total_losses', 0)
-    total = wins + losses
-    win_rate = (wins / total * 100) if total > 0 else 0
-    
-    # Count rarities
-    rarity_count = {"legendary": 0, "epic": 0, "rare": 0, "common": 0}
-    if collection:
-        for w in collection:
-            r = str(w.get("waifu_rarity") or w.get("rarity", "common")).lower()
-            if r in rarity_count:
-                rarity_count[r] += 1
-    
-    text = f"""
-👤 **{user.first_name}'s Profile**
-
-━━━━━━━━━━━━━━━━━━━━━
-📋 **Info**
-━━━━━━━━━━━━━━━━━━━━━
-├ 🆔 ID: `{user.id}`
-├ 👤 Username: @{user.username or 'None'}
-└ 💰 Coins: {coins:,}
-
-━━━━━━━━━━━━━━━━━━━━━
-📦 **Collection** ({collection_count})
-━━━━━━━━━━━━━━━━━━━━━
-├ 🟡 Legendary: {rarity_count['legendary']}
-├ 🟣 Epic: {rarity_count['epic']}
-├ 🔵 Rare: {rarity_count['rare']}
-└ ⚪ Common: {rarity_count['common']}
-
-━━━━━━━━━━━━━━━━━━━━━
-🎮 **Game Stats**
-━━━━━━━━━━━━━━━━━━━━━
-├ ✅ Wins: {wins}
-├ ❌ Losses: {losses}
-└ 📈 Win Rate: {win_rate:.1f}%
-"""
-    
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("📦 Collection", callback_data="view_collection"),
-            InlineKeyboardButton("📊 Stats", callback_data="view_stats")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back", callback_data="back_start")
-        ]
-    ])
-    
-    try:
-        if callback.message.photo:
-            await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            await callback.message.edit_text(text, reply_markup=buttons)
-    except Exception as e:
-        debug(f"Profile edit error: {e}")
-    
-    await callback.answer()
-
-
-@Client.on_callback_query(filters.regex("^view_lb$"))
-async def view_leaderboard_callback(client: Client, callback: CallbackQuery):
-    """View leaderboard callback"""
-    debug(f"Leaderboard callback from {callback.from_user.first_name}")
-    
-    text = """
-🏆 **Leaderboard**
-
-━━━━━━━━━━━━━━━━━━━━━
-Select a leaderboard to view:
-━━━━━━━━━━━━━━━━━━━━━
-
-📦 **Collection** - Most waifus
-💰 **Coins** - Richest players
-🎮 **Wins** - Best players
-"""
-    
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("📦 Collection", callback_data="lb_collection"),
-            InlineKeyboardButton("💰 Coins", callback_data="lb_coins")
-        ],
-        [
-            InlineKeyboardButton("🎮 Wins", callback_data="lb_wins")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back", callback_data="back_start")
-        ]
-    ])
-    
-    try:
-        if callback.message.photo:
-            await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            await callback.message.edit_text(text, reply_markup=buttons)
-    except Exception as e:
-        debug(f"LB edit error: {e}")
     
     await callback.answer()
