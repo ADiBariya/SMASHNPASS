@@ -221,6 +221,7 @@ async def safe_send(client, chat_id, text, buttons=None):
         return None
 
 
+
 # ═══════════════════════════════════════════════════════════════════════════
 #                           COLLECTION SECTION
 # ═══════════════════════════════════════════════════════════════════════════
@@ -326,12 +327,16 @@ Use /smash to start collecting waifus!
     buttons = []
     
     # Navigation
+    # Navigation
+    # Buttons
+
+# Navigation buttons
     nav_row = []
     if rarity_filter:
         if page > 1:
             nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"colf_{rarity_filter}_{page-1}"))
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
-        if page < total_pages:
+        if page < total_pages :
             nav_row.append(InlineKeyboardButton("➡️", callback_data=f"colf_{rarity_filter}_{page+1}"))
     else:
         if page > 1:
@@ -339,7 +344,7 @@ Use /smash to start collecting waifus!
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
         if page < total_pages:
             nav_row.append(InlineKeyboardButton("➡️", callback_data=f"col_p_{page+1}"))
-    
+
     if nav_row:
         buttons.append(nav_row)
     
@@ -423,31 +428,44 @@ async def view_collection_cb(client: Client, callback: CallbackQuery):
     debug(f"view_collection callback from {callback.from_user.id}")
     await show_collection(callback, callback.from_user.id, 1, is_callback=True)
 
-
 @Client.on_callback_query(filters.regex(r"^col_p_(\d+)$"))
-async def collection_page_cb(client: Client, callback: CallbackQuery):
+async def collection_page_cb(client, callback):
     page = int(callback.data.split("_")[2])
-    debug(f"Collection page {page}")
-    await show_collection(callback, callback.from_user.id, page, is_callback=True)
 
+    # OWNER CHECK
+    owner_id = callback.message.reply_to_message.from_user.id \
+        if callback.message.reply_to_message else callback.from_user.id
+
+    if callback.from_user.id != owner_id:
+        return await callback.answer("❌ This is not your collection!", show_alert=True)
+
+    await show_collection(callback, owner_id, page, is_callback=True)
 
 @Client.on_callback_query(filters.regex(r"^col_f_(\w+)$"))
-async def collection_filter_cb(client: Client, callback: CallbackQuery):
-    """Filter by rarity"""
+async def collection_filter_cb(client, callback):
     rarity = callback.data.split("_")[2]
-    debug(f"Filter {rarity} for {callback.from_user.id}")
-    await show_collection(callback, callback.from_user.id, 1, is_callback=True, rarity_filter=rarity)
 
+    owner_id = callback.message.reply_to_message.from_user.id \
+        if callback.message.reply_to_message else callback.from_user.id
+
+    if callback.from_user.id != owner_id:
+        return await callback.answer("❌ Not your collection!", show_alert=True)
+
+    await show_collection(callback, owner_id, 1, is_callback=True, rarity_filter=rarity)
 
 @Client.on_callback_query(filters.regex(r"^colf_(\w+)_(\d+)$"))
-async def collection_filter_page_cb(client: Client, callback: CallbackQuery):
-    """Paginate filtered collection"""
+async def collection_filter_page_cb(client, callback):
     parts = callback.data.split("_")
     rarity = parts[1]
     page = int(parts[2])
-    debug(f"Filter {rarity} page {page}")
-    await show_collection(callback, callback.from_user.id, page, is_callback=True, rarity_filter=rarity)
 
+    owner_id = callback.message.reply_to_message.from_user.id \
+        if callback.message.reply_to_message else callback.from_user.id
+
+    if callback.from_user.id != owner_id:
+        return await callback.answer("❌ Not your collection!", show_alert=True)
+
+    await show_collection(callback, owner_id, page, is_callback=True, rarity_filter=rarity)
 
 @Client.on_callback_query(filters.regex(r"^col_info$"))
 async def collection_info_cb(client: Client, callback: CallbackQuery):
