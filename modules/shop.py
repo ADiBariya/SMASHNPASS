@@ -30,10 +30,10 @@ __HELP__ = """
 
 # Rarity points system (for sell value)
 RARITY_POINTS = {
-    "common": 150,
-    "epic": 750,
-    "legendary": 1500,
-    "rare": 3750
+    "common": 500,
+    "epic": 1500,
+    "legendary": 3000,
+    "rare": 7000
 }
 
 # Shop items configuration - Based on your rarity points
@@ -150,14 +150,14 @@ async def shop_cmd(client: Client, message: Message):
     buttons = [
         [
             InlineKeyboardButton("📦 Common (500)", callback_data="shop_buy_common_box"),
-            InlineKeyboardButton("🟣 Epic (1500)", callback_data="shop_buy_epic_box")
+            InlineKeyboardButton("🟣 Epic (1.5K)", callback_data="shop_buy_epic_box")
         ],
         [
-            InlineKeyboardButton("🟡 Legendary (3000)", callback_data="shop_buy_legendary_box"),
-            InlineKeyboardButton("💎 Rare (5000)", callback_data="shop_buy_rare_box")
+            InlineKeyboardButton("🟡 Legendary (3K)", callback_data="shop_buy_legendary_box"),
+            InlineKeyboardButton("💎 Rare (5K)", callback_data="shop_buy_rare_box")
         ],
         [
-            InlineKeyboardButton("🌟 Premium (7500)", callback_data="shop_buy_premium_box")
+            InlineKeyboardButton("🌟 Premium (7.5K)", callback_data="shop_buy_premium_box")
         ],
         [
             InlineKeyboardButton("💰 Coin Boost", callback_data="shop_buy_coin_boost"),
@@ -408,14 +408,14 @@ async def shop_refresh_callback(client: Client, callback: CallbackQuery):
     buttons = [
         [
             InlineKeyboardButton("📦 Common (500)", callback_data="shop_buy_common_box"),
-            InlineKeyboardButton("🟣 Epic (1500)", callback_data="shop_buy_epic_box")
+            InlineKeyboardButton("🟣 Epic (1.5K)", callback_data="shop_buy_epic_box")
         ],
         [
-            InlineKeyboardButton("🟡 Legendary (3000)", callback_data="shop_buy_legendary_box"),
-            InlineKeyboardButton("💎 Rare (5000)", callback_data="shop_buy_rare_box")
+            InlineKeyboardButton("🟡 Legendary (3K)", callback_data="shop_buy_legendary_box"),
+            InlineKeyboardButton("💎 Rare (5K)", callback_data="shop_buy_rare_box")
         ],
         [
-            InlineKeyboardButton("🌟 Premium (7500)", callback_data="shop_buy_premium_box")
+            InlineKeyboardButton("🌟 Premium (7.5K)", callback_data="shop_buy_premium_box")
         ],
         [
             InlineKeyboardButton("🔄 Refresh", callback_data="shop_refresh"),
