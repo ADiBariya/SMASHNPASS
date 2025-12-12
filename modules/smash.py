@@ -952,11 +952,11 @@ async def smash_callback(client: Client, callback: CallbackQuery):
         # Get coins
         try:
             if hasattr(wm, 'rarity_points'):
-                coins = wm.rarity_points.get(rarity, 10)
+                coins = wm.rarity_points.get(rarity, 500)
             else:
-                coins = {"common": 10, "rare": 100, "epic": 25, "legendary": 50}.get(rarity, 10)
+                coins = {"common": 500, "epic": 1500,  "legendary": 3000, "rare": 5000}.get(rarity, 500)
         except:
-            coins = {"common": 10, "rare": 100, "epic": 25, "legendary": 50}.get(rarity, 10)
+            coins = {"common": 500, "epic": 1500,  "legendary": 3000, "rare": 5000}.get(rarity, 500)
         
         try:
             db.add_coins(user.id, coins)
@@ -972,8 +972,8 @@ async def smash_callback(client: Client, callback: CallbackQuery):
         
         buttons = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("🔥 Hunt Again", callback_data="play_smash"),
-                InlineKeyboardButton("📦 My Baddies", callback_data="view_collection")
+                InlineKeyboardButton("🔥 HUNT AGAIN", callback_data="play_smash"),
+                InlineKeyboardButton("📦 MY BADDIES", callback_data="view_collection")
             ]
         ])
         
