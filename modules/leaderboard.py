@@ -1,3 +1,4 @@
+
 # modules/leaderboard.py - Fixed Leaderboard Module
 
 
@@ -78,9 +79,6 @@ async def back_to_lb_main(client: Client, callback: CallbackQuery):
         [
             InlineKeyboardButton("🎮 Top Wins", callback_data="lb_wins"),
             InlineKeyboardButton("📊 Stats", callback_data="lb_global")
-        ],
-        [
-            InlineKeyboardButton("❌ Close", callback_data="close")
         ]
     ])
     
@@ -266,4 +264,3 @@ async def toprich_command(client: Client, message: Message):
     await message.reply_text(text)
 
 print("LEADERBOARD MODULE LOADED SUCCESSFULLY")
-
