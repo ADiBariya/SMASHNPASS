@@ -962,7 +962,30 @@ async def smash_callback(client: Client, callback: CallbackQuery):
             db.add_coins(user.id, coins)
         except:
             pass
+                # --- FIX MISSING WAIFU FIELDS (prevents Unknown in collection) ---
+        waifu['name'] = (
+            waifu.get('name')
+            or waifu.get('waifu_name')
+            or "Unknown"
+        )
         
+        waifu['anime'] = (
+            waifu.get('anime')
+            or waifu.get('waifu_anime')
+            or "Unknown"
+        )
+        
+        waifu['rarity'] = (
+            waifu.get('rarity')
+            or waifu.get('waifu_rarity')
+            or "common"
+        )
+        
+        waifu['image'] = (
+            waifu.get('image')
+            or waifu.get('file_id')
+            or ""
+        )
         try:
             db.add_waifu_to_collection(user.id, waifu)
         except Exception as e:
