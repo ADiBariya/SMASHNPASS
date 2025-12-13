@@ -152,7 +152,6 @@ def get_spawn_caption(waifu: dict, activity_level: str, win_chance: int) -> str:
 ┏━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 📺 **Anime:** {anime}
 ┃ 💎 **Rarity:** {rarity}
-┃ ⚔️ **Power:** {power}
 ┃ 🎯 **Catch Rate:** {win_chance}%
 ┗━━━━━━━━━━━━━━━━━━━━━━┛
 
@@ -231,7 +230,6 @@ def get_win_spawn_caption(waifu: dict, user_name: str, coins: int, delete_time: 
 ┏━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ 📺 {anime}
 ┃ 💎 {rarity}
-┃ ⚔️ Power: {power}
 ┃ 💰 +{coins} coins
 ┗━━━━━━━━━━━━━━━━━━━━━━┛
 
@@ -878,11 +876,11 @@ async def group_catch_callback(client: Client, callback: CallbackQuery):
         
         # Coins based on rarity
         coins_reward = {
-            "common": 15,
-            "rare": 50,
-            "epic": 100,
-            "legendary": 200
-        }.get(rarity, 15)
+            "common": 500,
+            "rare": 5000,
+            "epic": 1500,
+            "legendary": 3000
+        }.get(rarity, 500)
         
         try:
             db.add_coins(user.id, coins_reward)
