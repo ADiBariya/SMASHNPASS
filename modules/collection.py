@@ -5,7 +5,11 @@ from pyrogram.types import (
     Message,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
-    CallbackQuery
+    CallbackQuery,
+    InlineQuery,
+    InlineQueryResultArticle,
+    InputTextMessageContent,
+    InlineQueryResultPhoto
 )
 from pyrogram.errors import MessageNotModified
 from typing import List, Dict
@@ -13,6 +17,7 @@ from database import db
 from helpers import get_waifu_manager
 import config
 from datetime import datetime, timedelta
+import re
 
 __MODULE__ = "Collection & Trade"
 __HELP__ = """
@@ -27,9 +32,13 @@ __HELP__ = """
 • `/trade @user` - Start a trade
 • `/mytrades` - View pending trades
 • `/canceltrade` - Cancel your trade
+
+📱 **Inline Mode**
+• `@botusername user_waifus.USER_ID` - View collection as photos
 """
 
 ITEMS_PER_PAGE = 8
+INLINE_PHOTO_LIMIT = 50
 
 # Trade storage
 active_trades = {}
@@ -41,13 +50,7 @@ def debug(msg):
     if DEBUG:
         print(f"📦 [COL/TRADE] {msg}")
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  HELPER FUNCTIONS (Shared)
-# ═══════════════════════════════════════════════════════════════════════════
-
 def get_waifu_id(waifu: Dict) -> int:
-    """Get waifu ID from any format"""
     wid = (
         waifu.get("waifu_id") or 
         waifu.get("id") or 
@@ -61,7 +64,6 @@ def get_waifu_id(waifu: Dict) -> int:
 
 
 def get_waifu_name(waifu: Dict) -> str:
-    """Get waifu name from any format"""
     return (
         waifu.get("waifu_name") or 
         waifu.get("name") or 
@@ -70,7 +72,6 @@ def get_waifu_name(waifu: Dict) -> str:
 
 
 def get_waifu_anime(waifu: Dict) -> str:
-    """Get waifu anime from any format"""
     return (
         waifu.get("waifu_anime") or 
         waifu.get("anime") or 
@@ -79,7 +80,6 @@ def get_waifu_anime(waifu: Dict) -> str:
 
 
 def get_waifu_rarity(waifu: Dict) -> str:
-    """Get waifu rarity from any format"""
     return str(
         waifu.get("waifu_rarity") or 
         waifu.get("rarity") or 
@@ -88,7 +88,6 @@ def get_waifu_rarity(waifu: Dict) -> str:
 
 
 def get_waifu_image(waifu: Dict) -> str:
-    """Get waifu image from any format"""
     return (
         waifu.get("waifu_image") or 
         waifu.get("image") or 
@@ -97,7 +96,6 @@ def get_waifu_image(waifu: Dict) -> str:
 
 
 def get_rarity_emoji(rarity: str) -> str:
-    """Get emoji for rarity"""
     return {
         "common": "⚪",
         "rare": "🔵",
@@ -107,7 +105,6 @@ def get_rarity_emoji(rarity: str) -> str:
 
 
 def format_waifu_trade(waifu: Dict) -> str:
-    """Format waifu for trade display"""
     if not waifu:
         return "❓ Unknown"
     
@@ -121,15 +118,9 @@ def format_waifu_trade(waifu: Dict) -> str:
 
 
 def group_waifus_by_variant(waifus: List[Dict]) -> List[Dict]:
-    """
-    Group waifus by ID + IMAGE combination
-    - Same ID + Same Image = grouped with x2, x3
-    - Same ID + Different Image = shown separately
-    """
     if not waifus:
         return []
     
-    # Use waifu_id + image as unique key
     variant_counts = {}
     variant_data = {}
     
@@ -139,7 +130,6 @@ def group_waifus_by_variant(waifus: List[Dict]) -> List[Dict]:
             continue
         
         image = get_waifu_image(w)
-        # Create unique key combining ID and image
         variant_key = f"{wid}||{image}"
         
         if variant_key not in variant_counts:
@@ -148,7 +138,6 @@ def group_waifus_by_variant(waifus: List[Dict]) -> List[Dict]:
         
         variant_counts[variant_key] += 1
     
-    # Build result list
     result = []
     for variant_key, count in variant_counts.items():
         waifu = variant_data[variant_key].copy()
@@ -157,7 +146,6 @@ def group_waifus_by_variant(waifus: List[Dict]) -> List[Dict]:
         waifu["_variant_key"] = variant_key
         result.append(waifu)
     
-    # Sort by rarity (legendary first), then by count (more first), then by name
     rarity_order = {"legendary": 0, "epic": 1, "rare": 2, "common": 3}
     result.sort(key=lambda x: (
         rarity_order.get(get_waifu_rarity(x), 4),
@@ -169,7 +157,6 @@ def group_waifus_by_variant(waifus: List[Dict]) -> List[Dict]:
 
 
 def get_unique_variants(collection: List[Dict], limit: int = 10) -> List[Dict]:
-    """Get unique waifu variants from collection (by ID + image)"""
     seen_keys = set()
     unique = []
     
@@ -191,12 +178,7 @@ def get_unique_variants(collection: List[Dict], limit: int = 10) -> List[Dict]:
     return unique
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  SAFE MESSAGE HELPERS
-# ═══════════════════════════════════════════════════════════════════════════
-
 async def safe_edit(client, chat_id, msg_id, text, buttons=None):
-    """Safely edit message"""
     try:
         await client.edit_message_text(
             chat_id=chat_id,
@@ -210,7 +192,6 @@ async def safe_edit(client, chat_id, msg_id, text, buttons=None):
 
 
 async def safe_send(client, chat_id, text, buttons=None):
-    """Safely send message"""
     try:
         return await client.send_message(
             chat_id=chat_id,
@@ -220,21 +201,204 @@ async def safe_send(client, chat_id, text, buttons=None):
     except:
         return None
 
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-#                           COLLECTION SECTION
-# ═══════════════════════════════════════════════════════════════════════════
-
+@Client.on_inline_query()
+async def inline_collection_handler(client: Client, inline_query: InlineQuery):
+    """
+    Handle inline queries
+    Format: @botusername user_waifus.USER_ID
+    Example: @Horikita_Robot user_waifus.1432702628
+    """
+    user = inline_query.from_user
+    query = inline_query.query.strip()
+    
+    debug(f"═══════════════════════════════════════")
+    debug(f"INLINE from {user.first_name} ({user.id})")
+    debug(f"Query: '{query}'")
+    debug(f"═══════════════════════════════════════")
+    
+    # Check if query matches user_waifus.USER_ID pattern
+    match = re.match(r'^user_waifus\.(\d+)$', query)
+    
+    if not match:
+        # Show help message if format is wrong
+        bot = await client.get_me()
+        await inline_query.answer(
+            results=[
+                InlineQueryResultArticle(
+                    id="help",
+                    title="📦 How to use Inline Collection",
+                    description="Type: user_waifus.YOUR_USER_ID",
+                    input_message_content=InputTextMessageContent(
+                        message_text=f"📦 **Inline Collection Usage**\n\n"
+                        f"Format: `@{bot.username} user_waifus.USER_ID`\n\n"
+                        f"Example: `@{bot.username} user_waifus.{user.id}`\n\n"
+                        f"💡 Your User ID: `{user.id}`"
+                    )
+                ),
+                InlineQueryResultArticle(
+                    id="my_collection",
+                    title=f"📸 View Your Collection",
+                    description=f"Type: user_waifus.{user.id}",
+                    input_message_content=InputTextMessageContent(
+                        message_text=f"📦 To view your collection inline:\n\n"
+                        f"`@{bot.username} user_waifus.{user.id}`"
+                    )
+                )
+            ],
+            cache_time=5,
+            is_personal=True
+        )
+        return
+    
+    # Extract user ID from query
+    target_user_id = int(match.group(1))
+    debug(f"Target User ID: {target_user_id}")
+    
+    # Get collection from database
+    collection = db.get_full_collection(target_user_id)
+    debug(f"Collection size: {len(collection) if collection else 0}")
+    
+    # Empty collection
+    if not collection:
+        debug("Collection EMPTY!")
+        await inline_query.answer(
+            results=[
+                InlineQueryResultArticle(
+                    id="empty",
+                    title="📦 Collection Empty!",
+                    description=f"User {target_user_id} has no waifus",
+                    input_message_content=InputTextMessageContent(
+                        message_text=f"📦 **Collection Empty!**\n\n"
+                        f"User `{target_user_id}` has no waifus yet!\n\n"
+                        f"Use /smash to start collecting!"
+                    )
+                )
+            ],
+            cache_time=10,
+            is_personal=True
+        )
+        return
+    
+    # Group duplicates
+    grouped = group_waifus_by_variant(collection)
+    debug(f"Grouped: {len(grouped)} unique waifus")
+    
+    # Get user data for favorites
+    user_data = db.get_user(target_user_id)
+    fav_id = user_data.get("favorite_waifu") if user_data else None
+    
+    # Build photo results
+    results = []
+    
+    for i, w in enumerate(grouped[:INLINE_PHOTO_LIMIT]):
+        image = get_waifu_image(w)
+        
+        # Validate image URL
+        if not image or not image.startswith("http"):
+            debug(f"Skip {i}: invalid image")
+            continue
+        
+        wid = get_waifu_id(w)
+        name = get_waifu_name(w)
+        anime = get_waifu_anime(w)
+        rarity = get_waifu_rarity(w)
+        count = w.get("count", 1)
+        emoji = get_rarity_emoji(rarity)
+        is_fav = "⭐ " if fav_id and fav_id == wid else ""
+        
+        # Build caption (plain text - no parse_mode issues)
+        caption = f"{emoji} {is_fav}{name}\n"
+        caption += f"━━━━━━━━━━━━━━━\n"
+        caption += f"📺 Anime: {anime}\n"
+        caption += f"💎 Rarity: {rarity.title()}\n"
+        caption += f"🆔 ID: {wid}\n"
+        caption += f"📦 Owned: x{count}"
+        
+        result_id = f"waifu_{target_user_id}_{wid}_{i}"
+        
+        # Add photo result (try both Pyrogram versions)
+        try:
+            results.append(
+                InlineQueryResultPhoto(
+                    id=result_id,
+                    photo_url=image,
+                    thumbnail_url=image,
+                    caption=caption
+                )
+            )
+            debug(f"Added: {name}")
+        except TypeError:
+            try:
+                results.append(
+                    InlineQueryResultPhoto(
+                        id=result_id,
+                        photo_url=image,
+                        thumb_url=image,
+                        caption=caption
+                    )
+                )
+                debug(f"Added (v1): {name}")
+            except Exception as e:
+                debug(f"Error: {e}")
+                continue
+        except Exception as e:
+            debug(f"Error: {e}")
+            continue
+    
+    debug(f"Total photo results: {len(results)}")
+    
+    # If no valid photos, show text fallback
+    if not results:
+        debug("No photos, creating text fallback")
+        text = f"📦 Collection of User {target_user_id}\n\n"
+        text += f"Total: {len(grouped)} unique waifus\n\n"
+        for w in grouped[:15]:
+            emoji = get_rarity_emoji(get_waifu_rarity(w))
+            name = get_waifu_name(w)
+            count = w.get("count", 1)
+            text += f"{emoji} {name}"
+            if count > 1:
+                text += f" (x{count})"
+            text += "\n"
+        
+        if len(grouped) > 15:
+            text += f"\n...and {len(grouped) - 15} more!"
+        
+        results = [
+            InlineQueryResultArticle(
+                id="text_fallback",
+                title=f"📦 Collection ({len(grouped)} waifus)",
+                description="No valid images found",
+                input_message_content=InputTextMessageContent(message_text=text)
+            )
+        ]
+    
+    # Answer inline query
+    try:
+        await inline_query.answer(
+            results=results,
+            cache_time=30,
+            is_personal=False,
+            switch_pm_text=f"📦 {len(collection)} waifus found!",
+            switch_pm_parameter="start"
+        )
+        debug("✅ Answered successfully!")
+    except Exception as e:
+        debug(f"❌ Error answering: {e}")
+        try:
+            await inline_query.answer(results=results[:20], cache_time=10, is_personal=False)
+            debug("✅ Answered with limited results")
+        except Exception as e2:
+            debug(f"❌ Fallback failed: {e2}")
 
 @Client.on_message(filters.command(["collection", "mycollection", "col"], prefixes=config.COMMAND_PREFIX))
 async def collection_command(client: Client, message: Message):
     user = message.from_user
     debug(f"Collection command from {user.id}")
-    await show_collection(message, user.id, page=1, is_callback=False)
+    await show_collection(client, message, user.id, page=1, is_callback=False)
 
 
-async def show_collection(target, user_id: int, page: int = 1, is_callback: bool = False, rarity_filter: str = None):
+async def show_collection(client, target, user_id: int, page: int = 1, is_callback: bool = False, rarity_filter: str = None):
     """Show collection with variant-based grouping"""
     wm = get_waifu_manager()
     
@@ -252,9 +416,9 @@ Use /smash to start collecting waifus!
         if is_callback:
             try:
                 if target.message.photo:
-                    await target.message.edit_caption(caption=text, reply_markup=buttons)
+                    await target.message.edit_caption(caption=text)
                 else:
-                    await target.message.edit_text(text, reply_markup=buttons)
+                    await target.message.edit_text(text)
             except MessageNotModified:
                 pass
             await target.answer()
@@ -327,16 +491,12 @@ Use /smash to start collecting waifus!
     buttons = []
     
     # Navigation
-    # Navigation
-    # Buttons
-
-# Navigation buttons
     nav_row = []
     if rarity_filter:
         if page > 1:
             nav_row.append(InlineKeyboardButton("⬅️", callback_data=f"colf_{rarity_filter}_{page-1}"))
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="col_info"))
-        if page < total_pages :
+        if page < total_pages:
             nav_row.append(InlineKeyboardButton("➡️", callback_data=f"colf_{rarity_filter}_{page+1}"))
     else:
         if page > 1:
@@ -378,6 +538,11 @@ Use /smash to start collecting waifus!
             InlineKeyboardButton("📊 LEADEROARD", callback_data="lb_collection")
         ])
     
+    # Inline gallery button
+    buttons.append([
+        InlineKeyboardButton("📸 Photo Gallery", switch_inline_query_current_chat=f"user_waifus.{user_id}")
+    ])
+    
     # Get image for display
     image_url = None
     if fav_id:
@@ -418,15 +583,10 @@ Use /smash to start collecting waifus!
         
         await target.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
-
-# ─────────────────────────────────────────────────────────────
-#  Collection Callbacks
-# ─────────────────────────────────────────────────────────────
-
 @Client.on_callback_query(filters.regex(r"^view_collection$"))
 async def view_collection_cb(client: Client, callback: CallbackQuery):
     debug(f"view_collection callback from {callback.from_user.id}")
-    await show_collection(callback, callback.from_user.id, 1, is_callback=True)
+    await show_collection(client, callback, callback.from_user.id, 1, is_callback=True)
 
 @Client.on_callback_query(filters.regex(r"^col_p_(\d+)$"))
 async def collection_page_cb(client, callback):
@@ -439,7 +599,7 @@ async def collection_page_cb(client, callback):
     if callback.from_user.id != owner_id:
         return await callback.answer("❌ This is not your collection!", show_alert=True)
 
-    await show_collection(callback, owner_id, page, is_callback=True)
+    await show_collection(client, callback, owner_id, page, is_callback=True)
 
 @Client.on_callback_query(filters.regex(r"^col_f_(\w+)$"))
 async def collection_filter_cb(client, callback):
@@ -451,7 +611,7 @@ async def collection_filter_cb(client, callback):
     if callback.from_user.id != owner_id:
         return await callback.answer("❌ Not your collection!", show_alert=True)
 
-    await show_collection(callback, owner_id, 1, is_callback=True, rarity_filter=rarity)
+    await show_collection(client, callback, owner_id, 1, is_callback=True, rarity_filter=rarity)
 
 @Client.on_callback_query(filters.regex(r"^colf_(\w+)_(\d+)$"))
 async def collection_filter_page_cb(client, callback):
@@ -465,16 +625,11 @@ async def collection_filter_page_cb(client, callback):
     if callback.from_user.id != owner_id:
         return await callback.answer("❌ Not your collection!", show_alert=True)
 
-    await show_collection(callback, owner_id, page, is_callback=True, rarity_filter=rarity)
+    await show_collection(client, callback, owner_id, page, is_callback=True, rarity_filter=rarity)
 
 @Client.on_callback_query(filters.regex(r"^col_info$"))
 async def collection_info_cb(client: Client, callback: CallbackQuery):
     await callback.answer("Use arrows to navigate! ⬅️➡️")
-
-
-# ─────────────────────────────────────────────────────────────
-#  /fav Command
-# ─────────────────────────────────────────────────────────────
 
 @Client.on_message(filters.command(["fav", "favorite"], prefixes=config.COMMAND_PREFIX))
 async def fav_command(client: Client, message: Message):
@@ -529,11 +684,6 @@ async def unfav_command(client: Client, message: Message):
         {"$unset": {"favorite_waifu": ""}}
     )
     await message.reply_text("✅ Favorite removed!")
-
-
-# ─────────────────────────────────────────────────────────────
-#  /waifuinfo Command
-# ─────────────────────────────────────────────────────────────
 
 @Client.on_message(filters.command(["waifuinfo", "wi"], prefixes=config.COMMAND_PREFIX))
 async def waifu_info_command(client: Client, message: Message):
@@ -610,12 +760,6 @@ async def setfav_callback(client: Client, callback: CallbackQuery):
     )
     
     await callback.answer("⭐ Set as favorite!", show_alert=True)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-#                             TRADE SECTION
-# ═══════════════════════════════════════════════════════════════════════════
-
 
 @Client.on_message(filters.command(["trade", "tr"], prefixes=config.COMMAND_PREFIX))
 async def trade_command(client: Client, message: Message):
