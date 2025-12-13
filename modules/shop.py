@@ -273,7 +273,7 @@ async def open_loot_box(callback: CallbackQuery, item_id: str, item: dict):
 {emoji} **{waifu['name']}**
 📺 **Anime:** {waifu.get('anime', 'Unknown')}
 ⭐ **Rarity:** {waifu.get('rarity', 'common').title()}
-💰 **Sell Value:** {value} coins
+💰 **Value:** {value} coins
 
 ✅ Added to your collection!
 """
