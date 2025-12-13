@@ -467,12 +467,9 @@ async def ping_cmd(client, message: Message):
 # ============================
 @app.on_message(filters.command(["restart", "reboot"], [".", "/", "!"]))
 async def restart_cmd(client, message: Message):
-    """Restart the bot - Owner and Sudo only"""
-    user_id = message.from_user.id
-    
-    # Check if user is owner or sudo
-    if user_id not in OWNER_ID and user_id not in SUDO_USERS:
-        return await message.reply_text("❌ **Owner/Sudo only command!**")
+    """Restart the bot - Owner only"""
+    if message.from_user.id not in OWNER_ID:
+        return await message.reply_text("❌ **Owner only command!**")
     
     await message.reply_text("🔄 **Restarting bot...**")
     
@@ -480,11 +477,10 @@ async def restart_cmd(client, message: Message):
     me = await client.get_me()
     await send_shutdown_notification(me)
     
-    logger.info(f"🔄 Restart initiated by user {user_id}")
+    logger.info("🔄 Restart initiated by owner")
     
     # Restart the script
     os.execl(sys.executable, sys.executable, *sys.argv)
-
 # ============================
 # START BOT TASK
 # ============================
