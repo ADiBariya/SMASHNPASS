@@ -12,6 +12,7 @@ from config import API_ID, API_HASH, BOT_TOKEN
 from database import db
 from helpers.utils import get_waifu_manager
 from core.user_client import user
+logging.getLogger("pyrogram").setLevel(logging.WARNING)
 
 
 OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
