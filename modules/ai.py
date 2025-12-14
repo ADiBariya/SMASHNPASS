@@ -15,20 +15,36 @@ from database import db
 
 AIBOORU_API = "https://aibooru.online/posts.json"
 
-SESSIONS = {}  # user_id → session data
+SESSIONS = {}
 
-def allowed_users():
-    if isinstance(SUDO_USERS, (list, tuple, set)):
-        return [OWNER_ID, *SUDO_USERS]
-    return [OWNER_ID, SUDO_USERS]
+
+# ═══════════════════════════════════════════════════════════════
+# 🔐 FIXED: Proper allowed users filter
+# ═══════════════════════════════════════════════════════════════
+
+def get_allowed_users():
+    users = [OWNER_ID]
+    if SUDO_USERS:
+        if isinstance(SUDO_USERS, (list, tuple, set)):
+            users.extend(SUDO_USERS)
+        elif isinstance(SUDO_USERS, int):
+            users.append(SUDO_USERS)
+    return list(set(users))
+
+ALLOWED_USERS = get_allowed_users()
+
+def is_allowed(_, __, update):
+    user = update.from_user
+    return user and user.id in ALLOWED_USERS
+
+allowed_filter = filters.create(is_allowed)
+
 
 # ---------------- HELPERS ----------------
 
 def get_best_image(post):
-    # ❌ skip videos / invalid
     if post.get("file_ext") not in ("jpg", "jpeg", "png", "webp"):
         return None
-
     return (
         post.get("large_file_url")
         or post.get("file_url")
@@ -52,14 +68,6 @@ async def fetch_posts(tag, before_id=None):
             return await r.json()
 
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(AIBOORU_API, params=params) as r:
-            if r.status != 200:
-                return []
-            return await r.json()
-
-
-# minor speed help
 async def warm_image(url):
     try:
         async with aiohttp.ClientSession() as s:
@@ -105,7 +113,7 @@ def rarity_buttons():
 
 # ---------------- COMMAND ----------------
 
-@Client.on_message(filters.command("ai") & filters.user(allowed_users()))
+@Client.on_message(filters.command("ai") & allowed_filter)
 async def ai_search(client: Client, message: Message):
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: /ai <tag>")
@@ -141,7 +149,7 @@ async def ai_search(client: Client, message: Message):
 
 # ---------------- CALLBACKS ----------------
 
-@Client.on_callback_query(filters.user(allowed_users()))
+@Client.on_callback_query(allowed_filter)
 async def ai_callbacks(client: Client, cb: CallbackQuery):
     uid = cb.from_user.id
     if uid not in SESSIONS:
@@ -158,9 +166,7 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
 
     # INFO
     if cb.data == "info":
-        return await cb.answer(
-            f"Image {index+1}/{len(posts)}"
-        )
+        return await cb.answer(f"Image {index+1}/{len(posts)}")
 
     # IMAGE NAV
     if cb.data == "img_prev" and index > 0:
@@ -168,7 +174,7 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
     elif cb.data == "img_next" and index < len(posts) - 1:
         data["index"] += 1
 
-    # PAGE NEXT (REAL)
+    # PAGE NEXT
     elif cb.data == "page_next":
         last_id = posts[-1]["id"]
         new_posts = await fetch_posts(data["tag"], last_id)
@@ -179,7 +185,7 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
         data["posts"] = new_posts
         data["index"] = 0
 
-    # PAGE PREV (disabled safely)
+    # PAGE PREV
     elif cb.data == "page_prev":
         return await cb.answer("⬅️ Previous page not supported")
 
@@ -189,12 +195,9 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
 
     elif cb.data.startswith("rar_"):
         data["rarity"] = cb.data.split("_")[1]
-
         await cb.answer(f"Rarity set: {data['rarity'].title()}")
-
-    # 🔥 bring back main buttons
         return await cb.message.edit_reply_markup(
-        nav_buttons(data["index"], len(data["posts"]))
+            nav_buttons(data["index"], len(data["posts"]))
         )
 
     # UPLOAD
@@ -202,9 +205,9 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
         data["await"] = "name_anime"
         return await cb.message.reply_text(
             "✍️ Send in ONE message:\n\n"
-            "`Name | Anime`\n\n"
+            "`Name . Anime`\n\n"
             "Example:\n"
-            "`Makima | Chainsaw Man`",
+            "`Makima . Chainsaw Man`",
             parse_mode=enums.ParseMode.MARKDOWN
         )
 
@@ -233,7 +236,7 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
 
 # ---------------- TEXT INPUT HANDLER ----------------
 
-@Client.on_message(filters.user(allowed_users()))
+@Client.on_message(allowed_filter & filters.text & ~filters.command(["ai"]))
 async def name_anime_handler(client: Client, message: Message):
     uid = message.from_user.id
     if uid not in SESSIONS:
@@ -245,10 +248,10 @@ async def name_anime_handler(client: Client, message: Message):
 
     data.pop("await")
 
-    parts = [p.strip() for p in message.text.split("|")]
+    parts = [p.strip() for p in message.text.split(".")]
     if len(parts) != 2:
         return await message.reply_text(
-            "❌ Invalid format.\nUse:\n`Name | Anime`",
+            "❌ Invalid format.\nUse:\n`Name . Anime`",
             parse_mode=enums.ParseMode.MARKDOWN
         )
 
