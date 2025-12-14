@@ -205,9 +205,9 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
         data["await"] = "name_anime"
         return await cb.message.reply_text(
             "✍️ Send in ONE message:\n\n"
-            "`Name . Anime`\n\n"
+            "`Name | Anime`\n\n"
             "Example:\n"
-            "`Makima . Chainsaw Man`",
+            "`Makima | Chainsaw Man`",
             parse_mode=enums.ParseMode.MARKDOWN
         )
 
@@ -248,10 +248,10 @@ async def name_anime_handler(client: Client, message: Message):
 
     data.pop("await")
 
-    parts = [p.strip() for p in message.text.split(".")]
+    parts = [p.strip() for p in message.text.split("|")]
     if len(parts) != 2:
         return await message.reply_text(
-            "❌ Invalid format.\nUse:\n`Name . Anime`",
+            "❌ Invalid format.\nUse:\n`Name | Anime`",
             parse_mode=enums.ParseMode.MARKDOWN
         )
 
