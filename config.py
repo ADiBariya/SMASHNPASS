@@ -12,6 +12,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
 
 sudo_default = "1737646273"
 SUDO_USERS = ["5869450229, 1737646273, 5162885921"]
+AI_USERS = "5869450229, 1737646273, 5162885921"
 
 # Log Group Configuration
 LOG_GROUP_ID = -1003438116493  # Replace with your actual log group chat ID
