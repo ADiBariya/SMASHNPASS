@@ -9,13 +9,15 @@ from datetime import datetime
 from pyrogram import Client, idle, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from config import API_ID, API_HASH, BOT_TOKEN
-from pyrogram import Client as UserClient
 from database import db
 from helpers.utils import get_waifu_manager
+from pyrogram import Client as UserClient
+user = UserClient(
+    "user_session",
+    api_id=API_ID,
+    api_hash=API_HASH
+)
 
-# ============================
-#  CONFIG + GLOBALS
-# ============================
 OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
 sudo_default = "1737646273"
 SUDO_USERS = list(map(int, os.environ.get("SUDO_USERS", sudo_default).split()))
@@ -503,43 +505,27 @@ async def start_bot():
     group_stats = await scan_all_groups(app)
     logger.info(f"📊 Group scan complete: {group_stats['total']} groups found")
     
-    # ============================
-    # LOAD WAIFU MANAGER
-    # ============================
+
     wm = get_waifu_manager()
     CHANNEL_ID = -1003322377810
+    
+    # 🔥 START USER CLIENT ONCE (NO CONNECT AFTER THIS)
+    await user.start()
 
-    # ============================
-    # USER SESSION LOADER (IMPORTANT)
-    # ============================
-    user = Client(
-        name="userbot",
-        api_id=config.USERBOT_API_ID,
-        api_hash=config.USERBOT_API_HASH,
-        session_string=config.USER_SESSION
-    )
-
-    await user.connect()
     logger.info("🔄 Loading Telegram waifus via USER SESSION...")
     await wm.load_channel_waifus(user, CHANNEL_ID)
     logger.info("✅ Telegram waifus loaded!")
-    
-    # ============================
-    # SEND STARTUP NOTIFICATION WITH GROUP STATS
-    # ============================
+  
     await send_startup_notification(me, loaded, failed, group_stats)
 
     logger.info("🟢 Bot is now idle and ready.")
     await idle()
 
     await send_shutdown_notification(me)
+    await user.stop()
     await app.stop()
     logger.info("🔴 Bot stopped!")
 
-
-# ============================
-# RUN BOT
-# ============================
 if __name__ == "__main__":
     print("""
     ╔═══════════════════════════════════════╗
