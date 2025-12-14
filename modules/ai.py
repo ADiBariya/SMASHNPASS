@@ -96,8 +96,9 @@ def nav_buttons(index, total):
             InlineKeyboardButton("➡️ Img", callback_data="img_next")
         ],
         [
-            InlineKeyboardButton("⏭️ Next Page", callback_data="page_next"),
-            InlineKeyboardButton("⭐️ Rarity", callback_data="set_rarity")
+            InlineKeyboardButton("⏮️ Prev Page", callback_data="page_prev"),
+            InlineKeyboardButton("⭐️ Rarity", callback_data="set_rarity"),
+            InlineKeyboardButton("⏭️ Next Page", callback_data="page_next")
         ],
         [
             InlineKeyboardButton("📤 Upload", callback_data="upload"),
@@ -141,7 +142,13 @@ async def ai_search(client: Client, message: Message):
         "tag": tag,
         "index": 0,
         "posts": posts,
-        "rarity": "common"
+        "tag": tag,
+        "index": 0,
+        "posts": posts,
+        "rarity": "common",
+        # Stack of 'before_id's. None represents the start (Page 1).
+        # When moving to Page 2, we push the ID that defines Page 2.
+        "page_stack": [None]
     }
 
     if len(posts) > 1:
@@ -185,6 +192,33 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
         new_posts = await fetch_posts(data["tag"], last_id)
         if not new_posts:
             return await cb.answer("No more pages")
+        
+        # Add current 'before_id' (which is last_id of previous view) to stack
+        if "page_stack" not in data:
+            data["page_stack"] = [None]
+            
+        data["page_stack"].append(last_id)
+        data["posts"] = new_posts
+        data["index"] = 0
+
+    # PREV PAGE
+    elif cb.data == "page_prev":
+        if "page_stack" not in data:
+            data["page_stack"] = [None]
+            
+        stack = data["page_stack"]
+        if len(stack) <= 1:
+            return await cb.answer("⚠️ Already on First Page", show_alert=True)
+            
+        # Pop the current page's identifier
+        stack.pop()
+        # The new top is the identifier for the previous page
+        prev_id = stack[-1]
+        
+        new_posts = await fetch_posts(data["tag"], prev_id)
+        if not new_posts:
+            return await cb.answer("❌ Error loading previous page")
+            
         data["posts"] = new_posts
         data["index"] = 0
 
