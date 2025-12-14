@@ -13,9 +13,10 @@ from database import db
 from helpers.utils import get_waifu_manager
 from pyrogram import Client as UserClient
 user = UserClient(
-    "user_session",
+    name="user_session",
     api_id=API_ID,
-    api_hash=API_HASH
+    api_hash=API_HASH,
+    session_string=config.USER_SESSION   # 🔥 MUST
 )
 
 OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
