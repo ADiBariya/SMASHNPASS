@@ -69,7 +69,13 @@ class WaifuManager:
 
         for msg in messages:
             try:
+                if not msg.caption:
+                    continue
+                    
                 lines = msg.caption.splitlines()
+                if len(lines) < 3:
+                    continue
+
                 name = lines[0].replace("Name:", "").strip()
                 anime = lines[1].replace("Anime:", "").strip()
                 rarity = lines[2].replace("Rarity:", "").strip().lower()
