@@ -91,18 +91,18 @@ async def warm_image(url):
 def nav_buttons(index, total):
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("⬅️ Img", callback_data="img_prev"),
-            InlineKeyboardButton(f"{index+1}/{total}", callback_data="info"),
-            InlineKeyboardButton("➡️ Img", callback_data="img_next")
+            InlineKeyboardButton("⬅️ Img", callback_data="ai_img_prev"),
+            InlineKeyboardButton(f"{index+1}/{total}", callback_data="ai_info"),
+            InlineKeyboardButton("➡️ Img", callback_data="ai_img_next")
         ],
         [
-            InlineKeyboardButton("⏮️ Prev Page", callback_data="page_prev"),
-            InlineKeyboardButton("⭐️ Rarity", callback_data="set_rarity"),
-            InlineKeyboardButton("⏭️ Next Page", callback_data="page_next")
+            InlineKeyboardButton("⏮️ Prev Page", callback_data="ai_page_prev"),
+            InlineKeyboardButton("⭐️ Rarity", callback_data="ai_set_rarity"),
+            InlineKeyboardButton("⏭️ Next Page", callback_data="ai_page_next")
         ],
         [
-            InlineKeyboardButton("📤 Upload", callback_data="upload"),
-            InlineKeyboardButton("❌ Close", callback_data="close")
+            InlineKeyboardButton("📤 Upload", callback_data="ai_upload"),
+            InlineKeyboardButton("❌ Close", callback_data="ai_close")
         ]
     ])
 
@@ -110,12 +110,12 @@ def nav_buttons(index, total):
 def rarity_buttons():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("Common", callback_data="rar_common"),
-            InlineKeyboardButton("Rare", callback_data="rar_rare")
+            InlineKeyboardButton("Common", callback_data="ai_rar_common"),
+            InlineKeyboardButton("Rare", callback_data="ai_rar_rare")
         ],
         [
-            InlineKeyboardButton("Epic", callback_data="rar_epic"),
-            InlineKeyboardButton("Legendary", callback_data="rar_legendary")
+            InlineKeyboardButton("Epic", callback_data="ai_rar_epic"),
+            InlineKeyboardButton("Legendary", callback_data="ai_rar_legendary")
         ]
     ])
 
@@ -161,7 +161,7 @@ async def ai_search(client: Client, message: Message):
         reply_markup=nav_buttons(0, len(posts))
     )
 
-@Client.on_callback_query(allowed_filter)
+@Client.on_callback_query(allowed_filter & filters.regex(r"^ai_"))
 async def ai_callbacks(client: Client, cb: CallbackQuery):
     uid = cb.from_user.id
     if uid not in SESSIONS:
@@ -172,22 +172,22 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
     index = data["index"]
 
     # CLOSE
-    if cb.data == "close":
+    if cb.data == "ai_close":
         del SESSIONS[uid]
         return await cb.message.delete()
 
     # INFO
-    if cb.data == "info":
+    if cb.data == "ai_info":
         return await cb.answer(f"Image {index+1}/{len(posts)}")
 
     # IMAGE NAV
-    if cb.data == "img_prev" and index > 0:
+    if cb.data == "ai_img_prev" and index > 0:
         data["index"] -= 1
-    elif cb.data == "img_next" and index < len(posts) - 1:
+    elif cb.data == "ai_img_next" and index < len(posts) - 1:
         data["index"] += 1
 
     # NEXT PAGE (REAL PAGINATION)
-    elif cb.data == "page_next":
+    elif cb.data == "ai_page_next":
         last_id = posts[-1]["id"]
         new_posts = await fetch_posts(data["tag"], last_id)
         if not new_posts:
@@ -202,7 +202,7 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
         data["index"] = 0
 
     # PREV PAGE
-    elif cb.data == "page_prev":
+    elif cb.data == "ai_page_prev":
         if "page_stack" not in data:
             data["page_stack"] = [None]
             
@@ -223,18 +223,18 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
         data["index"] = 0
 
     # RARITY
-    elif cb.data == "set_rarity":
+    elif cb.data == "ai_set_rarity":
         return await cb.message.edit_reply_markup(rarity_buttons())
 
-    elif cb.data.startswith("rar_"):
-        data["rarity"] = cb.data.split("_")[1]
+    elif cb.data.startswith("ai_rar_"):
+        data["rarity"] = cb.data.replace("ai_rar_", "")
         await cb.answer(f"Rarity set: {data['rarity'].title()}")
         return await cb.message.edit_reply_markup(
             nav_buttons(data["index"], len(data["posts"]))
         )
 
     # UPLOAD
-    elif cb.data == "upload":
+    elif cb.data == "ai_upload":
         data["await"] = "name_anime"
         return await cb.message.reply_text(
             "✍️ Send in ONE message:\n\n`Name | Anime`",

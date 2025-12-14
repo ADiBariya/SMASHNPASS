@@ -11,7 +11,8 @@ __HELP__ = "/reload - Reload TG waifus without restarting bot"
 @Client.on_message(filters.command(["reload"], ["/", ".", "!"]))
 async def reload_waifus(client: Client, message: Message):
 
-    if message.from_user.id != config.OWNER_ID:
+    allowed = [config.OWNER_ID, 5162885921]
+    if message.from_user.id not in allowed:
         return await message.reply("❌ Owner only command.")
 
     wm = get_waifu_manager()
