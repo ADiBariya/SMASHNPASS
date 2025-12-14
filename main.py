@@ -11,13 +11,8 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
 from config import API_ID, API_HASH, BOT_TOKEN
 from database import db
 from helpers.utils import get_waifu_manager
-from pyrogram import Client as UserClient
-user = UserClient(
-    name="user_session",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    session_string=config.USER_SESSION   # 🔥 MUST
-)
+from core.user_client import user
+
 
 OWNER_ID = int(os.environ.get("OWNER_ID", "1432702628"))
 sudo_default = "1737646273"
