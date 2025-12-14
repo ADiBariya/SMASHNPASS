@@ -1,7 +1,8 @@
+# modules/ai.py - 🖼️ Aibooru AI Scraper Module (Professional Edition)
+
 import aiohttp
 import asyncio
-from pyrogram import Client, filters
-from pyrogram import enums
+from pyrogram import Client, filters, enums
 from pyrogram.types import (
     Message,
     CallbackQuery,
@@ -10,39 +11,47 @@ from pyrogram.types import (
     InputMediaPhoto
 )
 
-from config import OWNER_ID, SUDO_USERS, TG_WAIFU_CHANNEL
+import config
 from database import db
+
+
+__MODULE__ = "AI Scraper"
+__HELP__ = """
+🖼️ **AI Image Scraper**
+
+┃ /ai <tag> - Search images from Aibooru
+┃ Inline controls for navigation
+┃ Upload images directly to waifu channel
+"""
 
 AIBOORU_API = "https://aibooru.online/posts.json"
 
 SESSIONS = {}
 
-
-# ═══════════════════════════════════════════════════════════════
-# 🔐 FIXED: Proper allowed users filter
-# ═══════════════════════════════════════════════════════════════
+DEBUG = True
+def debug(msg):
+    if DEBUG:
+        print(f"🖼️ [AI] {msg}")
 
 def get_allowed_users():
-    users = [OWNER_ID]
-    if SUDO_USERS:
-        if isinstance(SUDO_USERS, (list, tuple, set)):
-            users.extend(SUDO_USERS)
-        elif isinstance(SUDO_USERS, int):
-            users.append(SUDO_USERS)
+    users = [config.OWNER_ID]
+    if config.SUDO_USERS:
+        if isinstance(config.SUDO_USERS, (list, tuple, set)):
+            users.extend(config.SUDO_USERS)
+        else:
+            users.append(config.SUDO_USERS)
     return list(set(users))
 
 ALLOWED_USERS = get_allowed_users()
 
 def is_allowed(_, __, update):
-    user = update.from_user
-    return user and user.id in ALLOWED_USERS
+    return update.from_user and update.from_user.id in ALLOWED_USERS
 
 allowed_filter = filters.create(is_allowed)
 
 
-# ---------------- HELPERS ----------------
-
 def get_best_image(post):
+    """Return best usable image url"""
     if post.get("file_ext") not in ("jpg", "jpeg", "png", "webp"):
         return None
     return (
@@ -53,6 +62,7 @@ def get_best_image(post):
 
 
 async def fetch_posts(tag, before_id=None):
+    """Fetch posts using real Aibooru pagination"""
     if before_id:
         tag = f"{tag} id:<{before_id}"
 
@@ -69,6 +79,7 @@ async def fetch_posts(tag, before_id=None):
 
 
 async def warm_image(url):
+    """Minor speed-up by warming next image"""
     try:
         async with aiohttp.ClientSession() as s:
             async with s.get(url, timeout=5):
@@ -85,14 +96,11 @@ def nav_buttons(index, total):
             InlineKeyboardButton("➡️ Img", callback_data="img_next")
         ],
         [
-            InlineKeyboardButton("⏮️ Page", callback_data="page_prev"),
-            InlineKeyboardButton("⏭️ Page", callback_data="page_next")
+            InlineKeyboardButton("⏭️ Next Page", callback_data="page_next"),
+            InlineKeyboardButton("⭐️ Rarity", callback_data="set_rarity")
         ],
         [
-            InlineKeyboardButton("⭐️ Rarity", callback_data="set_rarity"),
-            InlineKeyboardButton("📤 Upload", callback_data="upload")
-        ],
-        [
+            InlineKeyboardButton("📤 Upload", callback_data="upload"),
             InlineKeyboardButton("❌ Close", callback_data="close")
         ]
     ])
@@ -111,14 +119,14 @@ def rarity_buttons():
     ])
 
 
-# ---------------- COMMAND ----------------
-
-@Client.on_message(filters.command("ai") & allowed_filter)
+@Client.on_message(filters.command("ai", config.COMMAND_PREFIX) & allowed_filter)
 async def ai_search(client: Client, message: Message):
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: /ai <tag>")
 
     tag = message.text.split(maxsplit=1)[1].strip()
+    debug(f"Search started: {tag}")
+
     msg = await message.reply_text("🔍 Searching Aibooru...")
 
     posts = await fetch_posts(tag)
@@ -127,7 +135,7 @@ async def ai_search(client: Client, message: Message):
 
     img = get_best_image(posts[0])
     if not img:
-        return await msg.edit_text("❌ First post has no valid image.")
+        return await msg.edit_text("❌ Invalid first image.")
 
     SESSIONS[message.from_user.id] = {
         "tag": tag,
@@ -141,13 +149,10 @@ async def ai_search(client: Client, message: Message):
 
     await msg.delete()
     await message.reply_photo(
-        img,
+        photo=img,
         caption=f"🏷 `{tag}`",
         reply_markup=nav_buttons(0, len(posts))
     )
-
-
-# ---------------- CALLBACKS ----------------
 
 @Client.on_callback_query(allowed_filter)
 async def ai_callbacks(client: Client, cb: CallbackQuery):
@@ -174,20 +179,14 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
     elif cb.data == "img_next" and index < len(posts) - 1:
         data["index"] += 1
 
-    # PAGE NEXT
+    # NEXT PAGE (REAL PAGINATION)
     elif cb.data == "page_next":
         last_id = posts[-1]["id"]
         new_posts = await fetch_posts(data["tag"], last_id)
-
         if not new_posts:
             return await cb.answer("No more pages")
-
         data["posts"] = new_posts
         data["index"] = 0
-
-    # PAGE PREV
-    elif cb.data == "page_prev":
-        return await cb.answer("⬅️ Previous page not supported")
 
     # RARITY
     elif cb.data == "set_rarity":
@@ -204,17 +203,13 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
     elif cb.data == "upload":
         data["await"] = "name_anime"
         return await cb.message.reply_text(
-            "✍️ Send in ONE message:\n\n"
-            "`Name | Anime`\n\n"
-            "Example:\n"
-            "`Makima | Chainsaw Man`",
+            "✍️ Send in ONE message:\n\n`Name | Anime`",
             parse_mode=enums.ParseMode.MARKDOWN
         )
 
     # UPDATE IMAGE
     post = data["posts"][data["index"]]
     img = get_best_image(post)
-
     if not img:
         return await cb.answer("⚠️ Invalid media skipped")
 
@@ -231,10 +226,7 @@ async def ai_callbacks(client: Client, cb: CallbackQuery):
             reply_markup=nav_buttons(data["index"], len(posts))
         )
     except:
-        return await cb.answer("⚠️ Skip duplicate edit")
-
-
-# ---------------- TEXT INPUT HANDLER ----------------
+        await cb.answer("⚠️ Duplicate edit skipped")
 
 @Client.on_message(allowed_filter & filters.text & ~filters.command(["ai"]))
 async def name_anime_handler(client: Client, message: Message):
@@ -251,16 +243,13 @@ async def name_anime_handler(client: Client, message: Message):
     parts = [p.strip() for p in message.text.split("|")]
     if len(parts) != 2:
         return await message.reply_text(
-            "❌ Invalid format.\nUse:\n`Name | Anime`",
+            "❌ Invalid format.\nUse: `Name | Anime`",
             parse_mode=enums.ParseMode.MARKDOWN
         )
 
     name, anime = parts
     post = data["posts"][data["index"]]
     img = get_best_image(post)
-
-    if not img:
-        return await message.reply_text("❌ Invalid image")
 
     caption = (
         f"Name: {name}\n"
@@ -269,7 +258,7 @@ async def name_anime_handler(client: Client, message: Message):
     )
 
     sent = await client.send_photo(
-        TG_WAIFU_CHANNEL,
+        config.TG_WAIFU_CHANNEL,
         img,
         caption=caption
     )
