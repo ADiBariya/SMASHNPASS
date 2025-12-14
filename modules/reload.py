@@ -4,6 +4,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 import config
 from helpers.utils import get_waifu_manager
+from main import user
 
 __MODULE__ = "Reload Waifus"
 __HELP__ = "/reload - Reload TG waifus without restarting bot"
