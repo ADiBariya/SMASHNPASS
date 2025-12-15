@@ -15,7 +15,7 @@ import config
 from database import db
 
 
-__MODULE__ = "AI Scraper"
+__MODULE__ = "𝐀𝐢"
 __HELP__ = """
 🖼️ **AI Image Scraper**
 
