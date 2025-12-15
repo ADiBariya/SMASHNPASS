@@ -10,7 +10,7 @@ import random
 import asyncio
 import inspect
 
-__MODULE__ = "Shop"
+__MODULE__ = "𝐒𝐡𝐨𝐩"
 __HELP__ = """
 🏪 **Shop Commands**
 
