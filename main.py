@@ -319,7 +319,7 @@ async def help_callback(client, cb):
                 row = []
         if row:
             buttons.append(row)
-        buttons.append([InlineKeyboardButton("📋 All Commands", callback_data="help_all")])
+        buttons.append([InlineKeyboardButton("𝐁𝐀𝐂𝐊", callback_data="back_start")])
         await cb.message.edit_text("📚 **Help Menu**", reply_markup=InlineKeyboardMarkup(buttons))
         return
 
