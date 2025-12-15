@@ -20,7 +20,7 @@ from helpers import get_waifu_manager, Utils
 import config
 
 # Module info
-__MODULE__ = "Smash"
+__MODULE__ = "𝐒𝐦𝐚𝐬𝐡"
 __HELP__ = """
 🎮 **Smash Game**
 
