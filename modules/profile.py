@@ -12,7 +12,7 @@ from database import db
 import config
 import math
 
-__MODULE__ = "Profile"
+__MODULE__ = "𝐏𝐫𝐨𝐟𝐢𝐥𝐞"
 __HELP__ = """
 👤 **Profile Commands**
 /profile - View your profile
