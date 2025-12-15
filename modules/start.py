@@ -70,15 +70,15 @@ Tap **Play Now** to begin.
     # THEN: Send MENU BUTTONS in a SEPARATE message
     buttons = InlineKeyboardMarkup([
         [
-          InlineKeyboardButton("HELP", callback_data="show_help")
+          InlineKeyboardButton("𝐇𝐄𝐋𝐏", callback_data="help_back")
         ],
         [
             
-            InlineKeyboardButton("PLAY HERE", url=f"https://t.me/Waifusmashsupport"),
-            InlineKeyboardButton("UPDATE", url=f"https://t.me/Waifusmashupdates")
+            InlineKeyboardButton("𝐏𝐋𝐀𝐘 𝐇𝐄𝐑𝐄", url=f"https://t.me/Waifusmashsupport"),
+            InlineKeyboardButton("𝐔𝐏𝐃𝐀𝐓𝐄", url=f"https://t.me/Waifusmashupdates")
         ],
         [
-            InlineKeyboardButton("ADD TO GROUP",
+            InlineKeyboardButton("𝐀𝐃𝐃 𝐓𝐎 𝐆𝐑𝐎𝐔𝐏",
                 url=f"https://t.me/{config.BOT_USERNAME}?startgroup=true")
         ]
     ])
