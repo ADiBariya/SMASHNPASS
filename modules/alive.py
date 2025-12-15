@@ -14,7 +14,7 @@ import config
 from database import db
 
 # Module info
-__MODULE__ = "Awake"
+__MODULE__ = "𝐀𝐰𝐚𝐤𝐞"
 __HELP__ = """
 ✨ **Awake Commands**
 
