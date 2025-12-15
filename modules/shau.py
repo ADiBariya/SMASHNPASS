@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 #  MODULE INFO FOR HELP
 # ═══════════════════════════════════════════════════════════════════
 
-__MODULE__ = "Report & Tracking"
+__MODULE__ = "𝐑𝐞𝐩𝐨𝐫𝐭"
 __HELP__ = """
 📝 **Report & Tracking Commands**
 
