@@ -19,7 +19,7 @@ import config
 from datetime import datetime, timedelta
 import re
 
-__MODULE__ = "Collection & Trade"
+__MODULE__ = "𝐂𝐨𝐥𝐥𝐞𝐜𝐭𝐢𝐨𝐧"
 __HELP__ = """
 📦 **Collection Commands**
 • `/collection` - View your waifu collection
