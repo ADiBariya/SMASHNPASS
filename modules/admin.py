@@ -10,7 +10,7 @@ import json
 import os
 import asyncio
 
-__MODULE__ = "Admin"
+__MODULE__ = "𝐀𝐝𝐦𝐢𝐧"
 __HELP__ = """
 👑 **Admin Commands** (Owner Only)
 
