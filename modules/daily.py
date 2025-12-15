@@ -5,7 +5,7 @@ from config import COMMAND_PREFIX
 from datetime import datetime, timedelta
 import random
 
-__MODULE__ = "Daily"
+__MODULE__ = "𝐃𝐚𝐢𝐥𝐲"
 __HELP__ = """
 📅 **Daily Commands**
 
