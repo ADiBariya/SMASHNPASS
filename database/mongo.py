@@ -844,7 +844,42 @@ class Database:
         except Exception as e:
             logger.error(f"Error cleaning up invalid waifus: {e}")
             return 0
-    
+        # ═══════════════════════════════════════════════════════════════════
+    #  SHADI / MARRIAGE MODULE
+    # ═══════════════════════════════════════════════════════════════════
+
+    def get_user_marriage(self, user_id: int) -> dict:
+        user = self.users.find_one({"user_id": user_id})
+        return user.get("marriage", {}) if user else {}
+
+    def set_user_marriage(self, user_id: int, marriage_data: dict):
+        self.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"marriage": marriage_data}},
+            upsert=True
+        )
+
+    def clear_user_marriage(self, user_id: int):
+        self.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"marriage": {}}}
+        )
+
+    def get_user_data(self, user_id: int, key: str):
+        user = self.users.find_one({"user_id": user_id})
+        return user.get(key) if user else None
+
+    def set_user_data(self, user_id: int, key: str, value):
+        self.users.update_one(
+            {"user_id": user_id},
+            {"$set": {key: value}},
+            upsert=True
+        )
+
+    def get_user_marriage_stats(self, user_id: int) -> dict:
+        user = self.users.find_one({"user_id": user_id})
+        return user.get("marriage_stats", {}) if user else {}
+
     # ═══════════════════════════════════════════════════════════════════
     #  COOLDOWN OPERATIONS
     # ═══════════════════════════════════════════════════════════════════
@@ -1805,3 +1840,4 @@ class Database:
         return result.deleted_count
 
 db = Database()
+
