@@ -13,7 +13,7 @@ from config import OWNER_ID, GIT_REPO, GIT_BRANCH, GIT_TOKEN, TG_WAIFU_CHANNEL
 from database import db
 import time
 
-__MODULE__ = "Scrapper"
+__MODULE__ = "𝐒𝐜𝐫𝐚𝐩𝐩𝐞𝐫"
 __HELP__ = "/search <value> - Search Rule34 autocomplete (Owner Only)"
 
 # Headers for Autocomplete API
@@ -558,3 +558,4 @@ async def handle_rarity(client: Client, callback_query: CallbackQuery):
         
     except Exception as e:
         await status_msg.edit_text(f"❌ Critical Error: {str(e)}")
+
