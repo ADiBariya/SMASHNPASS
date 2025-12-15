@@ -21,7 +21,7 @@ async def get_user_name(client: Client, user_id: int, user_data: dict = None) ->
     except:
         return "Unknown"
 
-__MODULE__ = "Leaderboard"
+__MODULE__ = "𝐋𝐞𝐚𝐝𝐞𝐫𝐛𝐨𝐚𝐫𝐝"
 __HELP__ = """
 🏆 **Leaderboard Commands**
 
@@ -259,4 +259,5 @@ async def toprich_command(client: Client, message: Message):
     await message.reply_text(text)
 
 print("LEADERBOARD MODULE LOADED SUCCESSFULLY")
+
 
