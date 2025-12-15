@@ -52,11 +52,6 @@ def debug(msg):
     if DEBUG:
         print(f"🏠 [START] {msg}")
 
-
-# ═══════════════════════════════════════════════════════════════════
-#  /start Command
-# ═══════════════════════════════════════════════════════════════════
-
 @Client.on_message(filters.command("start", config.COMMAND_PREFIX))
 async def start_command(client: Client, message: Message):
     user = message.from_user
@@ -100,56 +95,6 @@ Tap **Play Now** to begin.
         debug(f"Image failed: {e}, sending text only")
         await message.reply_text(text, reply_markup=buttons)
     
-
-
-# ═══════════════════════════════════════════════════════════════════
-#  /help Command
-# ═══════════════════════════════════════════════════════════════════
-
-@Client.on_message(filters.command("help", config.COMMAND_PREFIX))
-async def help_command(client: Client, message: Message):
-    """Show help menu"""
-    debug(f"Help command from {message.from_user.id}")
-    
-    text = """
-📖 **Help Menu** 📖
-
-━━━━━━━━━━━━━━━━━━━━━
-🎮 **Game Commands**
-━━━━━━━━━━━━━━━━━━━━━
-├ `/smash` - Start a new game
-├ `/collection` - View your waifus
-├ `/profile` - Your profile
-├ `/stats` - Your statistics
-└ `/daily` - Claim daily reward
-
-━━━━━━━━━━━━━━━━━━━━━
-💰 **Economy**
-━━━━━━━━━━━━━━━━━━━━━
-├ `/balance` - Check coins
-├ `/shop` - Visit shop
-├ `/gift` - Gift waifu/coins
-└ `/trade` - Trade waifus
-
-━━━━━━━━━━━━━━━━━━━━━
-🏆 **Social**
-━━━━━━━━━━━━━━━━━━━━━
-├ `/top` - Leaderboard
-├ `/profile @user` - View profile
-└ `/ping` - Bot latency
-
-💡 **Tip:** Legendary waifus are super rare!
-"""
-    
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🔙 BACK", callback_data="back_start")
-        ]
-    ])
-    
-    await message.reply_text(text, reply_markup=buttons)
-
-
 # ═══════════════════════════════════════════════════════════════════
 #  /stats Command  
 # ═══════════════════════════════════════════════════════════════════
@@ -198,66 +143,7 @@ async def stats_command(client: Client, message: Message):
 
 # ═══════════════════════════════════════════════════════════════════
 #  CALLBACKS - All Fixed
-# ═══════════════════════════════════════════════════════════════════
-
-@Client.on_callback_query(filters.regex("^show_help$"))
-async def help_callback(client: Client, callback: CallbackQuery):
-    """Help menu callback - FIXED"""
-    user = callback.from_user
-    debug(f"Help callback from {user.first_name} ({user.id})")
-    
-    text = """
-📖 **Help Menu** 📖
-
-━━━━━━━━━━━━━━━━━━━━━
-🎮 **Game Commands**
-━━━━━━━━━━━━━━━━━━━━━
-├ `/smash` - Start a new game
-├ `/collection` - View your waifus
-├ `/profile` - Your profile
-├ `/stats` - Your statistics
-└ `/daily` - Claim daily reward
-
-━━━━━━━━━━━━━━━━━━━━━
-💰 **Economy**
-━━━━━━━━━━━━━━━━━━━━━
-├ `/balance` - Check coins
-├ `/shop` - Visit shop
-├ `/gift` - Gift waifu/coins
-└ `/trade` - Trade waifus
-
-━━━━━━━━━━━━━━━━━━━━━
-🏆 **Social**
-━━━━━━━━━━━━━━━━━━━━━
-├ `/top` - Leaderboard
-├ `/profile @user` - View profile
-└ `/ping` - Bot latency
-
-💡 **Tip:** Legendary waifus are super rare!
-"""
-    
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🔙 BACK", callback_data="back_start")
-        ]
-    ])
-    
-    try:
-        if callback.message.video:
-            await callback.message.edit_caption(caption=text, reply_markup=buttons)
-        else:
-            await callback.message.edit_text(text, reply_markup=buttons)
-        debug("Help menu displayed!")
-    except Exception as e:
-        debug(f"Help callback error: {e}")
-        # Try sending new message if edit fails
-        try:
-            await callback.message.reply_text(text, reply_markup=buttons)
-        except:
-            pass
-    
-    await callback.answer()
-
+# ══════════════════════════════════════════════════════════════════
 
 @Client.on_callback_query(filters.regex("^view_stats$"))
 async def view_stats_callback(client: Client, callback: CallbackQuery):
