@@ -7,7 +7,7 @@ from helpers import get_waifu_manager
 import config
 
 # Module info
-__MODULE__ = "Send"
+__MODULE__ = "𝐒𝐞𝐧𝐝"
 __HELP__ = """
 🎁 **Send Waifus (Owner/Sudo Only)**
 
