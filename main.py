@@ -284,7 +284,7 @@ async def help_cmd(client, message: Message):
             row = []
     if row:
         buttons.append(row)
-    buttons.append([InlineKeyboardButton("📋 All Commands", callback_data="help_all")])
+    buttons.append([InlineKeyboardButton("𝐁𝐀𝐂𝐊", callback_data="back_start")])
 
     caption = """
 📚 **Waifu Bot Help**
