@@ -16,7 +16,7 @@ import config
 from helpers import get_waifu_manager
 
 # Module info
-__MODULE__ = "AutoSpawn"
+__MODULE__ = "𝐀𝐮𝐭𝐨𝐒𝐩𝐚𝐰𝐧"
 __HELP__ = """
 🎲 **Auto Spawn System**
 
