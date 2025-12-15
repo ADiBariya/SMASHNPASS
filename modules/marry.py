@@ -17,7 +17,7 @@ import config
 MARRY_PAGE_SIZE = 6
 MARRY_DEFAULT_IMAGE = "https://files.catbox.moe/nelv7i.jpg"
 
-__MODULE__ = "Marry"
+__MODULE__ = "𝐌𝐚𝐫𝐫𝐲"
 __HELP__ = """
 💒 **Marriage Commands**
 
