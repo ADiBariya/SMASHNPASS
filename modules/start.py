@@ -35,7 +35,7 @@ def get_formatted_uptime():
     return " ".join(uptime_parts)
 
 # Module info
-__MODULE__ = "Start"
+__MODULE__ = "𝐒𝐭𝐚𝐫𝐭"
 __HELP__ = """
 🏠 **Start Commands**
 /start - Start the bot
