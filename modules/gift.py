@@ -6,7 +6,7 @@ from config import COMMAND_PREFIX
 from helpers.utils import get_rarity_emoji
 from datetime import datetime
 
-__MODULE__ = "Gift"
+__MODULE__ = "𝐆𝐢𝐟𝐭"
 __HELP__ = """
 🎁 **Gift Commands**
 
