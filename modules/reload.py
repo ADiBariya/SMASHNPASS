@@ -4,7 +4,7 @@ import config
 from helpers.utils import get_waifu_manager
 from core.user_client import user
 
-__MODULE__ = "Reload Waifus"
+__MODULE__ = "𝐑𝐞𝐥𝐨𝐚𝐝"
 __HELP__ = "/reload - Reload TG waifus without restarting bot"
 
 
