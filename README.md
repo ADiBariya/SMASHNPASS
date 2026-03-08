@@ -1,3 +1,4 @@
+18+
 # 💋 Waifu TG — Smash & Pass Game Bot
 
 > A cheeky, flirt-friendly Telegram game bot that plays the classic *Smash / Pass* with anime-style waifus. Designed to be playful, interactive, and (optionally) a little sultry — without crossing into explicit content.
