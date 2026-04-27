@@ -1,6 +1,6 @@
-# 🎴 SMASHNPASS — Waifu Smash & Pass Telegram Game Bot
+#  SMASHNPASS — Waifu Smash & Pass Telegram Game Bot
 
-> **⚠️ Age Restriction:** This bot contains suggestive, adult-oriented content.
+> **Age Restriction:** This bot contains suggestive, adult-oriented content.
 > Only deploy and use where all players are **18 years of age or older.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
@@ -19,7 +19,7 @@ Players collect characters, build their harem, earn coins, trade, marry, and com
 
 ---
 
-## 🔥 Key Features
+## Key Features
 
 | Feature | Description |
 |---|---|
@@ -38,7 +38,7 @@ Players collect characters, build their harem, earn coins, trade, marry, and com
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Runtime:** Python 3.10+ with `asyncio`
 - **Telegram Framework:** [Pyrogram](https://docs.pyrogram.org/) / [Pyrofork](https://github.com/KurimuzonAkuma/pyrogram)
@@ -49,7 +49,7 @@ Players collect characters, build their harem, earn coins, trade, marry, and com
 
 ---
 
-## ✅ Prerequisites
+## Prerequisites
 
 - Python **3.10 or higher**
 - A **Telegram Bot Token** (from [@BotFather](https://t.me/BotFather))
@@ -60,7 +60,7 @@ Players collect characters, build their harem, earn coins, trade, marry, and com
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### 1. Clone the repository
 
@@ -85,7 +85,7 @@ pip install -r requirements.txt
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 Copy the example environment file and fill in your values:
 
@@ -125,7 +125,7 @@ Additional game settings in [`config.py`](./config.py):
 
 ---
 
-## 🚀 Running the Bot
+## Running the Bot
 
 ```bash
 python -B main.py
@@ -152,9 +152,9 @@ worker: python -B main.py
 
 ---
 
-## 🕹️ Commands Reference
+## Commands Reference
 
-### 👤 User Commands
+### User Commands
 
 | Command | Description |
 |---|---|
@@ -184,7 +184,7 @@ worker: python -B main.py
 | `/stats` `/mystats` | Your personal statistics |
 | `/ping` | Check bot latency and uptime |
 
-### 👑 Admin / Owner Commands
+### Admin / Owner Commands
 
 | Command | Description |
 |---|---|
@@ -207,7 +207,7 @@ worker: python -B main.py
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 SMASHNPASS/
@@ -263,7 +263,7 @@ SMASHNPASS/
 
 ---
 
-## 🎴 Waifu Rarity System
+## Waifu Rarity System
 
 | Rarity | Emoji | Sell Value | Shop Box Cost | Marriage Chance |
 |---|---|---|---|---|
@@ -276,7 +276,7 @@ SMASHNPASS/
 
 ---
 
-## 🗃️ Waifu Data Format
+## Waifu Data Format
 
 The bot loads waifus from two sources simultaneously:
 
@@ -304,7 +304,7 @@ Rarity: <common|epic|legendary|rare>
 
 ---
 
-## 🔒 Security Notes
+## Security Notes
 
 - **Never commit your real `.env` values** to version control. The `.env` file in this repo contains placeholder values only; treat it as a template.
 - `BOT_TOKEN`, `API_HASH`, `MONGO_URI`, and `USER_SESSION` are sensitive credentials — rotate them immediately if exposed.
@@ -315,7 +315,7 @@ Rarity: <common|epic|legendary|rare>
 
 ---
 
-## 🧑‍💻 Development Workflow
+## Development Workflow
 
 1. Fork the repository and create a feature branch.
 2. Install dependencies in a virtual environment (`pip install -r requirements.txt`).
@@ -345,7 +345,7 @@ No further registration is required — `main.py` discovers and loads all `*.py`
 
 ---
 
-## 🧪 Testing
+## Testing
 
 There is currently no automated test suite in this repository.
 Manual testing workflow:
@@ -354,11 +354,11 @@ Manual testing workflow:
 2. Add the bot to a test Telegram group.
 3. Exercise commands via the Telegram client.
 
-> 💡 **Suggested improvement:** Add a CI/CD workflow with `pytest` and mock Pyrogram clients to cover core game logic.
+> **Suggested improvement:** Add a CI/CD workflow with `pytest` and mock Pyrogram clients to cover core game logic.
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [ ] Add CI/CD pipeline (GitHub Actions) for linting and basic tests
 - [ ] Persist auto-delete settings to MongoDB instead of a local JSON file
@@ -370,7 +370,7 @@ Manual testing workflow:
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions, issues, and feature requests are welcome!
 
@@ -384,7 +384,7 @@ Please follow the existing code style and test your changes in a private Telegra
 
 ---
 
-## 👥 Contributors
+## Contributors
 
 <a href="https://github.com/ADiBariya/SMASHNPASS/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=ADiBariya/SMASHNPASS" />
@@ -393,7 +393,7 @@ Please follow the existing code style and test your changes in a private Telegra
 
 ---
 
-## 📜 License
+## License
 
 Copyright © 2026 **ADi** & **Shaurya**
 
@@ -401,7 +401,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](./LICEN
 
 ---
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
 - [Pyrogram](https://docs.pyrogram.org/) / [Pyrofork](https://github.com/KurimuzonAkuma/pyrogram) — MTProto Telegram client
 - [MongoDB](https://www.mongodb.com/) — Database backend
