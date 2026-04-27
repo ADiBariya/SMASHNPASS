@@ -390,7 +390,6 @@ Please follow the existing code style and test your changes in a private Telegra
   <img src="https://contrib.rocks/image?repo=ADiBariya/SMASHNPASS" />
 </a>
 
-*Made with [contrib.rocks](https://contrib.rocks)*
 
 ---
 
