@@ -1,6 +1,3 @@
-
-# database/mongo.py - MongoDB Operations (FULLY UPDATED & ENHANCED)
-
 from pymongo import MongoClient, UpdateOne
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any, Tuple
@@ -9,7 +6,6 @@ import json
 import os
 import logging
 
-# Setup logger
 logger = logging.getLogger(__name__)
 
 
