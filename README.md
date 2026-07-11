@@ -1,6 +1,5 @@
 #  SMASHNPASS — Waifu Smash & Pass Telegram Game Bot
 
-> **Age Restriction:** This bot contains suggestive, adult-oriented content.
 > Only deploy and use where all players are **18 years of age or older.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
