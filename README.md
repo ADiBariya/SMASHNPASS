@@ -411,5 +411,3 @@ This project is licensed under the **MIT License** — see the [LICENSE](./LICEN
 
 ---
 
-> **Play responsibly. All participants must be 18+.**
-
